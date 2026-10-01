@@ -785,6 +785,8 @@ app.post(
 
       res.json({
         success: true,
+         challengeId: id,
+  resendAvailableIn: 60,
         message: "Verification code sent.",
       });
     } catch (error) {
