@@ -756,7 +756,6 @@ app.post(
           user.id,
           codeHash,
           now + otpTtlMs,
-          0,
           now,
         );
 
