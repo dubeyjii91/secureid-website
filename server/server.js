@@ -997,7 +997,7 @@ setInterval(() => {
     .run(now);
 }, 60 * 60 * 1000).unref();
 
-app.get("*", (req, res) => {
+app.get("/{*splat}", (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 app.listen(port, () => {
