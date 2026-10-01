@@ -1,4 +1,6 @@
-﻿import "dotenv/config";
+﻿import path from "node:path";
+import { fileURLToPath } from "node:url";
+import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
 import {
@@ -12,8 +14,13 @@ import {
 import { database } from "./database.js";
 
 const isProduction = process.env.NODE_ENV === "production";
+
 const app = express();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, "..", "dist");
+app.use(express.static(distPath));
 if (isProduction) {
   app.set("trust proxy", 1);
 }
@@ -990,6 +997,9 @@ setInterval(() => {
     .run(now);
 }, 60 * 60 * 1000).unref();
 
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
 app.listen(port, () => {
   console.log(
     JSON.stringify({
