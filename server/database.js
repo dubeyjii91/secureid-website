@@ -17,7 +17,15 @@ database.exec(`
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    otp_last_sent_at INTEGER NOT NULL DEFAULT 0
+    otp_last_sent_at INTEGER NOT NULL DEFAULT 0,
+    name TEXT,
+    age INTEGER,
+    date_of_birth TEXT,
+    phone_number TEXT,
+    address TEXT,
+    college_institution TEXT,
+    student_id TEXT,
+    government_id_masked TEXT
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -53,6 +61,16 @@ database.exec(`
     hits INTEGER NOT NULL,
     reset_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS wallet_shares (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    share_token TEXT NOT NULL UNIQUE,
+    share_data TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS wallet_shares_user_id ON wallet_shares(user_id);
 `);
 
 const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all().map((column) => column.name);
@@ -65,4 +83,13 @@ if (!userColumns.includes("otp_last_sent_at")) {
   database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
 }
 
+// Add profile columns if they don't exist
+const profileFields = ["name", "age", "date_of_birth", "phone_number", "address", "college_institution", "student_id", "government_id_masked"];
+profileFields.forEach(field => {
+  if (!userColumns.includes(field)) {
+    database.exec(`ALTER TABLE users ADD COLUMN ${field} TEXT`);
+  }
+});
+
 export { databasePath };
+

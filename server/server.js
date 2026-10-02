@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
 import express from "express";
@@ -59,6 +59,8 @@ const otpPepper =
 const sessionCookieName = isProduction
   ? "__Host-secureid.sid"
   : "secureid.sid";
+
+const walletShareTtlMs = 24 * 60 * 60 * 1000;
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("PORT must be between 1 and 65535.");
@@ -494,6 +496,39 @@ async function deliverOtp(email, code) {
   }
 }
 
+function buildWalletResponse(userId) {
+  const user = database
+    .prepare(
+      "SELECT * FROM users WHERE id = ?",
+    )
+    .get(userId);
+
+  const defaultShare = {
+    name: true,
+    age: false,
+    dateOfBirth: false,
+    identityId: true,
+    verificationStatus: false,
+    email: false,
+    phoneNumber: false,
+    address: false,
+    collegeInstitution: false,
+    studentId: false,
+    governmentId: false,
+  };
+
+  const risk = 18;
+  const locked = false;
+
+  return {
+    wallet: {
+      risk,
+      locked,
+      shareData: defaultShare,
+    },
+  };
+}
+
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
@@ -649,9 +684,11 @@ app.get(
   requireAuth,
   perUserSessionReadLimit,
   (req, res) => {
+    const walletData = buildWalletResponse(req.user.id);
     res.json({
       success: true,
       user: req.user,
+      wallet: walletData.wallet,
     });
   },
 );
@@ -955,6 +992,121 @@ app.post(
   },
 );
 
+app.post(
+  "/api/wallet/lock",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      if (typeof req.body?.locked !== "boolean") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid request.",
+        });
+      }
+
+      database
+        .prepare(
+          "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          req.body.locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",
+          Date.now(),
+        );
+
+      const walletData = buildWalletResponse(req.user.id);
+      const wallet = { ...walletData.wallet, locked: req.body.locked };
+
+      res.json({
+        success: true,
+        wallet,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.post(
+  "/api/wallet/share",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      if (!req.user.mfaVerified) {
+        return res.status(403).json({
+          success: false,
+          message: "MFA verification required.",
+        });
+      }
+
+      const shareData = req.body;
+
+      if (!shareData || typeof shareData !== "object") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid share data.",
+        });
+      }
+
+      const validKeys = ["name", "age", "dateOfBirth", "identityId", "verificationStatus", "email", "phoneNumber", "address", "collegeInstitution", "studentId", "governmentId"];
+      const keys = Object.keys(shareData);
+      const validRequest = keys.every(k => validKeys.includes(k));
+
+      if (!validRequest) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid share fields.",
+        });
+      }
+
+      const shareToken = randomBytes(32).toString("base64url");
+      const now = Date.now();
+
+      database
+        .prepare(
+          "INSERT INTO wallet_shares (id, user_id, share_token, share_data, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          shareToken,
+          JSON.stringify(shareData),
+          now,
+          now + walletShareTtlMs,
+        );
+
+      database
+        .prepare(
+          "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          "SHARE_CREATED",
+          now,
+        );
+
+      const walletData = buildWalletResponse(req.user.id);
+      const wallet = { ...walletData.wallet, shareData };
+
+      res.json({
+        success: true,
+        shareToken,
+        wallet,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 app.use((error, req, res, next) => {
   console.error(
     JSON.stringify({
@@ -996,6 +1148,12 @@ setInterval(() => {
       "DELETE FROM otp_challenges WHERE expires_at <= ?",
     )
     .run(now);
+
+  database
+    .prepare(
+      "DELETE FROM wallet_shares WHERE expires_at <= ?",
+    )
+    .run(now);
 }, 60 * 60 * 1000).unref();
 
 app.get("/{*splat}", (req, res) => {
@@ -1015,3 +1173,4 @@ app.listen(port, () => {
     }),
   );
 });
+
