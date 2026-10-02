@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
 import express from "express";
@@ -250,6 +250,45 @@ function createSession(userId, res) {
   setSessionCookie(res, token);
 
   return token;
+}
+
+function getOrCreateWallet(userId) {
+  const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phoneNumber: false, address: false, collegeInstitution: false, studentId: false, governmentId: false };
+  
+  let wallet = database
+    .prepare("SELECT * FROM wallets WHERE user_id = ?")
+    .get(userId);
+
+  if (!wallet) {
+    const now = Date.now();
+    const walletId = randomUUID();
+    database
+      .prepare(
+        "INSERT INTO wallets (id, user_id, locked, share_data, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)",
+      )
+      .run(
+        walletId,
+        userId,
+        JSON.stringify(defaultShare),
+        now,
+        now,
+      );
+
+    wallet = {
+      id: walletId,
+      user_id: userId,
+      locked: 0,
+      share_data: JSON.stringify(defaultShare),
+      created_at: now,
+      updated_at: now,
+    };
+  }
+
+  return {
+    risk: 18,
+    locked: Boolean(wallet.locked),
+    shareData: JSON.parse(wallet.share_data || "{}"),
+  };
 }
 
 function requireAuth(req, res, next) {
@@ -649,9 +688,11 @@ app.get(
   requireAuth,
   perUserSessionReadLimit,
   (req, res) => {
+    const wallet = getOrCreateWallet(req.user.id);
     res.json({
       success: true,
       user: req.user,
+      wallet,
     });
   },
 );
@@ -955,6 +996,136 @@ app.post(
   },
 );
 
+app.post(
+  "/api/wallet/lock",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      const locked = req.body?.locked;
+      if (typeof locked !== "boolean") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid lock state.",
+        });
+      }
+
+      const now = Date.now();
+      const walletId = randomUUID();
+      const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phoneNumber: false, address: false, collegeInstitution: false, studentId: false, governmentId: false };
+
+      database
+        .prepare(
+          "INSERT OR REPLACE INTO wallets (id, user_id, locked, share_data, created_at, updated_at) VALUES ((SELECT id FROM wallets WHERE user_id = ?), ?, ?, (SELECT share_data FROM wallets WHERE user_id = ?), (SELECT created_at FROM wallets WHERE user_id = ?), ?)",
+        )
+        .run(
+          req.user.id,
+          req.user.id,
+          locked ? 1 : 0,
+          req.user.id,
+          req.user.id,
+          now,
+        );
+
+      const wallet = getOrCreateWallet(req.user.id);
+
+      database
+        .prepare(
+          "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",
+          now,
+        );
+
+      res.json({
+        success: true,
+        wallet,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.post(
+  "/api/wallet/share",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      if (!req.user.mfaVerified) {
+        return res.status(403).json({
+          success: false,
+          message: "MFA verification required.",
+        });
+      }
+
+      const wallet = database
+        .prepare("SELECT locked FROM wallets WHERE user_id = ?")
+        .get(req.user.id);
+
+      if (wallet && wallet.locked) {
+        return res.status(403).json({
+          success: false,
+          message: "Wallet is locked.",
+        });
+      }
+
+      const shareData = req.body;
+      if (typeof shareData !== "object" || shareData === null) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid share data.",
+        });
+      }
+
+      const now = Date.now();
+      const shareToken = randomBytes(32).toString("base64url");
+
+      database
+        .prepare(
+          "INSERT OR REPLACE INTO wallets (id, user_id, locked, share_data, created_at, updated_at) VALUES ((SELECT id FROM wallets WHERE user_id = ?), ?, (SELECT locked FROM wallets WHERE user_id = ?), ?, (SELECT created_at FROM wallets WHERE user_id = ?), ?)",
+        )
+        .run(
+          req.user.id,
+          req.user.id,
+          req.user.id,
+          JSON.stringify(shareData),
+          req.user.id,
+          now,
+        );
+
+      database
+        .prepare(
+          "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          "SHARE_CREATED",
+          now,
+        );
+
+      const updatedWallet = getOrCreateWallet(req.user.id);
+
+      res.json({
+        success: true,
+        wallet: updatedWallet,
+        shareToken,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 app.use((error, req, res, next) => {
   console.error(
     JSON.stringify({
@@ -1015,3 +1186,4 @@ app.listen(port, () => {
     }),
   );
 });
+
