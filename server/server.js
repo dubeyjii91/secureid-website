@@ -1,8 +1,8 @@
-﻿import path from "node:path";
-import { fileURLToPath } from "node:url";
-import "dotenv/config";
-import express from "express";
-import bcrypt from "bcryptjs";
+import path from \"node:path\";
+import { fileURLToPath } from \"node:url\";
+import \"dotenv/config\";
+import express from \"express\";
+import bcrypt from \"bcryptjs\";
 import {
   createHash,
   createHmac,
@@ -10,25 +10,25 @@ import {
   randomInt,
   randomUUID,
   timingSafeEqual,
-} from "node:crypto";
-import { database } from "./database.js";
+} from \"node:crypto\";
+import { database } from \"./database.js\";
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction = process.env.NODE_ENV === \"production\";
 
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const distPath = path.join(__dirname, "..", "dist");
+const distPath = path.join(__dirname, \"..\", \"dist\");
 app.use(express.static(distPath));
 if (isProduction) {
-  app.set("trust proxy", 1);
+  app.set(\"trust proxy\", 1);
 }
 
-app.disable("x-powered-by");
+app.disable(\"x-powered-by\");
 
 const port = Number(process.env.PORT || 5000);
-const appOrigin = process.env.APP_ORIGIN || "http://127.0.0.1:5173";
+const appOrigin = process.env.APP_ORIGIN || \"http://127.0.0.1:5173\";
 
 const sessionTtlMs = 8 * 60 * 60 * 1000;
 const mfaVerifiedTtlMs = 30 * 60 * 1000;
@@ -38,10 +38,10 @@ const otpTtlMs =
 
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
 const otpDelivery =
-  process.env.OTP_DELIVERY || (isProduction ? "resend" : "console");
+  process.env.OTP_DELIVERY || (isProduction ? \"resend\" : \"console\");
 
-const resendApiKey = process.env.RESEND_API_KEY || "";
-const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const resendApiKey = process.env.RESEND_API_KEY || \"\";
+const otpFromEmail = process.env.OTP_FROM_EMAIL || \"\";
 
 const bcryptRounds = Math.min(
   15,
@@ -50,71 +50,71 @@ const bcryptRounds = Math.min(
 
 const sessionPepper =
   process.env.SESSION_HASH_SECRET ||
-  (!isProduction ? randomBytes(32).toString("hex") : "");
+  (!isProduction ? randomBytes(32).toString(\"hex\") : \"\");
 
 const otpPepper =
   process.env.OTP_HASH_SECRET ||
-  (!isProduction ? randomBytes(32).toString("hex") : "");
+  (!isProduction ? randomBytes(32).toString(\"hex\") : \"\");
 
 const sessionCookieName = isProduction
-  ? "__Host-secureid.sid"
-  : "secureid.sid";
+  ? \"__Host-secureid.sid\"
+  : \"secureid.sid\";
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error("PORT must be between 1 and 65535.");
+  throw new Error(\"PORT must be between 1 and 65535.\");
 }
 
 if (!sessionPepper || sessionPepper.length < 32) {
-  throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
+  throw new Error(\"SESSION_HASH_SECRET must be at least 32 characters.\");
 }
 
 if (!otpPepper || otpPepper.length < 32) {
-  throw new Error("OTP_HASH_SECRET must be at least 32 characters.");
+  throw new Error(\"OTP_HASH_SECRET must be at least 32 characters.\");
 }
 
-if (!isProduction && !["console", "resend"].includes(otpDelivery)) {
-  throw new Error("OTP_DELIVERY must be console or resend.");
+if (!isProduction && ![\"console\", \"resend\"].includes(otpDelivery)) {
+  throw new Error(\"OTP_DELIVERY must be console or resend.\");
 }
 
-if (isProduction && otpDelivery !== "resend") {
-  throw new Error("Production requires OTP_DELIVERY=resend.");
+if (isProduction && otpDelivery !== \"resend\") {
+  throw new Error(\"Production requires OTP_DELIVERY=resend.\");
 }
 
 if (
-  otpDelivery === "resend" &&
+  otpDelivery === \"resend\" &&
   (!resendApiKey || !otpFromEmail)
 ) {
   throw new Error(
-    "RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.",
+    \"RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.\",
   );
 }
 
-if (isProduction && !appOrigin.startsWith("https://")) {
-  throw new Error("APP_ORIGIN must use HTTPS in production.");
+if (isProduction && !appOrigin.startsWith(\"https://\")) {
+  throw new Error(\"APP_ORIGIN must use HTTPS in production.\");
 }
 
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: \"32kb\" }));
 
 app.use((req, res, next) => {
   const requestId = randomUUID();
-  if (req.path === "/api/mfa/challenge") console.log("[MFA REQUEST REACHED BACKEND]", req.method, req.headers.origin);
+  if (req.path === \"/api/mfa/challenge\") console.log(\"[MFA REQUEST REACHED BACKEND]\", req.method, req.headers.origin);
 
-  res.setHeader("X-Request-Id", requestId);
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(\"X-Request-Id\", requestId);
+  res.setHeader(\"X-Content-Type-Options\", \"nosniff\");
+  res.setHeader(\"X-Frame-Options\", \"DENY\");
+  res.setHeader(\"Referrer-Policy\", \"strict-origin-when-cross-origin\");
   res.setHeader(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()",
+    \"Permissions-Policy\",
+    \"camera=(), microphone=(), geolocation=()\",
   );
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader(\"Cross-Origin-Opener-Policy\", \"same-origin\");
+  res.setHeader(\"Cross-Origin-Resource-Policy\", \"same-site\");
+  res.setHeader(\"Cache-Control\", \"no-store\");
 
   if (isProduction) {
     res.setHeader(
-      "Strict-Transport-Security",
-      "max-age=31536000; includeSubDomains",
+      \"Strict-Transport-Security\",
+      \"max-age=31536000; includeSubDomains\",
     );
   }
 
@@ -127,8 +127,8 @@ function allowedOrigin(origin) {
   if (!isProduction) {
     return (
       origin === appOrigin ||
-      origin === "http://localhost:5173" ||
-      origin === "http://127.0.0.1:5173"
+      origin === \"http://localhost:5173\" ||
+      origin === \"http://127.0.0.1:5173\"
     );
   }
 
@@ -136,21 +136,21 @@ function allowedOrigin(origin) {
 }
 
 app.use((req, res, next) => {
-  const origin = req.get("origin");
+  const origin = req.get(\"origin\");
 
   if (origin && allowedOrigin(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader(\"Access-Control-Allow-Origin\", origin);
   }
 
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(\"Vary\", \"Origin\");
+  res.setHeader(\"Access-Control-Allow-Credentials\", \"true\");
   res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS",
+    \"Access-Control-Allow-Methods\",
+    \"GET,POST,OPTIONS\",
   );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader(\"Access-Control-Allow-Headers\", \"Content-Type\");
 
-  if (req.method === "OPTIONS") {
+  if (req.method === \"OPTIONS\") {
     return res.sendStatus(
       origin && allowedOrigin(origin) ? 204 : 403,
     );
@@ -162,12 +162,12 @@ app.use((req, res, next) => {
 function enforceSameOrigin(req, res, next) {
   if (!isProduction) return next();
 
-  const origin = req.get("origin");
+  const origin = req.get(\"origin\");
 
   if (origin !== appOrigin) {
     return res.status(403).json({
       success: false,
-      message: "Request origin is not allowed.",
+      message: \"Request origin is not allowed.\",
     });
   }
 
@@ -175,70 +175,70 @@ function enforceSameOrigin(req, res, next) {
 }
 
 function getCookie(req, name) {
-  const raw = req.headers.cookie || "";
+  const raw = req.headers.cookie || \"\";
 
-  for (const part of raw.split(";")) {
-    const [key, ...value] = part.trim().split("=");
+  for (const part of raw.split(\";\")) {
+    const [key, ...value] = part.trim().split(\"=\");
 
     if (key === name) {
-      return decodeURIComponent(value.join("="));
+      return decodeURIComponent(value.join(\"=\"));
     }
   }
 
-  return "";
+  return \"\";
 }
 
 function hashSessionToken(token) {
-  return createHmac("sha256", sessionPepper)
+  return createHmac(\"sha256\", sessionPepper)
     .update(token)
-    .digest("hex");
+    .digest(\"hex\");
 }
 
 function hashOtpCode(code, userId, challengeId) {
-  return createHmac("sha256", otpPepper)
+  return createHmac(\"sha256\", otpPepper)
     .update(`${userId}:${challengeId}:${code}`)
-    .digest("hex");
+    .digest(\"hex\");
 }
 
 function setSessionCookie(res, token, maxAgeMs = sessionTtlMs) {
   const parts = [
     `${sessionCookieName}=${encodeURIComponent(token)}`,
-    "Path=/",
+    \"Path=/\",
     `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
-    "HttpOnly",
-    "SameSite=Strict",
+    \"HttpOnly\",
+    \"SameSite=Strict\",
   ];
 
   if (isProduction) {
-    parts.push("Secure");
+    parts.push(\"Secure\");
   }
 
-  res.setHeader("Set-Cookie", parts.join("; "));
+  res.setHeader(\"Set-Cookie\", parts.join(\"; \"));
 }
 
 function clearSessionCookie(res) {
   const parts = [
     `${sessionCookieName}=`,
-    "Path=/",
-    "Max-Age=0",
-    "HttpOnly",
-    "SameSite=Strict",
+    \"Path=/\",
+    \"Max-Age=0\",
+    \"HttpOnly\",
+    \"SameSite=Strict\",
   ];
 
   if (isProduction) {
-    parts.push("Secure");
+    parts.push(\"Secure\");
   }
 
-  res.setHeader("Set-Cookie", parts.join("; "));
+  res.setHeader(\"Set-Cookie\", parts.join(\"; \"));
 }
 
 function createSession(userId, res) {
-  const token = randomBytes(32).toString("base64url");
+  const token = randomBytes(32).toString(\"base64url\");
   const now = Date.now();
 
   database
     .prepare(
-      "INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until) VALUES (?, ?, ?, ?, 0)",
+      \"INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until) VALUES (?, ?, ?, ?, 0)\",
     )
     .run(
       hashSessionToken(token),
@@ -258,7 +258,7 @@ function requireAuth(req, res, next) {
   if (!token || token.length < 20 || token.length > 200) {
     return res.status(401).json({
       success: false,
-      message: "Sign in to continue.",
+      message: \"Sign in to continue.\",
     });
   }
 
@@ -283,14 +283,14 @@ function requireAuth(req, res, next) {
 
   if (!row || Number(row.expires_at) <= Date.now()) {
     database
-      .prepare("DELETE FROM sessions WHERE token_hash = ?")
+      .prepare(\"DELETE FROM sessions WHERE token_hash = ?\")
       .run(tokenHash);
 
     clearSessionCookie(res);
 
     return res.status(401).json({
       success: false,
-      message: "Session expired. Please sign in again.",
+      message: \"Session expired. Please sign in again.\",
     });
   }
 
@@ -307,7 +307,7 @@ function requireAuth(req, res, next) {
 }
 
 function getClientKey(req) {
-  return req.ip || req.socket.remoteAddress || "unknown";
+  return req.ip || req.socket.remoteAddress || \"unknown\";
 }
 
 function createRateLimit(
@@ -319,23 +319,23 @@ function createRateLimit(
   return (req, res, next) => {
     const identity = getIdentity(req);
 
-    const key = `${name}:${createHash("sha256")
+    const key = `${name}:${createHash(\"sha256\")
       .update(identity)
-      .digest("hex")
+      .digest(\"hex\")
       .slice(0, 32)}`;
 
     const now = Date.now();
 
     const current = database
       .prepare(
-        "SELECT hits, reset_at FROM rate_limits WHERE bucket_key = ?",
+        \"SELECT hits, reset_at FROM rate_limits WHERE bucket_key = ?\",
       )
       .get(key);
 
     if (!current || Number(current.reset_at) <= now) {
       database
         .prepare(
-          "INSERT OR REPLACE INTO rate_limits (bucket_key, hits, reset_at) VALUES (?, ?, ?)",
+          \"INSERT OR REPLACE INTO rate_limits (bucket_key, hits, reset_at) VALUES (?, ?, ?)\",
         )
         .run(key, 1, now + windowMs);
 
@@ -345,13 +345,13 @@ function createRateLimit(
     if (Number(current.hits) >= maxHits) {
       return res.status(429).json({
         success: false,
-        message: "Too many requests. Please try again later.",
+        message: \"Too many requests. Please try again later.\",
       });
     }
 
     database
       .prepare(
-        "UPDATE rate_limits SET hits = hits + 1 WHERE bucket_key = ?",
+        \"UPDATE rate_limits SET hits = hits + 1 WHERE bucket_key = ?\",
       )
       .run(key);
 
@@ -362,71 +362,71 @@ function createRateLimit(
 const window15m = 15 * 60 * 1000;
 
 const perIpAuthLimit = createRateLimit(
-  "auth-ip",
+  \"auth-ip\",
   10,
   window15m,
   getClientKey,
 );
 
 const perAccountAuthLimit = createRateLimit(
-  "auth-account",
+  \"auth-account\",
   10,
   window15m,
   (req) =>
-    String(req.body?.email || "unknown").toLowerCase(),
+    String(req.body?.email || \"unknown\").toLowerCase(),
 );
 
 const perIpOtpLimit = createRateLimit(
-  "otp-ip",
+  \"otp-ip\",
   5,
   window15m,
   getClientKey,
 );
 
 const perUserOtpLimit = createRateLimit(
-  "otp-user",
+  \"otp-user\",
   5,
   window15m,
   (req) => req.user?.id || getClientKey(req),
 );
 
 const perIpOtpVerifyLimit = createRateLimit(
-  "otp-verify-ip",
+  \"otp-verify-ip\",
   20,
   window15m,
   getClientKey,
 );
 
 const perUserOtpVerifyLimit = createRateLimit(
-  "otp-verify-user",
+  \"otp-verify-user\",
   20,
   window15m,
   (req) => req.user?.id || getClientKey(req),
 );
 
 const perIpSessionReadLimit = createRateLimit(
-  "session-read-ip",
+  \"session-read-ip\",
   40,
   window15m,
   getClientKey,
 );
 
 const perUserSessionReadLimit = createRateLimit(
-  "session-read-user",
+  \"session-read-user\",
   20,
   window15m,
   (req) => req.user?.id || getClientKey(req),
 );
 
 const perIpSessionActionLimit = createRateLimit(
-  "session-action-ip",
+  \"session-action-ip\",
   40,
   window15m,
   getClientKey,
 );
 
 const perUserSessionActionLimit = createRateLimit(
-  "session-action-user",
+  \"session-action-user\",
   20,
   window15m,
   (req) => req.user?.id || getClientKey(req),
@@ -434,24 +434,24 @@ const perUserSessionActionLimit = createRateLimit(
 
 function validateEmail(email) {
   return (
-    typeof email === "string" &&
+    typeof email === \"string\" &&
     email.length <= 254 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)
   );
 }
 
 function validatePassword(password) {
-  if (typeof password !== "string") {
+  if (typeof password !== \"string\") {
     return false;
   }
 
-  const bytes = Buffer.byteLength(password, "utf8");
+  const bytes = Buffer.byteLength(password, \"utf8\");
 
   return bytes >= 12 && bytes <= 72;
 }
 
 async function deliverOtp(email, code) {
-  if (otpDelivery === "console" && !isProduction) {
+  if (otpDelivery === \"console\" && !isProduction) {
     console.log(
       `[SecureID DEV OTP] ${email}: ${code}`,
     );
@@ -460,17 +460,17 @@ async function deliverOtp(email, code) {
   }
 
   const response = await fetch(
-    "https://api.resend.com/emails",
+    \"https://api.resend.com/emails\",
     {
-      method: "POST",
+      method: \"POST\",
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
+        \"Content-Type\": \"application/json\",
       },
       body: JSON.stringify({
         from: otpFromEmail,
         to: [email],
-        subject: "Your SecureID verification code",
+        subject: \"Your SecureID verification code\",
         text: `Your SecureID verification code is ${code}. It expires in 5 minutes.`,
       }),
     },
@@ -481,8 +481,8 @@ async function deliverOtp(email, code) {
 
     console.error(
       JSON.stringify({
-        level: "error",
-        event: "otp_delivery_failed",
+        level: \"error\",
+        event: \"otp_delivery_failed\",
         status: response.status,
         response: errorText,
       }),
@@ -494,22 +494,22 @@ async function deliverOtp(email, code) {
   }
 }
 
-app.get("/api/health", (req, res) => {
+app.get(\"/api/health\", (req, res) => {
   res.json({
     success: true,
-    message: "SecureID API is running",
+    message: \"SecureID API is running\",
   });
 });
 
 app.post(
-  "/api/auth/register",
+  \"/api/auth/register\",
   enforceSameOrigin,
   perIpAuthLimit,
   perAccountAuthLimit,
   async (req, res, next) => {
     try {
       const email = String(
-        req.body?.email || "",
+        req.body?.email || \"\",
       )
         .trim()
         .toLowerCase();
@@ -519,20 +519,20 @@ app.post(
       if (!validateEmail(email)) {
         return res.status(400).json({
           success: false,
-          message: "Please enter a valid email address.",
+          message: \"Please enter a valid email address.\",
         });
       }
 
       if (!validatePassword(password)) {
         return res.status(400).json({
           success: false,
-          message: "Password must be 12 to 72 bytes long.",
+          message: \"Password must be 12 to 72 bytes long.\",
         });
       }
 
       const existing = database
         .prepare(
-          "SELECT id FROM users WHERE email = ? COLLATE NOCASE",
+          \"SELECT id FROM users WHERE email = ? COLLATE NOCASE\",
         )
         .get(email);
 
@@ -540,7 +540,7 @@ app.post(
         return res.status(409).json({
           success: false,
           message:
-            "An account with this email already exists.",
+            \"An account with this email already exists.\",
         });
       }
 
@@ -552,7 +552,7 @@ app.post(
 
       database
         .prepare(
-          "INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)",
+          \"INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)\",
         )
         .run(
           id,
@@ -574,14 +574,14 @@ app.post(
 );
 
 app.post(
-  "/api/auth/login",
+  \"/api/auth/login\",
   enforceSameOrigin,
   perIpAuthLimit,
   perAccountAuthLimit,
   async (req, res, next) => {
     try {
       const email = String(
-        req.body?.email || "",
+        req.body?.email || \"\",
       )
         .trim()
         .toLowerCase();
@@ -590,22 +590,22 @@ app.post(
 
       if (
         !validateEmail(email) ||
-        typeof password !== "string"
+        typeof password !== \"string\"
       ) {
         return res.status(401).json({
           success: false,
-          message: "Email or password is incorrect.",
+          message: \"Email or password is incorrect.\",
         });
       }
 
       const row = database
         .prepare(
-          "SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE",
+          \"SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE\",
         )
         .get(email);
 
         const dummyHash = bcrypt.hashSync(
-  "SecureIDDummyPassword!2026",
+  \"SecureIDDummyPassword!2026\",
   bcryptRounds,
       );
 
@@ -617,7 +617,7 @@ app.post(
       if (!row || !valid) {
         return res.status(401).json({
           success: false,
-          message: "Email or password is incorrect.",
+          message: \"Email or password is incorrect.\",
         });
       }
 
@@ -625,12 +625,12 @@ app.post(
 
 database
   .prepare(
-    "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+    \"INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)\",
   )
   .run(
     randomUUID(),
     row.id,
-    "LOGIN_SUCCESS",
+    \"LOGIN_SUCCESS\",
     Date.now(),
   );
       res.json({
@@ -644,7 +644,7 @@ database
 );
 
 app.get(
-  "/api/auth/session",
+  \"/api/auth/session\",
   perIpSessionReadLimit,
   requireAuth,
   perUserSessionReadLimit,
@@ -657,7 +657,7 @@ app.get(
 );
 
 app.post(
-  "/api/auth/logout",
+  \"/api/auth/logout\",
   enforceSameOrigin,
   requireAuth,
   perIpSessionActionLimit,
@@ -665,24 +665,24 @@ app.post(
   (req, res) => {
     database
       .prepare(
-        "DELETE FROM otp_challenges WHERE user_id = ?",
+        \"DELETE FROM otp_challenges WHERE user_id = ?\",
       )
       .run(req.user.id);
 
     database
   .prepare(
-    "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+    \"INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)\",
   )
   .run(
     randomUUID(),
     req.user.id,
-    "LOGOUT",
+    \"LOGOUT\",
     Date.now(),
   );
 
   database
   .prepare(
-    "DELETE FROM sessions WHERE token_hash = ?",
+    \"DELETE FROM sessions WHERE token_hash = ?\",
   )
   .run(req.session.token_hash);
 
@@ -693,24 +693,24 @@ app.post(
 );
 
 app.post(
-  "/api/mfa/challenge",
+  \"/api/mfa/challenge\",
   enforceSameOrigin,
   requireAuth,
   perIpOtpLimit,
   perUserOtpLimit,
   async (req, res, next) => {
-    console.log("[MFA CHALLENGE HIT]", req.user?.id);
+    console.log(\"[MFA CHALLENGE HIT]\", req.user?.id);
     try {
       const user = database
         .prepare(
-          "SELECT id, email, otp_last_sent_at FROM users WHERE id = ?",
+          \"SELECT id, email, otp_last_sent_at FROM users WHERE id = ?\",
         )
         .get(req.user.id);
 
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: "Sign in to continue.",
+          message: \"Sign in to continue.\",
         });
       }
 
@@ -724,20 +724,20 @@ app.post(
         return res.status(429).json({
           success: false,
           message:
-            "Please wait before requesting another code.",
+            \"Please wait before requesting another code.\",
         });
       }
 
       database
         .prepare(
-          "DELETE FROM otp_challenges WHERE user_id = ?",
+          \"DELETE FROM otp_challenges WHERE user_id = ?\",
         )
         .run(user.id);
 
       const id = randomUUID();
       const code = String(
         randomInt(0, 1000000),
-      ).padStart(6, "0");
+      ).padStart(6, \"0\");
 
       const codeHash = hashOtpCode(
         code,
@@ -749,7 +749,7 @@ app.post(
 
       database
         .prepare(
-          "INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+          \"INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)\",
         )
         .run(
           id,
@@ -761,7 +761,7 @@ app.post(
 
       database
         .prepare(
-          "UPDATE users SET otp_last_sent_at = ? WHERE id = ?",
+          \"UPDATE users SET otp_last_sent_at = ? WHERE id = ?\",
         )
         .run(now, user.id);
 
@@ -770,13 +770,13 @@ app.post(
       } catch (deliveryError) {
         database
           .prepare(
-            "DELETE FROM otp_challenges WHERE id = ?",
+            \"DELETE FROM otp_challenges WHERE id = ?\",
           )
           .run(id);
 
         database
           .prepare(
-            "UPDATE users SET otp_last_sent_at = 0 WHERE id = ?",
+            \"UPDATE users SET otp_last_sent_at = 0 WHERE id = ?\",
           )
           .run(user.id);
 
@@ -787,7 +787,7 @@ app.post(
         success: true,
          challengeId: id,
   resendAvailableIn: 60,
-        message: "Verification code sent.",
+        message: \"Verification code sent.\",
       });
     } catch (error) {
       next(error);
@@ -795,7 +795,7 @@ app.post(
   },
 );
 app.post(
-  "/api/mfa/verify",
+  \"/api/mfa/verify\",
   enforceSameOrigin,
   requireAuth,
   perIpSessionActionLimit,
@@ -803,14 +803,14 @@ app.post(
   (req, res, next) => {
     try {
       const code = String(
-        req.body?.code || "",
+        req.body?.code || \"\",
       ).trim();
 
-      if (!/^\d{6}$/.test(code)) {
+      if (!/^\\d{6}$/.test(code)) {
         return res.status(400).json({
           success: false,
           message:
-            "Enter the 6-digit verification code.",
+            \"Enter the 6-digit verification code.\",
         });
       }
 
@@ -832,14 +832,14 @@ app.post(
       ) {
         database
           .prepare(
-            "DELETE FROM otp_challenges WHERE user_id = ?",
+            \"DELETE FROM otp_challenges WHERE user_id = ?\",
           )
           .run(req.user.id);
 
         return res.status(400).json({
           success: false,
           message:
-            "This verification code has expired. Request a new one.",
+            \"This verification code has expired. Request a new one.\",
         });
       }
 
@@ -850,7 +850,7 @@ app.post(
         return res.status(429).json({
           success: false,
           message:
-            "Too many incorrect attempts. Request a new code.",
+            \"Too many incorrect attempts. Request a new code.\",
         });
       }
 
@@ -860,12 +860,12 @@ app.post(
           req.user.id,
           challenge.id,
         ),
-        "hex",
+        \"hex\",
       );
 
       const stored = Buffer.from(
         challenge.code_hash,
-        "hex",
+        \"hex\",
       );
 
       const valid =
@@ -875,14 +875,14 @@ app.post(
       if (!valid) {
         database
           .prepare(
-            "UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ?",
+            \"UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ?\",
           )
           .run(challenge.id);
 
         return res.status(400).json({
           success: false,
           message:
-            "Incorrect verification code.",
+            \"Incorrect verification code.\",
         });
       }
 
@@ -891,7 +891,7 @@ app.post(
 
       database
         .prepare(
-          "UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?",
+          \"UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?\",
         )
         .run(
           verifiedUntil,
@@ -900,18 +900,18 @@ app.post(
 
       database
         .prepare(
-          "DELETE FROM otp_challenges WHERE id = ?",
+          \"DELETE FROM otp_challenges WHERE id = ?\",
         )
         .run(challenge.id);
 
       database
         .prepare(
-          "INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)",
+          \"INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)\",
         )
         .run(
           randomUUID(),
           req.user.id,
-          "MFA_VERIFIED",
+          \"MFA_VERIFIED\",
           Date.now(),
         );
 
@@ -929,7 +929,7 @@ app.post(
 );
 
 app.post(
-  "/api/mfa/cancel",
+  \"/api/mfa/cancel\",
   enforceSameOrigin,
   requireAuth,
   perIpSessionActionLimit,
@@ -938,13 +938,13 @@ app.post(
     try {
       database
         .prepare(
-          "DELETE FROM otp_challenges WHERE user_id = ?",
+          \"DELETE FROM otp_challenges WHERE user_id = ?\",
         )
         .run(req.user.id);
 
       database
         .prepare(
-          "UPDATE sessions SET mfa_verified_until = 0 WHERE token_hash = ?",
+          \"UPDATE sessions SET mfa_verified_until = 0 WHERE token_hash = ?\",
         )
         .run(req.session.token_hash);
 
@@ -955,11 +955,122 @@ app.post(
   },
 );
 
+// Wallet endpoints
+app.post(
+  \"/api/wallet/lock\",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      const locked = Boolean(req.body?.locked);
+
+      database
+        .prepare(
+          \"INSERT INTO user_profiles (user_id, updated_at) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET updated_at = excluded.updated_at\",
+        )
+        .run(req.user.id, Date.now());
+
+      database
+        .prepare(
+          \"INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)\",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          locked ? \"WALLET_LOCKED\" : \"WALLET_UNLOCKED\",
+          Date.now(),
+        );
+
+      const risk = 18;
+      const wallet = {
+        risk,
+        locked,
+        shareData: { name: true, age: false, address: false, identityId: true },
+      };
+
+      res.json({
+        success: true,
+        wallet,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.post(
+  \"/api/wallet/share\",
+  enforceSameOrigin,
+  requireAuth,
+  perIpSessionActionLimit,
+  perUserSessionActionLimit,
+  (req, res, next) => {
+    try {
+      if (!req.user.mfaVerified) {
+        return res.status(403).json({
+          success: false,
+          message: \"MFA must be verified before sharing.\",
+        });
+      }
+
+      const shareData = req.body || {};
+
+      const profile = database
+        .prepare(\"SELECT * FROM user_profiles WHERE user_id = ?\")
+        .get(req.user.id);
+
+      const data = {
+        email: shareData.email ? req.user.email : undefined,
+        name: shareData.name ? (profile?.name || \"Not provided\") : undefined,
+        age: shareData.age ? (profile?.age || null) : undefined,
+        dateOfBirth: shareData.dateOfBirth ? (profile?.date_of_birth || \"Not provided\") : undefined,
+        identityId: shareData.identityId ? `SID-${req.user.id.slice(0, 4).toUpperCase()}-••••` : undefined,
+        verificationStatus: shareData.verificationStatus ? (profile?.verification_status || \"Unverified\") : undefined,
+        phoneNumber: shareData.phoneNumber ? (profile?.phone_number || \"Not provided\") : undefined,
+        address: shareData.address ? (profile?.address || \"Not provided\") : undefined,
+        collegeInstitution: shareData.collegeInstitution ? (profile?.college_institution || \"Not provided\") : undefined,
+        studentId: shareData.studentId ? (profile?.student_id || \"Not provided\") : undefined,
+        governmentId: shareData.governmentId ? \"••••••••\" : undefined,
+      };
+
+      const token = randomBytes(32).toString(\"base64url\");
+
+      database
+        .prepare(
+          \"INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)\",
+        )
+        .run(
+          randomUUID(),
+          req.user.id,
+          \"SHARE_CREATED\",
+          Date.now(),
+        );
+
+      const risk = 18;
+      const wallet = {
+        risk,
+        locked: false,
+        shareData,
+      };
+
+      res.json({
+        success: true,
+        shareToken: token,
+        wallet,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 app.use((error, req, res, next) => {
   console.error(
     JSON.stringify({
-      level: "error",
-      event: "request_error",
+      level: \"error\",
+      event: \"request_error\",
       message: error?.message || String(error),
       path: req.path,
     }),
@@ -972,7 +1083,7 @@ app.use((error, req, res, next) => {
   res.status(500).json({
     success: false,
     message:
-      "Something went wrong. Please try again shortly.",
+      \"Something went wrong. Please try again shortly.\",
   });
 });
 
@@ -981,37 +1092,38 @@ setInterval(() => {
 
   database
     .prepare(
-      "DELETE FROM rate_limits WHERE reset_at <= ?",
+      \"DELETE FROM rate_limits WHERE reset_at <= ?\",
     )
     .run(now);
 
   database
     .prepare(
-      "DELETE FROM sessions WHERE expires_at <= ?",
+      \"DELETE FROM sessions WHERE expires_at <= ?\",
     )
     .run(now);
 
   database
     .prepare(
-      "DELETE FROM otp_challenges WHERE expires_at <= ?",
+      \"DELETE FROM otp_challenges WHERE expires_at <= ?\",
     )
     .run(now);
 }, 60 * 60 * 1000).unref();
 
-app.get("/{*splat}", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
+app.get(\"/{*splat}\", (req, res) => {
+  res.sendFile(path.join(distPath, \"index.html\"));
 });
 app.listen(port, () => {
   console.log(
     JSON.stringify({
-      level: "info",
-      event: "server_started",
+      level: \"info\",
+      event: \"server_started\",
       port,
       environment: isProduction
-        ? "production"
-        : "development",
-      storage: "sqlite",
+        ? \"production\"
+        : \"development\",
+      storage: \"sqlite\",
       otpDelivery,
     }),
   );
 });
+

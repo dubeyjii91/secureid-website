@@ -1,10 +1,10 @@
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { mkdirSync } from \"node:fs\";
+import { dirname, resolve } from \"node:path\";
+import { DatabaseSync } from \"node:sqlite\";
 
-const configuredPath = process.env.DATABASE_PATH || "./data/secureid.sqlite";
-const databasePath = configuredPath === ":memory:" ? configuredPath : resolve(configuredPath);
-if (databasePath !== ":memory:") mkdirSync(dirname(databasePath), { recursive: true });
+const configuredPath = process.env.DATABASE_PATH || \"./data/secureid.sqlite\";
+const databasePath = configuredPath === \":memory:\" ? configuredPath : resolve(configuredPath);
+if (databasePath !== \":memory:\") mkdirSync(dirname(databasePath), { recursive: true });
 
 export const database = new DatabaseSync(databasePath, { timeout: 5000 });
 database.exec(`
@@ -53,16 +53,20 @@ database.exec(`
     hits INTEGER NOT NULL,
     reset_at INTEGER NOT NULL
   );
-`);
 
-const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all().map((column) => column.name);
-if (!sessionColumns.includes("mfa_verified_until")) {
-  database.exec("ALTER TABLE sessions ADD COLUMN mfa_verified_until INTEGER NOT NULL DEFAULT 0");
-}
-
-const userColumns = database.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
-if (!userColumns.includes("otp_last_sent_at")) {
-  database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
-}
-
-export { databasePath };
+  CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT,
+    age INTEGER,
+    date_of_birth TEXT,
+    identity_id TEXT,
+    verification_status TEXT,
+    email_contact TEXT,
+    phone_number TEXT,
+    address TEXT,
+    college_institution TEXT,
+    student_id TEXT,
+    government_id TEXT,
+    updated_at INTEGER NOT NULL DEFAULT 0
+  );
+`);\n\nconst sessionColumns = database.prepare(\"PRAGMA table_info(sessions)\").all().map((column) => column.name);\nif (!sessionColumns.includes(\"mfa_verified_until\")) {\n  database.exec(\"ALTER TABLE sessions ADD COLUMN mfa_verified_until INTEGER NOT NULL DEFAULT 0\");\n}\n\nconst userColumns = database.prepare(\"PRAGMA table_info(users)\").all().map((column) => column.name);\nif (!userColumns.includes(\"otp_last_sent_at\")) {\n  database.exec(\"ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0\");\n}\n\nconst userProfileColumns = database.prepare(\"PRAGMA table_info(user_profiles)\").all();\nif (userProfileColumns.length === 0) {\n  database.exec(`\n    CREATE TABLE user_profiles (\n      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n      name TEXT,\n      age INTEGER,\n      date_of_birth TEXT,\n      identity_id TEXT,\n      verification_status TEXT,\n      email_contact TEXT,\n      phone_number TEXT,\n      address TEXT,\n      college_institution TEXT,\n      student_id TEXT,\n      government_id TEXT,\n      updated_at INTEGER NOT NULL DEFAULT 0\n    );\n  `);\n}\n\nexport { databasePath };\n
