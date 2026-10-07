@@ -36,7 +36,7 @@ const sessionTtlMs = 8 * 60 * 60 * 1000;
 const mfaVerifiedTtlMs = 30 * 60 * 1000;
 const otpTtlMs = (isProduction ? 300 : Number(process.env.DEV_OTP_TTL_SECONDS || 300)) * 1000;
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
-const otpDelivery = process.env.OTP_DELIVERY || (isProduction ? "resend" : "console");
+const otpDelivery = process.env.OTP_DELIVERY || "console";
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
 const resendCooldownMs = Math.max(15, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60)) * 1000;
@@ -49,7 +49,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT m
 if (sessionPepper.length < 32) throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
 if (otpPepper.length < 32) throw new Error("OTP_HASH_SECRET must be at least 32 characters.");
 if (!["console", "resend"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console or resend.");
-if (isProduction && otpDelivery !== "resend") throw new Error("Production requires OTP_DELIVERY=resend.");
+
 if (otpDelivery === "resend" && (!resendApiKey || !otpFromEmail)) throw new Error("RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.");
 if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIGIN must use HTTPS in production.");
 
@@ -190,7 +190,7 @@ function getWallet(userId) {
 function logEvent(userId, eventType) { database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now()); }
 
 async function deliverOtp(email, code) {
-  if (otpDelivery === "console" && !isProduction) {
+  if (otpDelivery === "console") {
     console.log(`[SecureID DEV OTP] ${email}: ${code}`);
     return;
   }
@@ -269,7 +269,7 @@ app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, pe
       database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
       throw deliveryError;
     }
-    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Verification code sent." });
+    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Verification code generated.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
   } catch (error) { next(error); }
 });
 
@@ -349,4 +349,5 @@ setInterval(() => {
 
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", otpDelivery })));
+
 
