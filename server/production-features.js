@@ -494,6 +494,61 @@ export function registerProductionFeatures({
    * Short-lived, encrypted, revocable share tokens.
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
+
+// SECUREID_SHARE_RATE_LIMIT
+const SHARE_RATE_WINDOW_MS = 15 * 60 * 1000;
+const SHARE_RATE_IP_MAX = 20;
+const SHARE_RATE_USER_MAX = 10;
+const shareRateByIp = new Map();
+const shareRateByUser = new Map();
+
+function consumeShareRate(map, key, max) {
+  const now = Date.now();
+  const current = map.get(key);
+
+  if (!current || now - current.startedAt >= SHARE_RATE_WINDOW_MS) {
+    map.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+
+  if (current.count >= max) return false;
+
+  current.count += 1;
+  return true;
+}
+
+function enforceShareRateLimit(req, userId) {
+  const ip = String(req.ip || req.headers["x-forwarded-for"] || "unknown");
+  const userKey = String(userId);
+
+  if (!consumeShareRate(shareRateByIp, ip, SHARE_RATE_IP_MAX)) {
+    const error = new Error("Too many share requests. Try again later.");
+    error.statusCode = 429;
+    throw error;
+  }
+
+  if (!consumeShareRate(shareRateByUser, userKey, SHARE_RATE_USER_MAX)) {
+    const error = new Error("Too many share requests. Try again later.");
+    error.statusCode = 429;
+    throw error;
+  }
+
+  if (shareRateByIp.size > 5000) {
+    for (const [key, value] of shareRateByIp) {
+      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
+        shareRateByIp.delete(key);
+      }
+    }
+  }
+
+  if (shareRateByUser.size > 5000) {
+    for (const [key, value] of shareRateByUser) {
+      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
+        shareRateByUser.delete(key);
+      }
+    }
+  }
+}
   const shareFields = [
     "name",
     "age",
@@ -576,7 +631,43 @@ export function registerProductionFeatures({
     }catch(error){ next(error); }
   });
 
-  app.post("/api/wallet/share",enforceSameOrigin,requireAuth,(req,res,next)=>{
+  
+// SECUREID_LOCK_REVOKES_SHARES
+app.post("/api/wallet/lock", requireAuth, enforceSameOrigin, async (req, res, next) => {
+  try {
+    const locked = Boolean(req.body?.locked);
+
+    database.prepare(
+      "UPDATE wallet_settings SET locked = ? WHERE user_id = ?"
+    ).run(locked ? 1 : 0, req.user.id);
+
+    if (locked) {
+      database.prepare(
+        "UPDATE secure_shares SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL"
+      ).run(req.user.id);
+    }
+
+    if (typeof logEvent === "function") {
+      logEvent(
+        locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",
+        req.user.id,
+        { sharesRevoked: locked }
+      );
+    }
+
+    res.json({
+      ok: true,
+      locked,
+      sharesRevoked: locked
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/wallet/share",enforceSameOrigin,requireAuth,(req,res,next)=>{
+    enforceShareRateLimit(req, req.user.id);
+
     try{
       assertWalletUnlocked(req.user.id);
 
