@@ -488,6 +488,244 @@ export function registerProductionFeatures({
     }
   );
 
+
+  /*
+   * PRODUCTION WALLET SHARING
+   * Short-lived, encrypted, revocable share tokens.
+   */
+  const SHARE_TTL_MS = 15 * 60 * 1000;
+  const shareFields = [
+    "name",
+    "age",
+    "dateOfBirth",
+    "address",
+    "email",
+    "phone",
+    "identityId",
+    "college",
+    "studentId",
+    "governmentId",
+    "verificationStatus"
+  ];
+
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS secure_shares (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        encrypted_payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_secure_shares_token
+        ON secure_shares(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_secure_shares_user
+        ON secure_shares(user_id);
+    `);
+  } catch (shareMigrationError) {
+    console.error(JSON.stringify({
+      level:"error",
+      event:"secure_share_migration_failed",
+      message:shareMigrationError?.message || String(shareMigrationError)
+    }));
+  }
+
+  function shareTokenHash(token){
+    return createHash("sha256").update(token,"utf8").digest("hex");
+  }
+
+  function maskGovernmentId(value){
+    const text=String(value || "").trim();
+    if(!text) return "";
+    if(text.length <= 4) return "****";
+    return "*".repeat(Math.max(4,text.length-4)) + text.slice(-4);
+  }
+
+  app.get("/api/wallet",requireAuth,(req,res,next)=>{
+    try{
+      const row=database.prepare(`
+        SELECT risk,locked,
+          share_name,share_age,share_date_of_birth,share_address,
+          share_email,share_phone,share_identity_id,share_college,
+          share_student_id,share_government_id,share_verification_status
+        FROM wallet_settings
+        WHERE user_id=?
+      `).get(req.user.id);
+
+      res.json({
+        success:true,
+        risk:Number(row?.risk || 0),
+        locked:Boolean(row?.locked),
+        shareData:{
+          name:Boolean(row?.share_name),
+          age:Boolean(row?.share_age),
+          dateOfBirth:Boolean(row?.share_date_of_birth),
+          address:Boolean(row?.share_address),
+          email:Boolean(row?.share_email),
+          phone:Boolean(row?.share_phone),
+          identityId:Boolean(row?.share_identity_id),
+          college:Boolean(row?.share_college),
+          studentId:Boolean(row?.share_student_id),
+          governmentId:Boolean(row?.share_government_id),
+          verificationStatus:Boolean(row?.share_verification_status)
+        }
+      });
+    }catch(error){ next(error); }
+  });
+
+  app.post("/api/wallet/share",enforceSameOrigin,requireAuth,(req,res,next)=>{
+    try{
+      assertWalletUnlocked(req.user.id);
+
+      if(!req.user.mfaVerified){
+        return res.status(403).json({
+          success:false,
+          message:"MFA verification is required before sharing identity data."
+        });
+      }
+
+      const row=database.prepare(
+        "SELECT encrypted_data FROM identity_profiles WHERE user_id=?"
+      ).get(req.user.id);
+
+      if(!row){
+        return res.status(404).json({
+          success:false,
+          message:"Identity profile not found."
+        });
+      }
+
+      const profile=jsonDecrypt(JSON.parse(row.encrypted_data),key);
+      const selected={};
+
+      for(const field of shareFields){
+        if(req.body?.[field] === true){
+          selected[field]=field==="governmentId"
+            ? maskGovernmentId(profile[field])
+            : profile[field] ?? "";
+        }
+      }
+
+      if(!Object.values(selected).some((value)=>String(value ?? "").trim())){
+        return res.status(400).json({
+          success:false,
+          message:"Select at least one identity field to share."
+        });
+      }
+
+      const now=Date.now();
+      const expiresAt=new Date(now+SHARE_TTL_MS);
+      const token=randomBytes(32).toString("base64url");
+
+      database.prepare(`
+        UPDATE wallet_settings SET
+          share_name=?,
+          share_age=?,
+          share_date_of_birth=?,
+          share_address=?,
+          share_email=?,
+          share_phone=?,
+          share_identity_id=?,
+          share_college=?,
+          share_student_id=?,
+          share_government_id=?,
+          share_verification_status=?
+        WHERE user_id=?
+      `).run(
+        req.body?.name===true?1:0,
+        req.body?.age===true?1:0,
+        req.body?.dateOfBirth===true?1:0,
+        req.body?.address===true?1:0,
+        req.body?.email===true?1:0,
+        req.body?.phone===true?1:0,
+        req.body?.identityId===true?1:0,
+        req.body?.college===true?1:0,
+        req.body?.studentId===true?1:0,
+        req.body?.governmentId===true?1:0,
+        req.body?.verificationStatus===true?1:0,
+        req.user.id
+      );
+
+      database.prepare(`
+        INSERT INTO secure_shares
+          (user_id,token_hash,encrypted_payload,created_at,expires_at)
+        VALUES (?,?,?,?,?)
+      `).run(
+        req.user.id,
+        shareTokenHash(token),
+        JSON.stringify(jsonEncrypt({
+          claims:selected,
+          ownerUserId:req.user.id
+        },key)),
+        new Date(now).toISOString(),
+        expiresAt.toISOString()
+      );
+
+      logEvent(req.user.id,"IDENTITY_SHARED");
+
+      res.json({
+        success:true,
+        shareToken:token,
+        shareExpiresAt:expiresAt.toISOString()
+      });
+    }catch(error){ next(error); }
+  });
+
+  app.post("/api/wallet/share/revoke",enforceSameOrigin,requireAuth,(req,res,next)=>{
+    try{
+      database.prepare(`
+        UPDATE secure_shares
+        SET revoked_at=?
+        WHERE user_id=? AND revoked_at IS NULL
+      `).run(new Date().toISOString(),req.user.id);
+
+      logEvent(req.user.id,"IDENTITY_SHARES_REVOKED");
+
+      res.json({success:true});
+    }catch(error){ next(error); }
+  });
+
+  app.get("/api/share/:token",(req,res,next)=>{
+    try{
+      const token=String(req.params.token || "");
+
+      if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)){
+        return res.status(404).json({
+          success:false,
+          message:"Share not found."
+        });
+      }
+
+      const row=database.prepare(`
+        SELECT encrypted_payload,created_at,expires_at,revoked_at
+        FROM secure_shares
+        WHERE token_hash=?
+      `).get(shareTokenHash(token));
+
+      if(!row || row.revoked_at || Date.now() >= Date.parse(row.expires_at)){
+        return res.status(404).json({
+          success:false,
+          message:"Share not found or expired."
+        });
+      }
+
+      const payload=jsonDecrypt(JSON.parse(row.encrypted_payload),key);
+
+      res.setHeader("Cache-Control","no-store");
+      res.setHeader("X-Content-Type-Options","nosniff");
+
+      res.json({
+        success:true,
+        claims:payload.claims,
+        createdAt:row.created_at,
+        expiresAt:row.expires_at
+      });
+    }catch(error){ next(error); }
+  });
+
   console.log(JSON.stringify({
     level:"info",
     event:"production_features_registered",

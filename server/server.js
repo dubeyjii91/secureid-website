@@ -172,10 +172,10 @@ const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) =
 function validateEmail(email) { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validatePassword(password) { return typeof password === "string" && Buffer.byteLength(password, "utf8") >= 12 && Buffer.byteLength(password, "utf8") <= 72; }
 function getWallet(userId) {
-  let wallet = database.prepare("SELECT risk, locked, share_name, share_age, share_address, share_identity_id FROM wallet_settings WHERE user_id = ?").get(userId);
+  let wallet = database.prepare("SELECT risk, locked, share_name, share_age, share_address, share_identity_id, share_date_of_birth, share_email, share_phone, share_college, share_student_id, share_government_id, share_verification_status FROM wallet_settings WHERE user_id = ?").get(userId);
   if (!wallet) {
     database.prepare("INSERT INTO wallet_settings (user_id) VALUES (?)").run(userId);
-    wallet = database.prepare("SELECT risk, locked, share_name, share_age, share_address, share_identity_id FROM wallet_settings WHERE user_id = ?").get(userId);
+    wallet = database.prepare("SELECT risk, locked, share_name, share_age, share_address, share_identity_id, share_date_of_birth, share_email, share_phone, share_college, share_student_id, share_government_id, share_verification_status FROM wallet_settings WHERE user_id = ?").get(userId);
   }
   return {
     risk: Number(wallet.risk),
@@ -185,6 +185,13 @@ function getWallet(userId) {
       age: Boolean(wallet.share_age),
       address: Boolean(wallet.share_address),
       identityId: Boolean(wallet.share_identity_id),
+        dateOfBirth: Boolean(wallet.share_date_of_birth),
+        email: Boolean(wallet.share_email),
+        phone: Boolean(wallet.share_phone),
+        college: Boolean(wallet.share_college),
+        studentId: Boolean(wallet.share_student_id),
+        governmentId: Boolean(wallet.share_government_id),
+        verificationStatus: Boolean(wallet.share_verification_status),
     },
   };
 }
@@ -203,6 +210,31 @@ async function deliverOtp(email, code) {
   if (!response.ok) throw new Error(`Resend request failed with status ${response.status}.`);
 }
 
+
+
+try {
+  const walletColumns = database.prepare("PRAGMA table_info(wallet_settings)").all().map((r) => r.name);
+  const shareColumns = [
+    "share_date_of_birth",
+    "share_email",
+    "share_phone",
+    "share_college",
+    "share_student_id",
+    "share_government_id",
+    "share_verification_status"
+  ];
+  for (const column of shareColumns) {
+    if (!walletColumns.includes(column)) {
+      database.exec("ALTER TABLE wallet_settings ADD COLUMN " + column + " INTEGER NOT NULL DEFAULT 0");
+    }
+  }
+} catch (migrationError) {
+  console.error(JSON.stringify({
+    level: "error",
+    event: "wallet_share_migration_failed",
+    message: migrationError?.message || String(migrationError)
+  }));
+}
 
 registerProductionFeatures({
   app,
@@ -347,7 +379,7 @@ app.post("/api/wallet/share", enforceSameOrigin, requireAuth, perIpWalletLimit, 
 app.use((error, req, res, next) => {
   console.error(JSON.stringify({ level: "error", event: "request_error", message: error?.message || String(error), path: req.path }));
   if (res.headersSent) return next(error);
-  res.status(500).json({ success: false, message: "Something went wrong. Please try again shortly." });
+  const statusCode = Number(error?.statusCode) || 500; res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
 });
 
 setInterval(() => {
