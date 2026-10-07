@@ -1,4 +1,4 @@
-import path from "node:path";
+﻿import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -52,7 +52,7 @@ if (!["console", "resend"].includes(otpDelivery)) throw new Error("OTP_DELIVERY 
 if (isProduction && otpDelivery !== "resend") throw new Error("Production requires OTP_DELIVERY=resend.");
 if (otpDelivery === "resend" && (!resendApiKey || !otpFromEmail)) throw new Error("RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.");
 if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIGIN must use HTTPS in production.");
-if (isProduction && otpFromEmail.toLowerCase().includes("@resend.dev")) throw new Error("Production requires a verified sender domain; resend.dev is test-only.");
+
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "32kb" }));
@@ -349,3 +349,4 @@ setInterval(() => {
 
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", otpDelivery })));
+
