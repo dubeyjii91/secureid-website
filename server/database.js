@@ -1,6 +1,5 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
 const configuredPath = process.env.DATABASE_PATH || "./data/secureid.sqlite";
@@ -39,41 +38,21 @@ database.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS otp_challenges_user_id ON otp_challenges(user_id);
-
+  
   CREATE TABLE IF NOT EXISTS security_events (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     event_type TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS security_events_user_id ON security_events(user_id);
 
+  CREATE INDEX IF NOT EXISTS security_events_user_id
+    ON security_events(user_id);
   CREATE TABLE IF NOT EXISTS rate_limits (
     bucket_key TEXT PRIMARY KEY,
     hits INTEGER NOT NULL,
     reset_at INTEGER NOT NULL
   );
-
-  CREATE TABLE IF NOT EXISTS wallet_settings (
-    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    risk INTEGER NOT NULL DEFAULT 18,
-    locked INTEGER NOT NULL DEFAULT 0,
-    share_name INTEGER NOT NULL DEFAULT 1,
-    share_age INTEGER NOT NULL DEFAULT 0,
-    share_address INTEGER NOT NULL DEFAULT 0,
-    share_identity_id INTEGER NOT NULL DEFAULT 1
-  );
-
-  CREATE TABLE IF NOT EXISTS share_tokens (
-    token_hash TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    claims_json TEXT NOT NULL,
-    expires_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL,
-    revoked_at INTEGER
-  );
-  CREATE INDEX IF NOT EXISTS share_tokens_user_id ON share_tokens(user_id);
-  CREATE INDEX IF NOT EXISTS share_tokens_expires_at ON share_tokens(expires_at);
 `);
 
 const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all().map((column) => column.name);
@@ -84,17 +63,6 @@ if (!sessionColumns.includes("mfa_verified_until")) {
 const userColumns = database.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
 if (!userColumns.includes("otp_last_sent_at")) {
   database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
-}
-
-// Bootstrap the requested local account using a bcrypt password hash, never plaintext.
-const bootstrapEmail = "police420ias@gmail.com";
-const bootstrapPasswordHash = process.env.SECUREID_BOOTSTRAP_PASSWORD_HASH || "$2b$12$uyVB3jpz2H4f.Tew7kYuru3z0P4ZJHF1jIpcKclw4SGZlL3cvBoXW";
-const existingBootstrapUser = database.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(bootstrapEmail);
-if (!existingBootstrapUser) {
-  const userId = randomUUID();
-  const now = Date.now();
-  database.prepare("INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)").run(userId, bootstrapEmail, bootstrapPasswordHash, now);
-  database.prepare("INSERT INTO wallet_settings (user_id) VALUES (?)").run(userId);
 }
 
 export { databasePath };
