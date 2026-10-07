@@ -1,7 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
-import "./secureid-redesign.css";`r`n
-const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
+import "./secureid-redesign.css";`r`nconst defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
 const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
 
 async function api(path, options = {}) {
@@ -216,5 +215,6 @@ function App() {
 }
 
 export default App;
+
 
 
