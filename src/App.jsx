@@ -27,27 +27,7 @@ const navItems = [
   ["lock", "Emergency lock/unlock", "▣"],
 ];
 
-function PublicShare() {
-  const [state, setState] = useState({ loading: true, data: null, error: "" });
-  useEffect(() => {
-    const token = window.location.pathname.split("/").filter(Boolean)[1] || "";
-    api(`/api/share/${encodeURIComponent(token)}`)
-      .then((data) => setState({ loading: false, data, error: "" }))
-      .catch((error) => setState({ loading: false, data: null, error: error.message }));
-  }, []);
-
-  if (state.loading) return <div className="loadingPage"><div className="spinner" /><span>Loading secure share…</span></div>;
-  if (state.error) return <div className="authShell"><section className="authCard sharePublic"><div className="modalShield">!</div><div className="eyebrow">SECURE SHARE</div><h1>Share unavailable</h1><p>{state.error}</p><small>This link may have expired or been revoked. Ask the owner to create a new secure share.</small></section></div>;
-  return <div className="authShell"><section className="authCard sharePublic"><div className="modalShield">S</div><div className="eyebrow">SECURE SHARE</div><h1>Verified identity details</h1><p>Only the information selected by the SecureID owner is shown below.</p><div className="publicClaims">{Object.entries(state.data.identity).map(([key, value]) => <div key={key}><span>{key === "identityId" ? "Identity ID" : key[0].toUpperCase() + key.slice(1)}</span><strong>{value}</strong></div>)}</div><small>This secure share expires automatically at {new Date(state.data.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</small></section></div>;
-}
-
 function App() {
-  const isPublicShare = window.location.pathname.startsWith("/share/");
-  if (isPublicShare) return <PublicShare />;
-  return <SecureIDApp />;
-}
-
-function SecureIDApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionUser, setSessionUser] = useState("");
@@ -68,7 +48,6 @@ function SecureIDApp() {
   const [phishingUrl, setPhishingUrl] = useState("");
   const [phishingResult, setPhishingResult] = useState(null);
   const [shareToken, setShareToken] = useState("");
-  const [shareExpiresAt, setShareExpiresAt] = useState(0);
   const [busyAction, setBusyAction] = useState("");
 
   const riskState = useMemo(() => {
@@ -193,7 +172,6 @@ function SecureIDApp() {
       const result = await api("/api/wallet/share", { method: "POST", body: JSON.stringify(wallet.shareData) });
       setWallet(result.wallet);
       setShareToken(result.shareToken);
-      setShareExpiresAt(result.expiresAt || 0);
     } catch (error) {
       setMfaMessage(error.message);
     } finally {
@@ -225,7 +203,7 @@ function SecureIDApp() {
 
       {page === "identity" && <section className="content"><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your verified identity</h2></div><span className="statusBadge success">✓ Verified</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-••••</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="sectionTitle"><div><div className="eyebrow dark">QUICK ACTIONS</div><h2>Manage your identity</h2></div></div><div className="actionGrid"><button className="actionCard" onClick={() => setPage("share")}><span className="actionIcon">↗</span><strong>Share my ID</strong><p>Choose exactly which identity claims to share.</p></button><button className="actionCard" onClick={() => setPage("safety")}><span className="actionIcon">✓</span><strong>Check a website</strong><p>Look for common phishing indicators before signing in.</p></button><button className="actionCard" onClick={() => setPage("lock")}><span className="actionIcon">▣</span><strong>Emergency lock/unlock</strong><p>Pause wallet sharing if you think your account is at risk.</p></button></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
 
-      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["address","Address"],["identityId","Identity ID"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generating…" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>This link is valid for 15 minutes and contains only the claims you selected.</p><code>{`${window.location.origin}/share/${shareToken}`}</code><small>Expires {shareExpiresAt ? new Date(shareExpiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "soon"}</small></div>}</section></section>}
+      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["address","Address"],["identityId","Identity ID"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generating…" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{shareToken}</code></div>}</section></section>}
 
       {page === "safety" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SAFETY CHECK</div><h2>Check a website before you sign in</h2><p className="lead">This quick check looks for a few common warning signs. It is not a guarantee that a website is safe.</p><div className="urlForm"><input value={phishingUrl} onChange={(e) => setPhishingUrl(e.target.value)} placeholder="example.com" aria-label="Website address" /><button className="primary" onClick={scanPhishingUrl}>Check website</button></div>{phishingResult && <div className={`scanResult ${phishingResult.safe ? "safe" : "warning"}`}><strong>{phishingResult.safe ? "No obvious warning signs" : "Use caution"}</strong><p>{phishingResult.text}</p></div>}<div className="tips"><div><strong>Use HTTPS</strong><span>Check that the address starts with https://.</span></div><div><strong>Check the domain</strong><span>Look closely for extra words, unusual characters or misspellings.</span></div><div><strong>Never share OTPs</strong><span>SecureID verification codes should not be given to another person.</span></div></div></section></section>}
 
