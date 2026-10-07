@@ -620,8 +620,11 @@ app.post(
           message: "Email or password is incorrect.",
         });
       }
+database
+  .prepare("DELETE FROM sessions WHERE user_id = ?")
+  .run(row.id);
 
-      createSession(row.id, res);
+createSession(row.id, res);
 
 database
   .prepare(
@@ -633,10 +636,15 @@ database
     "LOGIN_SUCCESS",
     Date.now(),
   );
-      res.json({
-        success: true,
-        user: { email: row.email },
-      });
+
+res.json({
+  success: true,
+  mfaRequired: true,
+  user: {
+    email: row.email,
+    mfaVerified: false,
+  },
+});
     } catch (error) {
       next(error);
     }
@@ -700,6 +708,14 @@ app.post(
   perUserOtpLimit,
   async (req, res, next) => {
     console.log("[MFA CHALLENGE HIT]", req.user?.id);
+
+    if (req.user.mfaVerified) {
+  return res.status(400).json({
+    success: false,
+    message: "MFA is already verified for this session.",
+  });
+}
+
     try {
       const user = database
         .prepare(
@@ -798,8 +814,8 @@ app.post(
   "/api/mfa/verify",
   enforceSameOrigin,
   requireAuth,
-  perIpSessionActionLimit,
-  perUserSessionActionLimit,
+  perIpOtpVerifyLimit,
+  perUserOtpVerifyLimit,
   (req, res, next) => {
     try {
       const code = String(
@@ -872,19 +888,27 @@ app.post(
         supplied.length === stored.length &&
         timingSafeEqual(supplied, stored);
 
-      if (!valid) {
-        database
-          .prepare(
-            "UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ?",
-          )
-          .run(challenge.id);
+if (!valid) {
+  const result = database
+    .prepare(
+      "UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?",
+    )
+    .run(challenge.id, maxOtpAttempts);
 
-        return res.status(400).json({
-          success: false,
-          message:
-            "Incorrect verification code.",
-        });
-      }
+  if (Number(result.changes) === 0) {
+    return res.status(429).json({
+      success: false,
+      message:
+        "Too many incorrect attempts. Request a new code.",
+    });
+  }
+
+  return res.status(400).json({
+    success: false,
+    message:
+      "Incorrect verification code.",
+  });
+}
 
       const verifiedUntil =
         Date.now() + mfaVerifiedTtlMs;
@@ -1015,3 +1039,5 @@ app.listen(port, () => {
     }),
   );
 });
+
+console.log("SERVER PROCESS IS ALIVE");
