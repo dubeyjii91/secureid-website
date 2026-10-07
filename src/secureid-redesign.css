@@ -1,0 +1,23 @@
+﻿:root{--sid-bg:#070b14;--sid-surface:rgba(15,23,42,.72);--sid-border:rgba(148,163,184,.16);--sid-text:#f8fafc;--sid-muted:#94a3b8;--sid-accent:#38bdf8;--sid-accent-2:#818cf8;--sid-shadow:0 24px 70px rgba(0,0,0,.32)}
+html,body,#root{min-height:100%;margin:0}
+body{background:radial-gradient(circle at 10% 10%,rgba(56,189,248,.14),transparent 28%),radial-gradient(circle at 90% 15%,rgba(129,140,248,.15),transparent 30%),radial-gradient(circle at 50% 100%,rgba(14,165,233,.08),transparent 35%),linear-gradient(135deg,#050816 0%,#0b1120 48%,#111827 100%)!important;background-attachment:fixed!important;color:var(--sid-text)!important}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.035;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:42px 42px;z-index:-1}
+*{box-sizing:border-box}
+.sidebar{background:rgba(7,11,20,.78)!important;border-right:1px solid var(--sid-border)!important;backdrop-filter:blur(22px) saturate(150%);box-shadow:18px 0 60px rgba(0,0,0,.18)}
+header,.topbar,.navbar{background:rgba(7,11,20,.62)!important;border-bottom:1px solid var(--sid-border)!important;backdrop-filter:blur(20px) saturate(150%)}
+.card,.panel,.section,.stat,.identityCard,.securityCard,.shareCard,.claimCard{background:linear-gradient(145deg,rgba(15,23,42,.82),rgba(15,23,42,.58))!important;border:1px solid var(--sid-border)!important;box-shadow:var(--sid-shadow)!important;backdrop-filter:blur(18px) saturate(140%);border-radius:20px!important}
+.card:hover,.panel:hover,.claimCard:hover{border-color:rgba(56,189,248,.28)!important}
+h1,h2,h3,h4{color:#f8fafc!important;letter-spacing:-.025em}
+p,.muted,.subtitle,.description{color:var(--sid-muted)}
+.claimGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important}
+.claimGrid>*{background:rgba(15,23,42,.62)!important;border:1px solid var(--sid-border)!important;border-radius:16px!important;transition:all .2s ease}
+.claimGrid>*:hover{transform:translateY(-2px);border-color:rgba(56,189,248,.34)!important;box-shadow:0 12px 35px rgba(0,0,0,.22)}
+input,select,textarea{background:rgba(2,6,23,.55)!important;color:#f8fafc!important;border:1px solid rgba(148,163,184,.2)!important;border-radius:12px!important}
+input:focus,select:focus,textarea:focus{outline:none!important;border-color:rgba(56,189,248,.65)!important;box-shadow:0 0 0 4px rgba(56,189,248,.1)!important}
+button,.btn,.primaryButton{border-radius:12px!important;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+button:hover{transform:translateY(-1px)}
+button.primary,.btn-primary,.primaryButton{background:linear-gradient(135deg,var(--sid-accent),var(--sid-accent-2))!important;color:#fff!important;border:0!important;box-shadow:0 10px 28px rgba(56,189,248,.2)!important}
+button.primary:hover,.btn-primary:hover,.primaryButton:hover{box-shadow:0 14px 36px rgba(56,189,248,.3)!important}
+.badge,.status,.pill{border:1px solid rgba(56,189,248,.22)!important;background:rgba(56,189,248,.09)!important;color:#7dd3fc!important;border-radius:999px!important}
+a:hover{color:#7dd3fc!important}
+@media(max-width:800px){.claimGrid{grid-template-columns:1fr!important}}
