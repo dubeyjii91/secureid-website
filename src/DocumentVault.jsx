@@ -1,6 +1,32 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
+import "./document-vault.css";
 
-const CLAIMS = [
+async function api(path, options={}){
+  const response=await fetch(path,{
+    credentials:"include",
+    ...options
+  });
+
+  const contentType=response.headers.get("content-type") || "";
+
+  if(contentType.includes("application/json")){
+    const data=await response.json();
+
+    if(!response.ok || data.success===false){
+      throw new Error(data.message || "Request failed.");
+    }
+
+    return data;
+  }
+
+  if(!response.ok){
+    throw new Error("Request failed.");
+  }
+
+  return response;
+}
+
+const fields=[
   ["name","Name"],
   ["age","Age"],
   ["dateOfBirth","Date of Birth"],
@@ -14,167 +40,241 @@ const CLAIMS = [
   ["verificationStatus","Verification Status"]
 ];
 
-export default function DocumentVault() {
-  const [open,setOpen] = useState(false);
-  const [docs,setDocs] = useState([]);
-  const [details,setDetails] = useState({});
+export default function DocumentVault(){
+  const [documents,setDocuments]=useState([]);
+  const [profile,setProfile]=useState({});
+  const [selected,setSelected]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [message,setMessage]=useState("");
 
-  useEffect(() => {
-    try {
-      setDocs(JSON.parse(localStorage.getItem("secureid_documents") || "[]"));
-      setDetails(JSON.parse(localStorage.getItem("secureid_claim_details") || "{}"));
-    } catch {}
-  }, []);
+  async function load(){
+    setLoading(true);
 
-  const saveDocs = (next) => {
-    setDocs(next);
-    localStorage.setItem("secureid_documents",JSON.stringify(next));
-  };
+    try{
+      const [docs,identity]=await Promise.all([
+        api("/api/documents"),
+        api("/api/identity/profile")
+      ]);
 
-  const saveDetails = (next) => {
-    setDetails(next);
-    localStorage.setItem("secureid_claim_details",JSON.stringify(next));
-  };
+      setDocuments(docs.documents || []);
+      setProfile(identity.profile || {});
+    }catch(error){
+      setMessage(error.message);
+    }finally{
+      setLoading(false);
+    }
+  }
 
-  const addFiles = async (event) => {
-    const files = Array.from(event.target.files || []);
-    const added = [];
+  useEffect(()=>{
+    load();
+  },[]);
 
-    for (const file of files) {
-      if (!file.type.startsWith("image/") && file.type !== "application/pdf") continue;
+  function updateField(field,value){
+    setProfile(current=>({
+      ...current,
+      [field]:value
+    }));
+  }
 
-      const data = await new Promise((resolve,reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+  async function saveProfile(event){
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+
+    try{
+      const body=new URLSearchParams();
+
+      for(const [key] of fields){
+        body.set(key,profile[key] || "");
+      }
+
+      const result=await api("/api/identity/profile",{
+        method:"PUT",
+        headers:{
+          "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"
+        },
+        body
       });
 
-      added.push({
-        id: crypto.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random(),
-        name:file.name,
-        type:file.type,
-        size:file.size,
-        data,
-        addedAt:new Date().toLocaleString()
-      });
+      setProfile(result.profile || {});
+      setMessage("Identity details saved securely.");
+    }catch(error){
+      setMessage(error.message);
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  async function upload(){
+    if(selected.length===0){
+      setMessage("Select a PDF or image first.");
+      return;
     }
 
-    saveDocs([...docs,...added]);
-    event.target.value="";
-  };
+    setUploading(true);
+    setMessage("");
 
-  const removeDoc = (id) => {
-    saveDocs(docs.filter((doc) => doc.id !== id));
-  };
+    try{
+      const form=new FormData();
 
-  return (
-    <>
+      for(const file of selected){
+        form.append("documents",file);
+      }
+
+      const result=await api("/api/documents",{
+        method:"POST",
+        body:form
+      });
+
+      setDocuments(current=>[
+        ...result.documents,
+        ...current
+      ]);
+
+      setSelected([]);
+      document.getElementById("secureid-document-input").value="";
+      setMessage("Document encrypted and stored securely.");
+    }catch(error){
+      setMessage(error.message);
+    }finally{
+      setUploading(false);
+    }
+  }
+
+  async function download(id,name){
+    try{
+      const response=await api(`/api/documents/${encodeURIComponent(id)}`);
+
+      const blob=await response.blob();
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+
+      anchor.href=url;
+      anchor.download=name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      URL.revokeObjectURL(url);
+    }catch(error){
+      setMessage(error.message);
+    }
+  }
+
+  async function remove(id){
+    if(!window.confirm("Delete this document permanently?")){
+      return;
+    }
+
+    try{
+      await api(`/api/documents/${encodeURIComponent(id)}`,{
+        method:"DELETE"
+      });
+
+      setDocuments(current=>current.filter(doc=>doc.id!==id));
+      setMessage("Document deleted.");
+    }catch(error){
+      setMessage(error.message);
+    }
+  }
+
+  if(loading){
+    return <section className="documentVault panel">
+      <div className="eyebrow dark">SECURE DOCUMENT VAULT</div>
+      <h2>Loading secure storage…</h2>
+    </section>;
+  }
+
+  return <section className="documentVault panel">
+    <div className="eyebrow dark">SECURE DOCUMENT VAULT</div>
+    <h2>Documents & Identity</h2>
+    <p className="lead">
+      Your documents are encrypted before being stored on the SecureID server.
+      Access is protected by your authenticated session.
+    </p>
+
+    <div className="vaultSecurityNotice">
+      <strong>Production storage active</strong>
+      <span>Files are not stored in browser localStorage and are not publicly accessible.</span>
+    </div>
+
+    <section className="vaultBlock">
+      <h3>Identity details</h3>
+
+      <form onSubmit={saveProfile} className="identityForm">
+        {fields.map(([key,label])=>
+          <label key={key}>
+            {label}
+            <input
+              value={profile[key] || ""}
+              maxLength={500}
+              onChange={event=>updateField(key,event.target.value)}
+            />
+          </label>
+        )}
+
+        <button className="primary" disabled={saving}>
+          {saving ? "Saving…" : "Save identity details"}
+        </button>
+      </form>
+    </section>
+
+    <section className="vaultBlock">
+      <h3>Add documents</h3>
+
+      <input
+        id="secureid-document-input"
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        multiple
+        onChange={event=>setSelected(Array.from(event.target.files || []))}
+      />
+
+      <small>
+        PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once
+      </small>
+
       <button
-        className="documentVaultLauncher"
-        onClick={() => setOpen(true)}
+        className="primary"
+        onClick={upload}
+        disabled={uploading || selected.length===0}
       >
-        + Add Documents
+        {uploading ? "Encrypting & uploading…" : "Secure upload"}
       </button>
+    </section>
 
-      {open && (
-        <div className="documentVaultBackdrop">
-          <section className="documentVault">
-            <div className="documentVaultHeader">
+    <section className="vaultBlock">
+      <h3>Your documents</h3>
+
+      {documents.length===0 ? (
+        <p>No documents stored yet.</p>
+      ) : (
+        <div className="documentList">
+          {documents.map(doc=>
+            <article className="documentItem" key={doc.id}>
               <div>
-                <div className="eyebrow dark">SECURE DOCUMENT VAULT</div>
-                <h2>Add your identity documents</h2>
-                <p>
-                  Select photos, scanned documents or PDF files from your device.
-                </p>
+                <strong>{doc.name}</strong>
+                <small>
+                  {doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                </small>
               </div>
 
-              <button
-                className="documentVaultClose"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <label className="documentUploadBox">
-              <div className="documentUploadIcon">+</div>
-              <strong>Choose files</strong>
-              <span>
-                Gallery, camera files, JPG, PNG or PDF
-              </span>
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                multiple
-                onChange={addFiles}
-              />
-            </label>
-
-            <div className="documentSection">
-              <h3>Your documents</h3>
-
-              {docs.length === 0 ? (
-                <div className="documentEmpty">
-                  No documents added yet.
-                </div>
-              ) : (
-                <div className="documentList">
-                  {docs.map((doc) => (
-                    <div className="documentItem" key={doc.id}>
-                      <div className="documentInfo">
-                        <strong>{doc.name}</strong>
-                        <span>
-                          {doc.type === "application/pdf" ? "PDF" : "Image"} ·{" "}
-                          {Math.round(doc.size / 1024)} KB
-                        </span>
-                      </div>
-
-                      <button
-                        className="documentRemove"
-                        onClick={() => removeDoc(doc.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="documentSection">
-              <h3>Identity details</h3>
-              <p className="documentHint">
-                Add the information connected to your SecureID documents.
-              </p>
-
-              <div className="documentClaimGrid">
-                {CLAIMS.map(([key,label]) => (
-                  <label className="documentField" key={key}>
-                    <span>{label}</span>
-                    <input
-                      value={details[key] || ""}
-                      onChange={(event) =>
-                        saveDetails({
-                          ...details,
-                          [key]:event.target.value
-                        })
-                      }
-                      placeholder={"Enter " + label}
-                    />
-                  </label>
-                ))}
+              <div className="documentActions">
+                <button onClick={()=>download(doc.id,doc.name)}>
+                  Download
+                </button>
+                <button onClick={()=>remove(doc.id)}>
+                  Delete
+                </button>
               </div>
-            </div>
-
-            <div className="documentSecurityNote">
-              Your selected files and details are currently stored locally in
-              this browser. They are not uploaded to the SecureID server yet.
-            </div>
-          </section>
+            </article>
+          )}
         </div>
       )}
-    </>
-  );
+    </section>
+
+    {message && <div className="vaultMessage">{message}</div>}
+  </section>;
 }

@@ -1,4 +1,5 @@
-﻿import path from "node:path";
+﻿import { registerProductionFeatures } from "./production-features.js";
+import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -202,6 +203,15 @@ async function deliverOtp(email, code) {
   if (!response.ok) throw new Error(`Resend request failed with status ${response.status}.`);
 }
 
+
+registerProductionFeatures({
+  app,
+  database,
+  requireAuth,
+  enforceSameOrigin,
+  isProduction,
+  logEvent
+});
 app.get("/api/health", (req, res) => res.json({ success: true, service: "SecureID API", timestamp: new Date().toISOString() }));
 
 app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
@@ -349,5 +359,6 @@ setInterval(() => {
 
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", otpDelivery })));
+
 
 

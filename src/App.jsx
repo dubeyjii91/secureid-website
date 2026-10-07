@@ -1,5 +1,5 @@
-﻿import DocumentVault from "./DocumentVault";
-import "./document-vault.css";
+﻿import "./document-vault.css";
+import DocumentVault from "./DocumentVault.jsx";
 import "./secureid-font-clean.css";
 import "./secureid-redesign.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -219,6 +219,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
