@@ -29,6 +29,7 @@ database.exec(`
     mfa_verified_until INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS sessions_user_id ON sessions(user_id);
+  
 
   CREATE TABLE IF NOT EXISTS otp_challenges (
     id TEXT PRIMARY KEY,
@@ -77,6 +78,16 @@ if (!securityEventColumns.includes("metadata_json")) {
 }
 
 const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all().map((column) => column.name);
+if (!sessionColumns.includes("user_agent")) {
+  database.exec("ALTER TABLE sessions ADD COLUMN user_agent TEXT");
+}
+if (!sessionColumns.includes("ip_hash")) {
+  database.exec("ALTER TABLE sessions ADD COLUMN ip_hash TEXT");
+}
+if (!sessionColumns.includes("last_seen_at")) {
+  database.exec("ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER");
+}
+
 if (!sessionColumns.includes("mfa_verified_until")) {
   database.exec("ALTER TABLE sessions ADD COLUMN mfa_verified_until INTEGER NOT NULL DEFAULT 0");
 }
