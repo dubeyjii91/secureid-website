@@ -2,6 +2,7 @@
 import DocumentVault from "./DocumentVault.jsx";
 import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
+import ShareManagement from "./ShareManagement.jsx";
 import "./secureid-font-clean.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -51,6 +52,7 @@ const navItems = [
   ["lock", "Emergency lock/unlock", "◆"],
   ["activity", "Security activity", "◉"],
   ["sessions", "Active sessions", "▣"],
+  ["shares", "Share management", "↗"],
 ];
 
 function App() {
@@ -665,6 +667,8 @@ function App() {
       {page === "activity" && <SecurityActivity />}
 
       {page === "sessions" && <SecuritySessions />}
+
+      {page === "shares" && <ShareManagement />}
 
       {page === "lock" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">EMERGENCY CONTROL</div><h2>Stay in control of access.</h2><p>Pause identity sharing whenever you need extra protection.</p></div><FunctionVisual label="SecureID emergency protection" /></div><section className={`panel lockPanel ${wallet.locked ? "locked" : ""}`}><div className="lockGraphic">{wallet.locked ? "!" : "✓"}</div><div className="eyebrow dark">EMERGENCY ACCESS CONTROL</div><h2>{wallet.locked ? "Your wallet is locked" : "Your wallet is active"}</h2><p className="lead">{wallet.locked ? "Sharing is paused. Restore access when you are ready and have confirmed your account is secure." : "If you suspect unauthorized activity, lock the wallet immediately to pause selective sharing."}</p><button className={wallet.locked ? "primary" : "dangerButton"} onClick={toggleLock} disabled={busyAction === "lock"}>{busyAction === "lock" ? "Updating…" : wallet.locked ? "Restore access" : "Emergency lock"}</button><div className="lockFacts"><span>Current status <strong>{wallet.locked ? "Locked" : "Active"}</strong></span><span>Identity sharing <strong>{wallet.locked ? "Paused" : "Available"}</strong></span></div></section></section>}
 
