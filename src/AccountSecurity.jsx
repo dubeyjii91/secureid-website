@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import "./account-security.css";
 
+function csrfToken(){
+  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     credentials: "include",
     ...options,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) },
+    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(["POST","PUT","PATCH","DELETE"].includes(String(options.method||"GET").toUpperCase()) && csrfToken() ? {"X-CSRF-Token":csrfToken()} : {}), ...(options.headers || {}) },
   });
   const data = (response.headers.get("content-type") || "").includes("application/json")
     ? await response.json().catch(() => ({}))
@@ -43,6 +48,7 @@ export default function AccountSecurity() {
   const [codes, setCodes] = useState([]);
   const [codesMessage, setCodesMessage] = useState("");
   const [codesLoading, setCodesLoading] = useState(false);
+  const [authMonitoring, setAuthMonitoring] = useState(null);
 
   const meter = useMemo(() => strength(newPassword), [newPassword]);
 
@@ -50,6 +56,8 @@ export default function AccountSecurity() {
     try {
       const result = await api("/api/security/account");
       setAccount(result.account);
+      const monitoring = await api("/api/security/auth-monitoring");
+      setAuthMonitoring(monitoring);
     } catch (error) {
       setMessage(error.message);
     }
@@ -154,6 +162,22 @@ export default function AccountSecurity() {
         <div><span>Account created</span><strong>{formatDate(account?.createdAt)}</strong></div>
         <div><span>Last password change</span><strong>{formatDate(account?.passwordChangedAt)}</strong></div>
         <div><span>Recovery codes remaining</span><strong>{account ? account.recoveryCodesRemaining + " / " + account.recoveryCodesTotal : "Loading…"}</strong></div>
+      </div>
+    </section>
+
+    <section className="panel authMonitoringPanel">
+      <div className="eyebrow dark">LOGIN & MFA MONITORING</div>
+      <h2>Recent authentication activity</h2>
+      <p className="lead">SecureID records unsuccessful sign-in and MFA attempts without displaying your IP address or password data.</p>
+      <div className="authMonitoringGrid">
+        <div><span>Failed sign-ins · 24h</span><strong>{authMonitoring?.failedLogins ?? "Loading…"}</strong></div>
+        <div><span>Failed MFA · 24h</span><strong>{authMonitoring?.failedMfa ?? "Loading…"}</strong></div>
+        <div><span>Account lockout</span><strong>{authMonitoring?.lockout?.active ? "Active" : "Not active"}</strong></div>
+      </div>
+      {authMonitoring?.lockout?.active && <div className="accountSecurityMessage">Sign-in protection is active until {formatDate(authMonitoring.lockout.until)}.</div>}
+      <div className="authAttemptList">
+        {(authMonitoring?.recent || []).slice(0,8).map((event,index)=><div key={event.createdAt+"-"+index}><span>{event.eventType==="LOGIN_SUCCESS"?"Successful sign-in":event.eventType==="MFA_FAILED"?"MFA verification failed":"Sign-in failed"}</span><small>{formatDate(event.createdAt)}</small></div>)}
+        {authMonitoring && (authMonitoring.recent || []).length===0 && <div className="activityEmpty">No recent login or MFA events.</div>}
       </div>
     </section>
 
