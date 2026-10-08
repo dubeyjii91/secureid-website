@@ -488,6 +488,7 @@ export function registerProductionFeatures({
 
       const plaintext=decryptBuffer(encrypted,key);
 
+      res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
       res.setHeader("Content-Type",row.mime_type);
       res.setHeader(
         "Content-Disposition",
@@ -593,7 +594,7 @@ export function registerProductionFeatures({
       const token=String(req.params.token || "");
       if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)) return res.status(404).json({success:false,message:"Document share not found."});
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
-      const row=database.prepare("SELECT s.document_id,s.user_id,s.expires_at,s.revoked_at,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL").get(tokenHash);
+      const row=database.prepare("SELECT s.document_id,s.user_id,s.expires_at,s.revoked_at,s.share_reason,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL").get(tokenHash);
       if(!row || row.revoked_at || Date.now()>=Date.parse(row.expires_at)) return res.status(404).json({success:false,message:"Document share not found or expired."});
       if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
       const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
