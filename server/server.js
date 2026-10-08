@@ -178,6 +178,15 @@ const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 20, window15m, 
 const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKey);
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
 
+app.get("/api/security/activity", requireAuth, requireMfa, (req, res, next) => {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
+    const events = database.prepare(`SELECT id, event_type AS eventType, created_at AS createdAt, user_agent AS userAgent, metadata_json AS metadata FROM security_events WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`).all(req.user.id, limit).map((event) => ({ ...event, metadata: event.metadata ? JSON.parse(event.metadata) : null }));
+    res.json({ success: true, events });
+  } catch (error) {
+    next(error);
+  }
+});
 function validateEmail(email) { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validatePassword(password) { return typeof password === "string" && Buffer.byteLength(password, "utf8") >= 12 && Buffer.byteLength(password, "utf8") <= 72; }
 function getWallet(userId) {
@@ -204,7 +213,12 @@ function getWallet(userId) {
     },
   };
 }
-function logEvent(userId, eventType) { database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at) VALUES (?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now()); }
+function logEvent(userId, eventType, req = null, metadata = null) {
+  const userAgent = String(req?.get?.("user-agent") || "").slice(0, 512) || null;
+  const ip = String(req?.ip || req?.socket?.remoteAddress || "").trim();
+  const ipHash = ip ? createHmac("sha256", sessionPepper).update(ip).digest("hex") : null;
+  database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at, user_agent, ip_hash, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now(), userAgent, ipHash, metadata ? JSON.stringify(metadata).slice(0, 4000) : null);
+}
 
 async function deliverOtp(email, code) {
   if (otpDelivery === "console") {
@@ -296,8 +310,8 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
       throw deliveryError;
     }
 
-    logEvent(id, "ACCOUNT_CREATED");
-    logEvent(id, "EMAIL_VERIFICATION_SENT");
+    logEvent(id, "ACCOUNT_CREATED", req);
+    logEvent(id, "EMAIL_VERIFICATION_SENT", req);
 
     res.status(201).json({
       success: true,
@@ -436,7 +450,7 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
 
     database.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
     createSession(row.id, res);
-    logEvent(row.id, "LOGIN_SUCCESS");
+    logEvent(row.id, "LOGIN_SUCCESS", req);
     res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false } });
   } catch (error) { next(error); }
 });
@@ -469,7 +483,7 @@ app.get("/api/auth/verify-email", async (req, res, next) => {
       "UPDATE email_verification_state SET verified_at = ?, updated_at = ? WHERE user_id = ?"
     ).run(now, now, record.user_id);
 
-    logEvent(record.user_id, "EMAIL_VERIFIED");
+    logEvent(record.user_id, "EMAIL_VERIFIED", req);
 
     res.json({
       success: true,
@@ -506,7 +520,7 @@ app.post("/api/auth/resend-verification", enforceSameOrigin, perIpAuthLimit, per
     }
 
     await issueEmailVerification(user.id, user.email);
-    logEvent(user.id, "EMAIL_VERIFICATION_SENT");
+    logEvent(user.id, "EMAIL_VERIFICATION_SENT", req);
 
     res.json({
       success: true,
@@ -534,7 +548,7 @@ app.post("/api/auth/forgot-password", enforceSameOrigin, perIpAuthLimit, perAcco
     }
 
     await issuePasswordReset(user.id, user.email);
-    logEvent(user.id, "PASSWORD_RESET_REQUESTED");
+    logEvent(user.id, "PASSWORD_RESET_REQUESTED", req);
 
     res.json({
       success: true,
@@ -595,7 +609,7 @@ app.post("/api/auth/reset-password", enforceSameOrigin, perIpAuthLimit, async (r
       ).run(record.user_id, now, now, now);
     }
 
-    logEvent(record.user_id, "PASSWORD_RESET_COMPLETED");
+    logEvent(record.user_id, "PASSWORD_RESET_COMPLETED", req);
 
     res.json({
       success: true,
@@ -610,7 +624,7 @@ app.get("/api/auth/session", requireAuth, (req, res) => res.json({ success: true
 app.post("/api/auth/logout", enforceSameOrigin, requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => {
   database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
   database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(req.session.token_hash);
-  logEvent(req.user.id, "LOGOUT");
+  logEvent(req.user.id, "LOGOUT", req);
   clearSessionCookie(res);
   res.json({ success: true });
 });
@@ -661,7 +675,7 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
     }
     database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(Date.now() + mfaVerifiedTtlMs, req.session.token_hash);
     database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
-    logEvent(req.user.id, "MFA_VERIFIED");
+    logEvent(req.user.id, "MFA_VERIFIED", req);
     res.json({ success: true, message: "MFA verification successful.", user: { email: req.user.email, mfaVerified: true } });
   } catch (error) { next(error); }
 });
