@@ -49,6 +49,7 @@ const sessionPepper = process.env.SESSION_HASH_SECRET || (!isProduction ? random
 const otpPepper = process.env.OTP_HASH_SECRET || (!isProduction ? randomBytes(32).toString("hex") : "");
 const sessionCookieName = isProduction ? "__Host-secureid.sid" : "secureid.sid";
 const trustedDeviceTtlMs = 30 * 24 * 60 * 60 * 1000;
+let operationalErrorAlertState = { startedAt: Date.now(), count: 0, lastAlertAt: 0 };
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535.");
 if (sessionPepper.length < 32) throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
@@ -1082,6 +1083,13 @@ app.use((error, req, res, next) => {
   try{
     database.prepare("INSERT INTO application_errors (id,request_id,method,path,status_code,error_type,created_at) VALUES (?,?,?,?,?,?,?)").run(randomUUID(),String(res.getHeader("X-Request-Id")||""),req.method,req.path,statusCode,errorType,Date.now());
   }catch{}
+  const now=Date.now();
+  if(now-operationalErrorAlertState.startedAt>5*60*1000) operationalErrorAlertState={startedAt:now,count:1,lastAlertAt:operationalErrorAlertState.lastAlertAt};
+  else operationalErrorAlertState.count+=1;
+  if(securityAlertEmail && otpDelivery==="resend" && operationalErrorAlertState.count>=5 && now-operationalErrorAlertState.lastAlertAt>15*60*1000){
+    operationalErrorAlertState.lastAlertAt=now;
+    void sendSecurityEmail({to:securityAlertEmail,subject:"SecureID operational error alert",text:"SecureID recorded "+operationalErrorAlertState.count+" server errors within a five-minute window. Check the production logs and health endpoint."}).catch(()=>{});
+  }
   if (res.headersSent) return next(error);
   res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
 });
