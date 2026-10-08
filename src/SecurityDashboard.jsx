@@ -1,31 +1,6 @@
 import { useEffect, useState } from "react";
 import "./security-dashboard.css";
 
-const coverage = [
-  ["1","Security activity","Audit log is available","activity"],
-  ["2","Active sessions","Device sessions can be reviewed/revoked","sessions"],
-  ["3","Share management","Active shares, access and revoke controls","shares"],
-  ["4","Account security","Password + MFA recovery controls","account"],
-  ["5","QR secure share","Share QR is available from Share ID","share"],
-  ["6","Share purpose","Purpose is stored with each share","share"],
-  ["7","Verification badge","Server-attested verified-share badge","share"],
-  ["8","Expiry UX","Live expiry/countdown and expired state","share"],
-  ["9","Document verification","Student ID + institution proof status","documents"],
-  ["10","Security dashboard","Central security overview","dashboard"],
-  ["11","Security score","Live score from account security state","dashboard"],
-  ["12","Security notifications","Alerts + unread tracking","dashboard"],
-  ["13","Privacy center","Notification/privacy controls","dashboard"],
-  ["14","Rate limiting","API and sensitive-route throttling active",null],
-  ["15","CSRF protection","Same-origin + CSRF token checks active",null],
-  ["16","Security headers","CSP + HSTS + restrictive headers active",null],
-  ["17","Session expiration","Idle + absolute session expiry active",null],
-  ["18","Brute-force protection","Failed sign-ins trigger account lockout","account"],
-  ["19","Login/MFA monitoring","Failed auth events are monitored","account"],
-  ["20","Encrypted backups","AES-256-GCM backup procedure/schedule","dashboard"],
-  ["21","Health monitoring","API/database/backup health status","dashboard"],
-  ["22","Safe error logging","Privacy-safe request error metadata","dashboard"],
-];
-
 function csrfToken(){
   const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";
@@ -73,16 +48,6 @@ export default function SecurityDashboard(){
         <div><span>Encrypted backups</span><strong>{health?.backup?.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured"}</strong></div>
       </div>
       {health?.backup?.lastSuccessAt && <small className="healthMeta">Last encrypted backup: {new Date(health.backup.lastSuccessAt).toLocaleString()}</small>}
-    </section>
-
-    <section className="panel coveragePanel">
-      <div className="panelHead"><div><div className="eyebrow dark">SECURITY COVERAGE</div><h3>22-point protection status</h3></div></div>
-      <p className="lead">These are the production security controls currently wired into SecureID. Open a linked area to manage the controls that have user-facing actions.</p>
-      <div className="coverageGrid">
-        {coverage.map(([n,title,desc,target])=><button key={n} className="coverageItem" onClick={()=>target && (window.dispatchEvent(new CustomEvent("secureid:navigate",{detail:target})))}>
-          <span className="coverageNumber">{n}</span><span><strong>{title}</strong><small>{desc}</small></span><b>✓</b>
-        </button>)}
-      </div>
     </section>
 
     <section className="panel"><div className="eyebrow dark">PRIVACY CENTER</div><h3>Control security and privacy notifications</h3><div className="privacyList">
