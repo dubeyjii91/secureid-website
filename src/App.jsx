@@ -55,6 +55,7 @@ function App() {
   const [shareToken, setShareToken] = useState("");
   const [shareExpiresAt, setShareExpiresAt] = useState("");
   const [publicShare, setPublicShare] = useState(null);
+  const [publicDocumentShare, setPublicDocumentShare] = useState(null);
   const [busyAction, setBusyAction] = useState("");
   const [verificationPending, setVerificationPending] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState("");
@@ -134,6 +135,25 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const documentMatch = window.location.pathname.match(/^\/document-share\/([A-Za-z0-9_-]{30,100})$/);
+    if (documentMatch) {
+      setSessionLoading(true);
+      fetch("/api/document-share/" + documentMatch[1], { credentials: "omit" })
+        .then(async (response) => {
+          const contentType = response.headers.get("content-type") || "";
+          if (!response.ok) {
+            const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : {};
+            throw new Error(data.message || "This secure document share is no longer available.");
+          }
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          setPublicDocumentShare({ success: true, url, mimeType: blob.type || contentType || "application/octet-stream", name: "Shared SecureID document" });
+        })
+        .catch((error) => setPublicDocumentShare({ success: false, message: error.message }))
+        .finally(() => setSessionLoading(false));
+      return;
+    }
+
     const match = window.location.pathname.match(/^\/share\/([A-Za-z0-9_-]{30,100})$/);
     if (match) {
       api("/api/share/" + match[1])
@@ -330,6 +350,33 @@ function App() {
     }
   };
 
+  const shareSecureLink = async () => {
+    if (!shareToken) return;
+    const link = new URL("/share/" + shareToken, window.location.origin).toString();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "SecureID secure share", text: "SecureID identity share", url: link });
+        setMfaMessage("Secure share opened in your device share menu.");
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(link);
+        setMfaMessage("Secure share link copied. Paste it into WhatsApp, email, SMS, or another app.");
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setMfaMessage("Could not open the share menu. Use Copy secure link instead.");
+    }
+  };
+
+  const copySecureLink = async () => {
+    if (!shareToken) return;
+    const link = new URL("/share/" + shareToken, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(link);
+      setMfaMessage("Secure share link copied. Paste it into WhatsApp, email, SMS, or another app.");
+    } catch {
+      setMfaMessage("Copy failed. Select the link manually and copy it.");
+    }
+  };
+
   const revokeSecureShares = async () => {
     setBusyAction("revoke");
     try {
@@ -359,6 +406,12 @@ function App() {
   };
 
   if (sessionLoading) return <div className="loadingPage"><div className="spinner" /><span>Loading SecureID share…</span></div>;
+
+  if (publicDocumentShare) {
+    if (!publicDocumentShare.success) return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE DOCUMENT SHARE</div><h1>Document unavailable</h1><p>{publicDocumentShare.message || "This secure document share has expired or was revoked."}</p><a className="textButton" href="/">Open SecureID</a></section></div>;
+    const mime = publicDocumentShare.mimeType || "";
+    return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard publicDocumentCard"><div className="eyebrow">SECURE DOCUMENT SHARE</div><h1>Shared document</h1><p>This document was shared through a time-limited SecureID link.</p>{mime === "application/pdf" ? <iframe className="sharedDocumentFrame" src={publicDocumentShare.url} title="Shared SecureID document" /> : mime.startsWith("image/") ? <img className="sharedDocumentImage" src={publicDocumentShare.url} alt="Shared SecureID document" /> : <a className="primary" href={publicDocumentShare.url} target="_blank" rel="noreferrer">Open document</a>}<a className="textButton" href="/">Open SecureID</a></section></div>;
+  }
 
   if (publicShare) {
     if (!publicShare.success) return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE SHARE</div><h1>Share unavailable</h1><p>{publicShare.message || "This secure share is no longer available."}</p><a className="textButton" href="/">Open SecureID</a></section></div>;
@@ -582,7 +635,7 @@ function App() {
 
       {page === "identity" && <section className="content"><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your verified identity</h2></div><span className="statusBadge success">✓ Verified</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-â€¢â€¢â€¢â€¢</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="sectionTitle"><div><div className="eyebrow dark">QUICK ACTIONS</div><h2>Manage your identity</h2></div></div><div className="actionGrid"><button className="actionCard" onClick={() => setPage("share")}><span className="actionIcon">↗</span><strong>Share my ID</strong><p>Choose exactly which identity claims to share.</p></button><button className="actionCard" onClick={() => setPage("safety")}><span className="actionIcon">✓</span><strong>Check a website</strong><p>Look for common phishing indicators before signing in.</p></button><button className="actionCard" onClick={() => setPage("lock")}><span className="actionIcon">◆</span><strong>Emergency lock/unlock</strong><p>Pause wallet sharing if you think your account is at risk.</p></button></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div>{mfaVerified && <DocumentVault />}</section>}
 
-      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["dateOfBirth","Date of Birth"],["address","Address"],["email","Email"],["phone","Phone Number"],["identityId","Identity ID"],["college","College / Institution"],["studentId","Student ID"],["governmentId","Government ID (masked)"],["verificationStatus","Verification Status"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generating…" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{window.location.origin + "/share/" + shareToken}</code><button className="textButton" onClick={() => navigator.clipboard?.writeText(window.location.origin + "/share/" + shareToken)} type="button">Copy secure link</button><p className="shareExpiry">Expires {shareExpiresAt ? new Date(shareExpiresAt).toLocaleString() : "soon"}.</p><button className="textButton" onClick={revokeSecureShares} disabled={busyAction === "revoke"}>{busyAction === "revoke" ? "Revoking…" : "Revoke active shares"}</button></div>}</section></section>}
+      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["dateOfBirth","Date of Birth"],["address","Address"],["email","Email"],["phone","Phone Number"],["identityId","Identity ID"],["college","College / Institution"],["studentId","Student ID"],["governmentId","Government ID (masked)"],["verificationStatus","Verification Status"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generating…" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{window.location.origin + "/share/" + shareToken}</code><div className="shareLinkActions"><button className="primary" onClick={shareSecureLink} type="button">Share now</button><button className="textButton" onClick={copySecureLink} type="button">Copy link</button></div><p className="shareHint">Send this link through WhatsApp, email, SMS, or any app you normally use. The recipient does not need a SecureID account.</p><p className="shareExpiry">Expires {shareExpiresAt ? new Date(shareExpiresAt).toLocaleString() : "soon"}.</p><button className="textButton" onClick={revokeSecureShares} disabled={busyAction === "revoke"}>{busyAction === "revoke" ? "Revoking…" : "Revoke active shares"}</button></div>}</section></section>}
 
       {page === "safety" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SAFETY CHECK</div><h2>Check a website before you sign in</h2><p className="lead">This quick check looks for a few common warning signs. It is not a guarantee that a website is safe.</p><div className="urlForm"><input value={phishingUrl} onChange={(e) => setPhishingUrl(e.target.value)} placeholder="example.com" aria-label="Website address" /><button className="primary" onClick={scanPhishingUrl}>Check website</button></div>{phishingResult && <div className={`scanResult ${phishingResult.safe ? "safe" : "warning"}`}><strong>{phishingResult.safe ? "No obvious warning signs" : "Use caution"}</strong><p>{phishingResult.text}</p></div>}<div className="tips"><div><strong>Use HTTPS</strong><span>Check that the address starts with https://.</span></div><div><strong>Check the domain</strong><span>Look closely for extra words, unusual characters or misspellings.</span></div><div><strong>Never share OTPs</strong><span>SecureID verification codes should not be given to another person.</span></div></div></section></section>}
 
