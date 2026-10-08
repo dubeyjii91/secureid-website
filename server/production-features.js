@@ -182,6 +182,7 @@ export function registerProductionFeatures({
       }
 
       const profile=jsonDecrypt(JSON.parse(row.encrypted_data),key);
+      const contextLabel=String(req.body?.contextLabel || "").trim().slice(0,160);
 
       res.json({
         success:true,
@@ -910,7 +911,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         shareTokenHash(token),
         JSON.stringify(jsonEncrypt({
           claims:selected,
-          ownerUserId:req.user.id
+          ownerUserId:req.user.id,
+          contextLabel
         },key)),
         new Date(now).toISOString(),
         expiresAt.toISOString(),
