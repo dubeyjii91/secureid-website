@@ -102,6 +102,14 @@ database.exec(`
     reason TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_failed_auth_time ON failed_auth_attempts(created_at);
+
+  CREATE TABLE IF NOT EXISTS auth_lockouts (
+    email_hash TEXT PRIMARY KEY,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    first_failed_at INTEGER NOT NULL DEFAULT 0,
+    last_failed_at INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER NOT NULL DEFAULT 0
+  );
 `);
 
 const securityEventColumns = database.prepare("PRAGMA table_info(security_events)").all().map((column) => column.name);
