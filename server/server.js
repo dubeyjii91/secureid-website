@@ -73,7 +73,6 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(distPath));
 
 function allowedOrigin(origin) {
   if (!origin) return false;
@@ -91,6 +90,8 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigin(origin) ? 204 : 403);
   next();
 });
+
+app.use(express.static(distPath));
 
 function enforceSameOrigin(req, res, next) {
   if (!isProduction) return next();
