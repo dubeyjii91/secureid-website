@@ -560,6 +560,7 @@ export function registerProductionFeatures({
       enforceShareRateLimit(req,req.user.id);
       assertWalletUnlocked(req.user.id);
       const documentId=String(req.body?.documentId || "").trim();
+      const reasonText=String(req.body?.reasonText || "").trim();
       const purpose=String(req.body?.purpose || "").trim().replace(/\s+/g," ");
       if(purpose.length>160) return res.status(400).json({success:false,message:"Share purpose must be 160 characters or fewer."});
       const row=database.prepare("SELECT id,original_name,mime_type FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
