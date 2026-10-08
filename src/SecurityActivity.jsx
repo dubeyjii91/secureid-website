@@ -23,6 +23,8 @@ const labels = {
   IDENTITY_SHARED: "Identity share created",
   IDENTITY_SHARE_ACCESSED: "Identity share opened",
   IDENTITY_SHARES_REVOKED: "Identity shares revoked",
+  SESSION_REVOKED: "Device session signed out",
+  ALL_OTHER_SESSIONS_REVOKED: "All other device sessions signed out",
 };
 
 function browserName(ua = "") {
