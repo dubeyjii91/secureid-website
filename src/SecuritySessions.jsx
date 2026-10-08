@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import "./security-sessions.css";
 
+function csrfToken() {
+  const match = document.cookie.match(/(?:^|; )(?:__Host-secureid\\.csrf|secureid\\.csrf)=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 function browserName(ua = "") {
   if (/Edg\//.test(ua)) return "Microsoft Edge";
   if (/Chrome\//.test(ua)) return "Google Chrome";
@@ -53,7 +58,7 @@ export default function SecuritySessions() {
       const response = await fetch("/api/security/sessions/revoke", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(csrfToken() ? { "X-CSRF-Token": csrfToken() } : {}) },
         body: JSON.stringify({ sessionId })
       });
       const data = await response.json().catch(() => ({}));
@@ -74,7 +79,7 @@ export default function SecuritySessions() {
       const response = await fetch("/api/security/sessions/revoke-others", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json", ...(csrfToken() ? { "X-CSRF-Token": csrfToken() } : {}) }
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Unable to sign out other devices.");
