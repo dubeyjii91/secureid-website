@@ -185,6 +185,56 @@ const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKe
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
 
 
+
+app.get("/api/security/account", requireAuth, requireMfa, (req, res, next) => {
+  try {
+    const user = database.prepare("SELECT email, created_at AS createdAt, password_changed_at AS passwordChangedAt FROM users WHERE id = ?").get(req.user.id);
+    const recovery = database.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN used_at IS NULL THEN 1 ELSE 0 END) AS remaining, MAX(created_at) AS generatedAt FROM mfa_recovery_codes WHERE user_id = ?").get(req.user.id);
+    res.json({
+      success: true,
+      account: {
+        email: user.email,
+        createdAt: user.createdAt,
+        passwordChangedAt: user.passwordChangedAt || null,
+        recoveryCodesGeneratedAt: recovery.generatedAt || null,
+        recoveryCodesRemaining: Number(recovery.remaining || 0),
+        recoveryCodesTotal: Number(recovery.total || 0)
+      }
+    });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/security/password/change", enforceSameOrigin, requireAuth, requireMfa, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
+  try {
+    const currentPassword = req.body?.currentPassword;
+    const newPassword = req.body?.newPassword;
+    if (!validatePassword(currentPassword) || !validatePassword(newPassword)) {
+      return res.status(400).json({ success: false, message: "Passwords must be 12 to 72 bytes long." });
+    }
+    if (currentPassword === newPassword || !(await bcrypt.compare(currentPassword, await Promise.resolve(database.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user.id)?.password_hash || "")))) {
+      return res.status(400).json({ success: false, message: "Current password is incorrect or the new password must be different." });
+    }
+    if (!validatePasswordStrength(newPassword)) {
+      return res.status(400).json({ success: false, message: "Choose a stronger password with upper/lowercase letters, a number and a symbol." });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, bcryptRounds);
+    const now = Date.now();
+    database.prepare("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?").run(passwordHash, now, req.user.id);
+    database.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(req.user.id, req.session.token_hash);
+    database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+    logEvent(req.user.id, "PASSWORD_CHANGED", req);
+    res.json({ success: true, passwordChangedAt: now, message: "Password changed successfully. Other sessions were signed out." });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/security/mfa/recovery/regenerate", enforceSameOrigin, requireAuth, requireMfa, perIpWalletLimit, perUserWalletLimit, async (req, res, next) => {
+  try {
+    const codes = await replaceRecoveryCodes(req.user.id);
+    logEvent(req.user.id, "MFA_RECOVERY_CODES_REGENERATED", req, { count: codes.length });
+    res.json({ success: true, codes, generatedAt: Date.now() });
+  } catch (error) { next(error); }
+});
+
 app.get("/api/security/sessions", requireAuth, requireMfa, (req, res, next) => {
   try {
     const now = Date.now();
@@ -244,6 +294,36 @@ app.get("/api/security/activity", requireAuth, requireMfa, (req, res, next) => {
 });
 function validateEmail(email) { return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validatePassword(password) { return typeof password === "string" && Buffer.byteLength(password, "utf8") >= 12 && Buffer.byteLength(password, "utf8") <= 72; }
+function validatePasswordStrength(password) {
+  if (!validatePassword(password)) return false;
+  let score = 0;
+  if (password.length >= 14) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/\d/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+  return score >= 4;
+}
+function normalizeRecoveryCode(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+function hashRecoveryCode(code, userId) {
+  return createHmac("sha256", otpPepper).update(`${userId}:${normalizeRecoveryCode(code)}`).digest("hex");
+}
+function createRecoveryCodes(count = 10) {
+  return Array.from({ length: count }, () => {
+    const raw = randomBytes(8).toString("hex").toUpperCase();
+    return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12)}`;
+  });
+}
+async function replaceRecoveryCodes(userId) {
+  const codes = createRecoveryCodes(10);
+  const now = Date.now();
+  const insert = database.prepare("INSERT INTO mfa_recovery_codes (id, user_id, code_hash, created_at, used_at) VALUES (?, ?, ?, ?, NULL)");
+  database.prepare("DELETE FROM mfa_recovery_codes WHERE user_id = ?").run(userId);
+  for (const code of codes) insert.run(randomUUID(), userId, hashRecoveryCode(code, userId), now);
+  return codes;
+}
 function getWallet(userId) {
   let wallet = database.prepare("SELECT risk, locked, share_name, share_age, share_address, share_identity_id, share_date_of_birth, share_email, share_phone, share_college, share_student_id, share_government_id, share_verification_status FROM wallet_settings WHERE user_id = ?").get(userId);
   if (!wallet) {
@@ -639,7 +719,7 @@ app.post("/api/auth/reset-password", enforceSameOrigin, perIpAuthLimit, async (r
     const passwordHash = await bcrypt.hash(password, bcryptRounds);
     const now = Date.now();
 
-    database.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, record.user_id);
+    database.prepare("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?").run(passwordHash, now, record.user_id);
 
     database.prepare(
       "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?"
@@ -713,7 +793,18 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
   try {
     const code = String(req.body?.code || "").trim();
     const challengeId = String(req.body?.challengeId || "");
-    if (!/^\d{6}$/.test(code) || !challengeId) return res.status(400).json({ success: false, message: "Enter the 6-digit verification code." });
+    const recoveryCode = normalizeRecoveryCode(code);
+    if (recoveryCode.length >= 16 && recoveryCode.length <= 20) {
+      const record = database.prepare("SELECT id FROM mfa_recovery_codes WHERE user_id = ? AND code_hash = ? AND used_at IS NULL LIMIT 1").get(req.user.id, hashRecoveryCode(recoveryCode, req.user.id));
+      if (!record) return res.status(400).json({ success: false, message: "Recovery code is invalid or has already been used." });
+      const now = Date.now();
+      database.prepare("UPDATE mfa_recovery_codes SET used_at = ? WHERE id = ? AND used_at IS NULL").run(now, record.id);
+      database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(now + mfaVerifiedTtlMs, req.session.token_hash);
+      database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+      logEvent(req.user.id, "MFA_RECOVERY_CODE_USED", req);
+      return res.json({ success: true, message: "Recovery code accepted.", user: { email: req.user.email, mfaVerified: true } });
+    }
+    if (!/^\d{6}$/.test(code) || !challengeId) return res.status(400).json({ success: false, message: "Enter the 6-digit verification code or a recovery code." });
     const challenge = database.prepare("SELECT id, code_hash, expires_at, attempts FROM otp_challenges WHERE id = ? AND user_id = ? LIMIT 1").get(challengeId, req.user.id);
     if (!challenge || Number(challenge.expires_at) <= Date.now()) {
       database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
