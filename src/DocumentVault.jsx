@@ -51,6 +51,7 @@ export default function DocumentVault(){
   const [uploading,setUploading]=useState(false);
   const [message,setMessage]=useState("");
   const [documentShares,setDocumentShares]=useState({});
+  const [docContext,setDocContext]=useState("");
 
   async function load(){
     setLoading(true);
@@ -181,7 +182,7 @@ export default function DocumentVault(){
 
   async function shareDocument(doc){
     try{
-      const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id})});
+      const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id,share_reason:docContext})});
       const link=new URL("/document-share/"+result.shareToken,window.location.origin).toString();
       setDocumentShares(current=>({...current,[doc.id]:{token:result.shareToken,link,expiresAt:result.shareExpiresAt}}));
       await navigator.clipboard?.writeText(link);
@@ -278,7 +279,7 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Your documents</h3>
+      <h3>Your documents</h3><label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label>
 
       {documents.length===0 ? (
         <p>No documents stored yet.</p>
