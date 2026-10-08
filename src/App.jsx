@@ -54,6 +54,7 @@ async function api(path, options = {}) {
 }
 
 const navItems = [
+  ["dashboard", "Dashboard", "◉"],
   ["identity", "My identity", "◆"],
   ["share", "Share ID", "↗"],
   ["safety", "Safety check", "✓"],
