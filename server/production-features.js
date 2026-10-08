@@ -913,7 +913,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
           ownerUserId:req.user.id
         },key)),
         new Date(now).toISOString(),
-        expiresAt.toISOString()
+        expiresAt.toISOString(),
+        ""
       );
 
       logEvent(req.user.id,"IDENTITY_SHARED",req);
