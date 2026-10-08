@@ -15,6 +15,7 @@ function ShareCard({share,onRevoke,busy}) {
     <div className="shareTypeIcon">{share.type==="identity"?"ID":"DOC"}</div>
     <div className="managedShareBody">
       <div className="managedShareTitle"><strong>{share.type==="identity"?"Identity share":"Document share"}</strong>{share.type==="identity"&&share.verificationBadge?.verified&&<span className="miniVerifiedBadge">✓ Verified</span>}{share.type==="document"&&<span>{share.name}</span>}<em className={inactive?"statusOff":"statusLive"}>{share.revokedAt?"Revoked":time==="Expired"?"Expired":"Active"}</em></div>
+      {share.shareReason&&<div className="sharePurposeLine"><strong>Purpose:</strong> {share.shareReason}</div>}
       <div className="shareClaims">{share.type==="identity" ? `Shared: ${share.claims?.length ? share.claims.map(x=>x.replaceAll(/([A-Z])/g," $1").trim()).join(", ") : "Selected identity claims"}` : "Secure document access"}</div>
       <small>Created {new Date(share.createdAt).toLocaleString()} · {time}</small>
       <small>{share.accessCount ? `Opened ${share.accessCount} time${share.accessCount===1?"":"s"} · Last opened ${new Date(share.accessedAt).toLocaleString()}` : "Not opened yet"}</small>
