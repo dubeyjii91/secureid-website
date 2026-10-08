@@ -229,6 +229,13 @@ app.get("/api/security/account", requireAuth, requireMfa, (req, res, next) => {
 });
 
 function ensureSecurityNotification(userId,type,title,message){
+  const preference = type.startsWith("LOGIN") || type.startsWith("MFA") || type === "LOGIN_FAILED"
+    ? "login_notifications"
+    : type.startsWith("SHARE") || type.startsWith("DOCUMENT_SHARE")
+      ? "share_notifications"
+      : "security_alerts";
+  const settings = database.prepare("SELECT security_alerts,login_notifications,share_notifications FROM privacy_settings WHERE user_id=?").get(userId);
+  if(settings && Number(settings[preference] ?? 1) !== 1) return;
   const exists=database.prepare("SELECT id FROM security_notifications WHERE user_id=? AND type=? AND title=? AND created_at>? LIMIT 1").get(userId,type,title,Date.now()-24*60*60*1000);
   if(!exists) database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
 }
@@ -267,6 +274,19 @@ app.post("/api/security/notifications/read", enforceSameOrigin, requireAuth, req
     const id=String(req.body?.id||"").trim();
     database.prepare("UPDATE security_notifications SET read_at=? WHERE id=? AND user_id=?").run(Date.now(),id,req.user.id);
     res.json({success:true});
+  }catch(error){next(error);}
+});
+
+app.get("/api/security/auth-monitoring", requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const emailHash=authEmailHash(req.user.email);
+    const since=Date.now()-24*60*60*1000;
+    const failures=database.prepare("SELECT reason,COUNT(*) AS count FROM failed_auth_attempts WHERE email_hash=? AND created_at>? GROUP BY reason").all(emailHash,since);
+    const failedLogins=Number(failures.find(x=>x.reason==="invalid_credentials")?.count||0);
+    const failedMfa=Number(failures.find(x=>x.reason==="mfa_invalid")?.count||0);
+    const events=database.prepare("SELECT event_type AS eventType,created_at AS createdAt,user_agent AS userAgent FROM security_events WHERE user_id=? AND event_type IN ('LOGIN_SUCCESS','LOGIN_FAILED','MFA_FAILED') ORDER BY created_at DESC LIMIT 20").all(req.user.id);
+    const lock=getAuthLock(req.user.email);
+    res.json({success:true,windowHours:24,failedLogins,failedMfa,recent:events,lockout:lock&&Number(lock.locked_until||0)>Date.now()?{active:true,until:lock.locked_until}: {active:false}});
   }catch(error){next(error);}
 });
 
@@ -309,6 +329,7 @@ app.post("/api/security/password/change", enforceSameOrigin, requireAuth, requir
     database.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(req.user.id, req.session.token_hash);
     database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
     logEvent(req.user.id, "PASSWORD_CHANGED", req);
+    ensureSecurityNotification(req.user.id,"PASSWORD_CHANGED","Password changed","Your SecureID password was changed and other sessions were signed out.");
     res.json({ success: true, passwordChangedAt: now, message: "Password changed successfully. Other sessions were signed out." });
   } catch (error) { next(error); }
 });
@@ -486,9 +507,25 @@ registerProductionFeatures({
   requireAuth,
   enforceSameOrigin,
   isProduction,
-  logEvent
+  logEvent,
+  ensureSecurityNotification
 });
-app.get("/api/health", (req, res) => res.json({ success: true, service: "SecureID API", timestamp: new Date().toISOString() }));
+app.get("/api/health", (req, res) => {
+  try {
+    database.prepare("SELECT 1 AS ok").get();
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",timestamp:new Date().toISOString()});
+  } catch {
+    res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
+  }
+});
+app.get("/api/health/ready", (req,res)=>{
+  try{
+    database.prepare("SELECT 1").get();
+    res.json({success:true,status:"ready",database:"ok",timestamp:new Date().toISOString()});
+  }catch{
+    res.status(503).json({success:false,status:"not_ready",database:"error",timestamp:new Date().toISOString()});
+  }
+});
 
 app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
   try {
@@ -639,21 +676,55 @@ async function issuePasswordReset(userId, email) {
 }
 
 const dummyPasswordHash = bcrypt.hashSync("SecureID-dummy-password-2026", bcryptRounds);
+const AUTH_LOCK_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_LOCK_THRESHOLD = 6;
+const AUTH_LOCK_DURATION_MS = 15 * 60 * 1000;
+function authEmailHash(email){ return createHash("sha256").update(String(email).trim().toLowerCase()).digest("hex"); }
+function authIpHash(req){ return createHmac("sha256",sessionPepper).update(String(req.ip||req.socket?.remoteAddress||"unknown")).digest("hex"); }
+function getAuthLock(email){
+  return database.prepare("SELECT failed_count,first_failed_at,last_failed_at,locked_until FROM auth_lockouts WHERE email_hash=?").get(authEmailHash(email));
+}
+function registerAuthFailure(email, req, reason){
+  const now=Date.now();
+  const emailHash=authEmailHash(email);
+  const ipHash=authIpHash(req);
+  database.prepare("INSERT INTO failed_auth_attempts (id,email_hash,ip_hash,created_at,reason) VALUES (?,?,?,?,?)").run(randomUUID(),emailHash,ipHash,now,reason);
+  const existing=getAuthLock(email);
+  let count=Number(existing?.failed_count||0);
+  const first=Number(existing?.first_failed_at||0);
+  if(!first || now-first>AUTH_LOCK_WINDOW_MS) count=0;
+  count+=1;
+  const lockedUntil=count>=AUTH_LOCK_THRESHOLD ? now+AUTH_LOCK_DURATION_MS : Number(existing?.locked_until||0);
+  database.prepare("INSERT INTO auth_lockouts(email_hash,failed_count,first_failed_at,last_failed_at,locked_until) VALUES(?,?,?,?,?) ON CONFLICT(email_hash) DO UPDATE SET failed_count=excluded.failed_count,first_failed_at=excluded.first_failed_at,last_failed_at=excluded.last_failed_at,locked_until=excluded.locked_until").run(emailHash,count,first&&now-first<=AUTH_LOCK_WINDOW_MS?first:now,now,lockedUntil);
+  return {count,lockedUntil};
+}
+function clearAuthFailureState(email){
+  database.prepare("DELETE FROM auth_lockouts WHERE email_hash=?").run(authEmailHash(email));
+}
 app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = req.body?.password;
     if (!validateEmail(email) || typeof password !== "string") return res.status(401).json({ success: false, message: "Email or password is incorrect." });
+    const lock=getAuthLock(email);
+    if(lock && Number(lock.locked_until||0)>Date.now()){
+      const retryAfter=Math.max(1,Math.ceil((Number(lock.locked_until)-Date.now())/1000));
+      res.setHeader("Retry-After",retryAfter);
+      return res.status(429).json({success:false,message:"Too many failed sign-in attempts. Please try again later.",retryAfter});
+    }
     const row = database.prepare("SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE").get(email);
     const valid = await bcrypt.compare(password, row?.password_hash || dummyPasswordHash);
     if (!row || !valid) {
-      const emailHash=createHash("sha256").update(email).digest("hex");
-      const ip=String(req.ip||req.socket?.remoteAddress||"unknown");
-      const ipHash=createHmac("sha256",sessionPepper).update(ip).digest("hex");
-      database.prepare("INSERT INTO failed_auth_attempts (id,email_hash,ip_hash,created_at,reason) VALUES (?,?,?,?,?)").run(randomUUID(),emailHash,ipHash,Date.now(),"invalid_credentials");
-      if(row) logEvent(row.id,"LOGIN_FAILED",req);
+      const failure=registerAuthFailure(email,req,"invalid_credentials");
+      if(row){
+        logEvent(row.id,"LOGIN_FAILED",req,{failedCount:failure.count});
+        if(failure.count>=3) ensureSecurityNotification(row.id,"LOGIN_FAILED","Sign-in attempt blocked","Several unsuccessful sign-in attempts were detected on your SecureID account.");
+      }
+      const retryAfter=failure.lockedUntil>Date.now()?Math.ceil((failure.lockedUntil-Date.now())/1000):0;
+      if(retryAfter){res.setHeader("Retry-After",retryAfter);return res.status(429).json({success:false,message:"Too many failed sign-in attempts. Please try again later.",retryAfter});}
       return res.status(401).json({ success: false, message: "Email or password is incorrect." });
     }
+    clearAuthFailureState(email);
 
     const emailState = database.prepare(
       "SELECT verified_at FROM email_verification_state WHERE user_id = ?"
