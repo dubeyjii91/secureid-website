@@ -250,7 +250,7 @@ export function registerProductionFeatures({
           now
         );
 
-        logEvent(req.user.id,"IDENTITY_PROFILE_UPDATED");
+        logEvent(req.user.id,"IDENTITY_PROFILE_UPDATED",req);
 
         res.json({
           success:true,
@@ -407,7 +407,7 @@ export function registerProductionFeatures({
             createdAt:now
           });
 
-          logEvent(req.user.id,"DOCUMENT_UPLOADED");
+          logEvent(req.user.id,"DOCUMENT_UPLOADED",req);
         }
 
         res.status(201).json({
@@ -443,7 +443,7 @@ export function registerProductionFeatures({
         database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
         database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)").run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
         for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
-        logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED");
+        logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED",req);
         res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
       }catch(error){ next(error); }
     });
@@ -495,7 +495,7 @@ export function registerProductionFeatures({
       res.setHeader("Cache-Control","private, no-store");
       res.setHeader("X-Content-Type-Options","nosniff");
 
-      logEvent(req.user.id,"DOCUMENT_ACCESSED");
+      logEvent(req.user.id,"DOCUMENT_ACCESSED",req);
 
       res.send(plaintext);
     }catch(error){
@@ -544,7 +544,7 @@ export function registerProductionFeatures({
           fs.rmSync(row.encrypted_path,{force:true});
         }catch{}
 
-        logEvent(req.user.id,"DOCUMENT_DELETED");
+        logEvent(req.user.id,"DOCUMENT_DELETED",req);
 
         res.json({success:true});
       }catch(error){
@@ -567,7 +567,7 @@ export function registerProductionFeatures({
       const token=crypto.randomBytes(32).toString("base64url");
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
       database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at) VALUES (?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString());
-      logEvent(req.user.id,"DOCUMENT_SHARED");
+      logEvent(req.user.id,"DOCUMENT_SHARED",req);
       res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
     }catch(error){ next(error); }
   });
@@ -579,7 +579,7 @@ export function registerProductionFeatures({
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
       const result=database.prepare("UPDATE secure_document_shares SET revoked_at=? WHERE token_hash=? AND user_id=? AND revoked_at IS NULL").run(new Date().toISOString(),tokenHash,req.user.id);
       if(!result.changes) return res.status(404).json({success:false,message:"Document share not found."});
-      logEvent(req.user.id,"DOCUMENT_SHARE_REVOKED");
+      logEvent(req.user.id,"DOCUMENT_SHARE_REVOKED",req);
       res.json({success:true});
     }catch(error){ next(error); }
   });
@@ -765,7 +765,7 @@ app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, requireMfaProductio
     }
 
     if (typeof logEvent === "function") {
-      logEvent(req.user.id, locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED");
+      logEvent(req.user.id, locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",req);
     }
 
     res.json({
@@ -869,7 +869,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         expiresAt.toISOString()
       );
 
-      logEvent(req.user.id,"IDENTITY_SHARED");
+      logEvent(req.user.id,"IDENTITY_SHARED",req);
 
       res.json({
         success:true,
@@ -888,7 +888,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         WHERE user_id=? AND revoked_at IS NULL
       `).run(new Date().toISOString(),req.user.id);
 
-      logEvent(req.user.id,"IDENTITY_SHARES_REVOKED");
+      logEvent(req.user.id,"IDENTITY_SHARES_REVOKED",req);
 
       res.json({success:true});
     }catch(error){ next(error); }
@@ -919,6 +919,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       }
 
       const payload=jsonDecrypt(JSON.parse(row.encrypted_payload),key);
+
+      logEvent(payload.ownerUserId,"IDENTITY_SHARE_ACCESSED",req);
 
       res.setHeader("Cache-Control","no-store");
       res.setHeader("X-Content-Type-Options","nosniff");
