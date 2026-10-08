@@ -1015,7 +1015,11 @@ app.post("/api/mfa/cancel", enforceSameOrigin, requireAuth, perIpWalletLimit, pe
 
 app.use((error, req, res, next) => {
   const statusCode = Number(error?.statusCode) || 500;
-  console.error(JSON.stringify({ level:"error", event:"request_error", requestId:res.getHeader("X-Request-Id"), method:req.method, path:req.path, statusCode, errorType:error?.name || "Error" }));
+  const errorType=error?.name || "Error";
+  console.error(JSON.stringify({ level:"error", event:"request_error", requestId:res.getHeader("X-Request-Id"), method:req.method, path:req.path, statusCode, errorType }));
+  try{
+    database.prepare("INSERT INTO application_errors (id,request_id,method,path,status_code,error_type,created_at) VALUES (?,?,?,?,?,?,?)").run(randomUUID(),String(res.getHeader("X-Request-Id")||""),req.method,req.path,statusCode,errorType,Date.now());
+  }catch{}
   if (res.headersSent) return next(error);
   res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
 });
