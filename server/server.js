@@ -991,6 +991,9 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
     const valid = supplied.length === stored.length && timingSafeEqual(supplied, stored);
     if (!valid) {
       database.prepare("UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?").run(challenge.id, maxOtpAttempts);
+      const failure=registerAuthFailure(req.user.email,req,"mfa_invalid");
+      logEvent(req.user.id,"MFA_FAILED",req,{failedCount:failure.count});
+      if(failure.count>=3) ensureSecurityNotification(req.user.id,"MFA_FAILED","MFA verification warning","Several unsuccessful MFA verification attempts were detected on your SecureID account.");
       return res.status(400).json({ success: false, message: "Incorrect verification code." });
     }
     database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(Date.now() + mfaVerifiedTtlMs, req.session.token_hash);
