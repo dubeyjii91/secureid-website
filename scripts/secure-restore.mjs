@@ -1,0 +1,21 @@
+import { createDecipheriv, createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
+const backupPath=process.argv[2];
+const dbPath=process.env.DATABASE_PATH || "./data/secureid.sqlite";
+const key=Buffer.from(process.env.BACKUP_ENCRYPTION_KEY || "","base64");
+if(!backupPath || !existsSync(backupPath)) throw new Error("Pass a valid encrypted backup file.");
+if(key.length!==32) throw new Error("BACKUP_ENCRYPTION_KEY must be a base64 32-byte key.");
+const payload=JSON.parse(readFileSync(backupPath,"utf8"));
+const decipher=createDecipheriv("aes-256-gcm",key,Buffer.from(payload.iv,"base64"));
+decipher.setAuthTag(Buffer.from(payload.tag,"base64"));
+const plaintext=Buffer.concat([decipher.update(Buffer.from(payload.data,"base64")),decipher.final()]);
+const digest=createHash("sha256").update(plaintext).digest("hex");
+if(digest!==payload.sha256) throw new Error("Backup integrity check failed.");
+mkdirSync(path.dirname(path.resolve(dbPath)),{recursive:true});
+const temp=path.resolve(path.dirname(dbPath),".secureid-restore-"+Date.now()+".sqlite");
+writeFileSync(temp,plaintext,{mode:0o600});
+if(existsSync(dbPath)) renameSync(dbPath,dbPath+".pre-restore-"+Date.now());
+renameSync(temp,dbPath);
+console.log(JSON.stringify({success:true,restoredTo:path.resolve(dbPath),sha256:digest}));
