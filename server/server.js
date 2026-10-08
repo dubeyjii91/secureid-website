@@ -59,7 +59,6 @@ if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIG
 app.disable("x-powered-by");
 app.use(express.json({ limit: "32kb" }));
 app.use(express.urlencoded({ extended: false, limit: "32kb" }));
-app.use(express.static(distPath));
 if (isProduction) app.set("trust proxy", Math.max(0, Number(process.env.TRUST_PROXY_HOPS || 0)));
 
 app.use((req, res, next) => {
@@ -73,6 +72,8 @@ app.use((req, res, next) => {
   if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
+
+app.use(express.static(distPath));
 
 function allowedOrigin(origin) {
   if (!origin) return false;
@@ -670,34 +671,6 @@ app.post("/api/mfa/cancel", enforceSameOrigin, requireAuth, perIpWalletLimit, pe
     database.prepare("UPDATE sessions SET mfa_verified_until = 0 WHERE token_hash = ?").run(req.session.token_hash);
     res.json({ success: true });
   } catch (error) { next(error); }
-});
-
-app.get("/api/wallet", requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => res.json({ success: true, wallet: getWallet(req.user.id) }));
-app.post("/api/wallet/risk", enforceSameOrigin, requireAuth, requireMfa, perIpWalletLimit, perUserWalletLimit, (req, res) => {
-  const current = getWallet(req.user.id);
-  if (current.locked) return res.status(423).json({ success: false, message: "Wallet is locked. Restore access first." });
-  const risk = Math.max(0, Math.min(100, Number(req.body?.risk)));
-  if (!Number.isInteger(risk)) return res.status(400).json({ success: false, message: "Risk must be an integer from 0 to 100." });
-  database.prepare("UPDATE wallet_settings SET risk = ? WHERE user_id = ?").run(risk, req.user.id);
-  if (risk >= 70 && !req.user.mfaVerified) logEvent(req.user.id, "HIGH_RISK_DETECTED");
-  res.json({ success: true, wallet: getWallet(req.user.id) });
-});
-app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => {
-  const locked = Boolean(req.body?.locked);
-  database.prepare("UPDATE wallet_settings SET locked = ? WHERE user_id = ?").run(locked ? 1 : 0, req.user.id);
-  logEvent(req.user.id, locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED");
-  res.json({ success: true, wallet: getWallet(req.user.id) });
-});
-app.post("/api/wallet/share", enforceSameOrigin, requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => {
-  const current = getWallet(req.user.id);
-  if (current.locked) return res.status(423).json({ success: false, message: "Wallet is locked. Restore access first." });
-  if (!req.user.mfaVerified) return res.status(403).json({ success: false, message: "MFA verification is required before creating a secure share." });
-  const values = { name: Boolean(req.body?.name), age: Boolean(req.body?.age), address: Boolean(req.body?.address), identityId: Boolean(req.body?.identityId) };
-  if (!Object.values(values).some(Boolean)) return res.status(400).json({ success: false, message: "Select at least one claim to share." });
-  database.prepare("UPDATE wallet_settings SET share_name = ?, share_age = ?, share_address = ?, share_identity_id = ? WHERE user_id = ?").run(values.name ? 1 : 0, values.age ? 1 : 0, values.address ? 1 : 0, values.identityId ? 1 : 0, req.user.id);
-  logEvent(req.user.id, "SELECTIVE_SHARE_CREATED");
-  const shareToken = randomBytes(18).toString("base64url");
-  res.json({ success: true, wallet: getWallet(req.user.id), shareToken });
 });
 
 app.use((error, req, res, next) => {
