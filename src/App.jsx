@@ -85,6 +85,7 @@ function App() {
   const [challengeId, setChallengeId] = useState("");
   const [mfaMessage, setMfaMessage] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [trustDevice, setTrustDevice] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [phishingUrl, setPhishingUrl] = useState("");
   const [phishingResult, setPhishingResult] = useState(null);
@@ -344,12 +345,13 @@ function App() {
     setMfaLoading(true);
     setMfaMessage(mfaRecoveryMode ? "Verifying recovery code…" : "Verifying your code…");
     try {
-      const result = await api("/api/mfa/verify", { method: "POST", body: JSON.stringify({ challengeId: mfaRecoveryMode ? "" : challengeId, code: otp }) });
+      const result = await api("/api/mfa/verify", { method: "POST", body: JSON.stringify({ challengeId: mfaRecoveryMode ? "" : challengeId, code: otp, trustDevice: !mfaRecoveryMode && trustDevice }) });
       setMfaVerified(true);
       setMfaRequired(false);
       setChallengeId("");
       setOtp("");
       setMfaRecoveryMode(false);
+      setTrustDevice(false);
       setMfaMessage(result.message);
     } catch (error) {
       if (error.status === 410) setChallengeId("");
@@ -711,7 +713,7 @@ function App() {
       <footer>SecureID Â· Privacy-first identity wallet <span>Security Â· Privacy Â· Trust</span></footer>
     </main>
     {showWelcome && !publicShare && !publicDocumentShare && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
-    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : <>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
+    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : <>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <label className="trustDeviceRow"><input type="checkbox" checked={trustDevice} onChange={e=>setTrustDevice(e.target.checked)} /> <span><strong>Trust this device for 30 days</strong><small>Only use this on a personal device you control.</small></span></label>}{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
   </div>;
 }
 
