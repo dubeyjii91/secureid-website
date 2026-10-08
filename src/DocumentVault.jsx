@@ -48,6 +48,7 @@ export default function DocumentVault(){
   const [saving,setSaving]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [message,setMessage]=useState("");
+  const [documentShares,setDocumentShares]=useState({});
 
   async function load(){
     setLoading(true);
@@ -163,6 +164,25 @@ export default function DocumentVault(){
     }
   }
 
+  async function shareDocument(doc){
+    try{
+      const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id})});
+      const link=new URL("/document-share/"+result.shareToken,window.location.origin).toString();
+      setDocumentShares(current=>({...current,[doc.id]:{token:result.shareToken,link,expiresAt:result.shareExpiresAt}}));
+      await navigator.clipboard?.writeText(link);
+      setMessage("Secure document link created and copied. It expires in 15 minutes.");
+    }catch(error){setMessage(error.message);}
+  }
+
+  async function revokeDocumentShare(docId){
+    const share=documentShares[docId]; if(!share)return;
+    try{
+      await api("/api/document-share/revoke",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shareToken:share.token})});
+      setDocumentShares(current=>{const next={...current};delete next[docId];return next;});
+      setMessage("Document share revoked.");
+    }catch(error){setMessage(error.message);}
+  }
+
   async function remove(id){
     if(!window.confirm("Delete this document permanently?")){
       return;
@@ -262,9 +282,8 @@ export default function DocumentVault(){
               </div>
 
               <div className="documentActions">
-                <button onClick={()=>download(doc.id,doc.name)}>
-                  Download
-                </button>
+                <button onClick={()=>download(doc.id,doc.name)}>Download</button>
+                {!documentShares[doc.id] ? <button onClick={()=>shareDocument(doc)}>Share</button> : <button onClick={()=>revokeDocumentShare(doc.id)}>Revoke share</button>}
                 <button onClick={()=>remove(doc.id)}>
                   Delete
                 </button>

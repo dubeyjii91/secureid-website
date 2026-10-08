@@ -519,6 +519,55 @@ export function registerProductionFeatures({
   );
 
 
+  /* DOCUMENT SHARING */
+  app.post("/api/document-share",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      enforceShareRateLimit(req,req.user.id);
+      assertWalletUnlocked(req.user.id);
+      const documentId=String(req.body?.documentId || "").trim();
+      const row=database.prepare("SELECT id,original_name,mime_type FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
+      if(!row) return res.status(404).json({success:false,message:"Document not found."});
+      const now=Date.now();
+      const expiresAt=new Date(now+SHARE_TTL_MS);
+      const token=crypto.randomBytes(32).toString("base64url");
+      const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
+      database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at) VALUES (?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString());
+      logEvent(req.user.id,"DOCUMENT_SHARED");
+      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
+    }catch(error){ next(error); }
+  });
+
+  app.post("/api/document-share/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      assertWalletUnlocked(req.user.id);
+      const token=String(req.body?.shareToken || "").trim();
+      const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
+      const result=database.prepare("UPDATE secure_document_shares SET revoked_at=? WHERE token_hash=? AND user_id=? AND revoked_at IS NULL").run(new Date().toISOString(),tokenHash,req.user.id);
+      if(!result.changes) return res.status(404).json({success:false,message:"Document share not found."});
+      logEvent(req.user.id,"DOCUMENT_SHARE_REVOKED");
+      res.json({success:true});
+    }catch(error){ next(error); }
+  });
+
+  app.get("/api/document-share/:token",(req,res,next)=>{
+    try{
+      const token=String(req.params.token || "");
+      if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)) return res.status(404).json({success:false,message:"Document share not found."});
+      const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
+      const row=database.prepare("SELECT s.document_id,s.expires_at,s.revoked_at,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL").get(tokenHash);
+      if(!row || row.revoked_at || Date.now()>=Date.parse(row.expires_at)) return res.status(404).json({success:false,message:"Document share not found or expired."});
+      if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
+      const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
+      res.setHeader("Content-Type",row.mime_type);
+      res.setHeader("Content-Disposition",`inline; filename="${safeFilename(row.original_name)}"`);
+      res.setHeader("Cache-Control","no-store");
+      res.setHeader("Pragma","no-cache");
+      res.setHeader("X-Content-Type-Options","nosniff");
+      res.setHeader("Referrer-Policy","no-referrer");
+      res.send(plaintext);
+    }catch(error){ next(error); }
+  });
+
   /*
    * PRODUCTION WALLET SHARING
    * Short-lived, encrypted, revocable share tokens.
@@ -674,6 +723,9 @@ app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, requireMfaProductio
     if (locked) {
       database.prepare(
         "UPDATE secure_shares SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL"
+      ).run(req.user.id);
+      database.prepare(
+        "UPDATE secure_document_shares SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL"
       ).run(req.user.id);
     }
 
