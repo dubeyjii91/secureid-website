@@ -1,10 +1,10 @@
 ﻿import "./document-vault.css";
 import DocumentVault from "./DocumentVault.jsx";
 import "./secureid-font-clean.css";
-import "./secureid-redesign.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
-import "./secureid-redesign.css";const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
+import "./secureid-redesign.css";
+const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
 const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
 
 async function api(path, options = {}) {
@@ -52,6 +52,14 @@ function App() {
   const [phishingResult, setPhishingResult] = useState(null);
   const [shareToken, setShareToken] = useState("");
   const [busyAction, setBusyAction] = useState("");
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [recoveryMode, setRecoveryMode] = useState("");
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
 
   const riskState = useMemo(() => {
     if (wallet.locked) return { label: "Action needed", tone: "danger", detail: "Your wallet is locked." };
@@ -91,6 +99,36 @@ function App() {
     }
   }, []);
 
+  // SECUREID_QUERY_HANDLERS
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get("verify_email");
+    const passwordToken = params.get("reset_password");
+
+    if (verifyToken) {
+      setVerificationPending(true);
+      setVerificationMessage("Verifying your email address…");
+      api(`/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`)
+        .then((result) => {
+          setVerificationMessage(result.message || "Your email has been verified. You can sign in now.");
+          setAuthMode("login");
+        })
+        .catch((error) => {
+          setVerificationMessage(error.message || "Email verification failed.");
+        })
+        .finally(() => {
+          setVerificationPending(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    }
+
+    if (passwordToken) {
+      setResetToken(passwordToken);
+      setRecoveryMode("reset");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     api("/api/auth/session")
       .then(async (result) => {
@@ -104,18 +142,106 @@ function App() {
   const submitAuth = async (event) => {
     event.preventDefault();
     if (authLoading) return;
+
     setAuthLoading(true);
     setAuthMessage("");
+
     try {
-      const result = await api(`/api/auth/${authMode}`, { method: "POST", body: JSON.stringify({ email: authEmail, password: authPassword }) });
+      const result = await api(`/api/auth/${authMode}`, {
+        method: "POST",
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+      });
+
       applySession({ ...result, wallet: defaultWallet });
       setAuthPassword("");
       setWallet(defaultWallet);
       await requestOtp();
     } catch (error) {
+      if (error.status === 403 && error.message) {
+        setVerificationMessage(error.message);
+      }
       setAuthMessage(error.message);
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!authEmail || recoveryLoading) return;
+
+    setRecoveryLoading(true);
+    setRecoveryMessage("");
+
+    try {
+      const result = await api("/api/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email: authEmail }),
+      });
+      setRecoveryMessage(result.message || "Verification email sent.");
+    } catch (error) {
+      setRecoveryMessage(error.message);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const forgotPassword = async (event) => {
+    event.preventDefault();
+    if (!authEmail || recoveryLoading) return;
+
+    setRecoveryLoading(true);
+    setRecoveryMessage("");
+
+    try {
+      const result = await api("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: authEmail }),
+      });
+      setRecoveryMessage(result.message || "If the account exists, a reset email has been sent.");
+    } catch (error) {
+      setRecoveryMessage(error.message);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const submitResetPassword = async (event) => {
+    event.preventDefault();
+
+    if (recoveryLoading || !resetToken) return;
+
+    if (resetPassword.length < 12) {
+      setRecoveryMessage("Password must be at least 12 characters.");
+      return;
+    }
+
+    if (resetPassword !== resetPasswordConfirm) {
+      setRecoveryMessage("Passwords do not match.");
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryMessage("");
+
+    try {
+      const result = await api("/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({
+          token: resetToken,
+          password: resetPassword,
+        }),
+      });
+
+      setRecoveryMessage(result.message || "Password reset successfully. You can sign in now.");
+      setResetPassword("");
+      setResetPasswordConfirm("");
+      setResetToken("");
+      setRecoveryMode("");
+      setAuthMode("login");
+    } catch (error) {
+      setRecoveryMessage(error.message);
+    } finally {
+      setRecoveryLoading(false);
     }
   };
 
@@ -198,7 +324,215 @@ function App() {
 
   if (sessionLoading) return <div className="loadingPage"><div className="spinner" /><span>Checking your SecureID sessionâ€¦</span></div>;
 
-  if (!isAuthenticated) return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE DIGITAL IDENTITY</div><h1>{authMode === "register" ? "Create your account" : "Welcome back"}</h1><p>Protect your digital identity with secure authentication, MFA and privacy-first sharing.</p><div className="authTabs"><button className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")}>Sign in</button><button className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>Create account</button></div><form onSubmit={submitAuth}><label>Email address<input type="email" required maxLength={254} autoComplete="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} /></label><label>Password<input type="password" required minLength={12} maxLength={72} autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} /></label><button className="primary full" disabled={authLoading}>{authLoading ? "Authenticatingâ€¦" : authMode === "register" ? "Create account" : "Sign in"}</button></form><div className="authMessage">{authMessage}</div><small>Multi-factor verification is required after sign-in.</small></section></div>;
+  if (!isAuthenticated) {
+    if (verificationPending) {
+      return (
+        <div className="authShell">
+          <div className="authBrand"><span className="shield">S</span><span>SecureID</span></div>
+          <section className="authCard">
+            <div className="eyebrow">EMAIL VERIFICATION</div>
+            <h1>Verify your email</h1>
+            <p>We're confirming your SecureID email address.</p>
+            <div className="authMessage">{verificationMessage}</div>
+          </section>
+        </div>
+      );
+    }
+
+    if (recoveryMode === "reset") {
+      return (
+        <div className="authShell">
+          <div className="authBrand"><span className="shield">S</span><span>SecureID</span></div>
+          <section className="authCard">
+            <div className="eyebrow">ACCOUNT RECOVERY</div>
+            <h1>Set a new password</h1>
+            <p>Create a new password for your SecureID account.</p>
+
+            <form onSubmit={submitResetPassword}>
+              <label>New password
+                <input
+                  type="password"
+                  required
+                  minLength={12}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                />
+              </label>
+
+              <label>Confirm password
+                <input
+                  type="password"
+                  required
+                  minLength={12}
+                  maxLength={72}
+                  autoComplete="new-password"
+                  value={resetPasswordConfirm}
+                  onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                />
+              </label>
+
+              <button className="primary full" disabled={recoveryLoading}>
+                {recoveryLoading ? "Updating…" : "Update password"}
+              </button>
+            </form>
+
+            <div className="authMessage">{recoveryMessage}</div>
+            <button className="textButton" onClick={() => {
+              setRecoveryMode("");
+              setRecoveryMessage("");
+            }}>
+              Back to sign in
+            </button>
+          </section>
+        </div>
+      );
+    }
+
+    if (recoveryMode === "forgot") {
+      return (
+        <div className="authShell">
+          <div className="authBrand"><span className="shield">S</span><span>SecureID</span></div>
+          <section className="authCard">
+            <div className="eyebrow">ACCOUNT RECOVERY</div>
+            <h1>Forgot your password?</h1>
+            <p>Enter your account email and we'll send a secure password reset link.</p>
+
+            <form onSubmit={forgotPassword}>
+              <label>Email address
+                <input
+                  type="email"
+                  required
+                  maxLength={254}
+                  autoComplete="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                />
+              </label>
+
+              <button className="primary full" disabled={recoveryLoading}>
+                {recoveryLoading ? "Sending…" : "Send reset link"}
+              </button>
+            </form>
+
+            <div className="authMessage">{recoveryMessage}</div>
+
+            <button className="textButton" onClick={() => {
+              setRecoveryMode("");
+              setRecoveryMessage("");
+            }}>
+              Back to sign in
+            </button>
+          </section>
+        </div>
+      );
+    }
+
+    return (
+      <div className="authShell">
+        <div className="authBrand"><span className="shield">S</span><span>SecureID</span></div>
+
+        <section className="authCard">
+          <div className="eyebrow">SECURE DIGITAL IDENTITY</div>
+
+          <h1>{authMode === "register" ? "Create your account" : "Welcome back"}</h1>
+
+          <p>
+            Protect your digital identity with secure authentication,
+            MFA and privacy-first sharing.
+          </p>
+
+          <div className="authTabs">
+            <button
+              className={authMode === "login" ? "active" : ""}
+              onClick={() => {
+                setAuthMode("login");
+                setAuthMessage("");
+                setRecoveryMessage("");
+              }}
+            >
+              Sign in
+            </button>
+
+            <button
+              className={authMode === "register" ? "active" : ""}
+              onClick={() => {
+                setAuthMode("register");
+                setAuthMessage("");
+                setRecoveryMessage("");
+              }}
+            >
+              Create account
+            </button>
+          </div>
+
+          <form onSubmit={submitAuth}>
+            <label>Email address
+              <input
+                type="email"
+                required
+                maxLength={254}
+                autoComplete="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+              />
+            </label>
+
+            <label>Password
+              <input
+                type="password"
+                required
+                minLength={12}
+                maxLength={72}
+                autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+              />
+            </label>
+
+            <button className="primary full" disabled={authLoading}>
+              {authLoading
+                ? "Authenticating…"
+                : authMode === "register"
+                  ? "Create account"
+                  : "Sign in"}
+            </button>
+          </form>
+
+          <div className="authMessage">{authMessage}</div>
+          <div className="authMessage">{verificationMessage}</div>
+
+          {authMode === "login" && (
+            <>
+              <button
+                className="textButton"
+                onClick={() => {
+                  setRecoveryMode("forgot");
+                  setRecoveryMessage("");
+                  setAuthMessage("");
+                }}
+              >
+                Forgot password?
+              </button>
+
+              {authMessage && /verif/i.test(authMessage) && (
+                <button
+                  className="textButton"
+                  disabled={recoveryLoading}
+                  onClick={resendVerification}
+                >
+                  {recoveryLoading ? "Sending…" : "Resend verification email"}
+                </button>
+              )}
+            </>
+          )}
+
+          <small>Multi-factor verification is required after sign-in.</small>
+        </section>
+      </div>
+    );
+  }
 
   return <div className="shell">
     <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => setPage(id)}><span>{icon}</span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>âœ“</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div><button className="signOut" onClick={signOut}>Sign out</button></div></aside>
