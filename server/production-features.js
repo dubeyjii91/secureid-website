@@ -917,7 +917,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         },key)),
         new Date(now).toISOString(),
         expiresAt.toISOString(),
-        ""
+        share_reason
       );
 
       logEvent(req.user.id,"IDENTITY_SHARED",req);
