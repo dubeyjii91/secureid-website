@@ -134,7 +134,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const match = window.location.pathname.match(/^\\/share\\/([A-Za-z0-9_-]{30,100})$/);
+    const match = window.location.pathname.match(/^\/share\/([A-Za-z0-9_-]{30,100})$/);
     if (match) {
       api("/api/share/" + match[1])
         .then((result) => setPublicShare(result))
