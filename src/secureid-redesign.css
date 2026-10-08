@@ -104,3 +104,5 @@ h1, h2, h3, h4, strong, .brand, .authBrand, .authCard, .topbar, .sidebar {
 .textButton {
   color: #8fb4ff !important;
 }
+
+.sharePublicGrid{display:grid;gap:12px;margin:24px 0;text-align:left}.sharePublicItem{padding:14px 16px;border:1px solid rgba(20,34,55,.12);border-radius:14px;background:#f8fafc;display:grid;gap:5px}.sharePublicItem span{font-size:12px;text-transform:uppercase;letter-spacing:.08em;opacity:.65}.sharePublicItem strong{font-size:15px;overflow-wrap:anywhere}.shareExpiry{font-size:13px;opacity:.7;margin-top:14px}.shareResult code{display:block;word-break:break-all;margin:12px 0;padding:10px;border-radius:10px;background:#f3f6f9}
