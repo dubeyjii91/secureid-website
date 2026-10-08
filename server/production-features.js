@@ -167,6 +167,19 @@ export function registerProductionFeatures({
    * All 11 fields are stored server-side.
    * Sensitive values are encrypted before entering SQLite.
    */
+  app.get("/api/identity/verification-status",requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      const profileRow=database.prepare("SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id=?").get(req.user.id);
+      let declaredStatus="";
+      if(profileRow){ try{ declaredStatus=jsonDecrypt(JSON.parse(profileRow.encrypted_data),key).verificationStatus || ""; }catch{} }
+      const proofs=database.prepare("SELECT document_category,created_at FROM secure_documents WHERE user_id=? AND document_category IN ('student_id','institution_proof') AND deleted_at IS NULL ORDER BY created_at DESC").all(req.user.id);
+      const hasStudent=proofs.some(x=>x.document_category==="student_id");
+      const hasInstitution=proofs.some(x=>x.document_category==="institution_proof");
+      const status=declaredStatus || (hasStudent && hasInstitution ? "Pending review" : (hasStudent || hasInstitution ? "Partially submitted" : "Not submitted"));
+      res.json({success:true,status,proofs:{studentId:hasStudent,institution:hasInstitution},updatedAt:profileRow?.updated_at||null});
+    }catch(error){next(error);}
+  });
+
   app.get("/api/identity/profile",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const row=database.prepare(
