@@ -3,7 +3,18 @@ import { createCipheriv, randomBytes, createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-let status = { enabled:false, lastRunAt:null, lastSuccessAt:null, lastError:null, lastFile:null };
+let status = { enabled:false, lastRunAt:null, lastSuccessAt:null, lastError:null, lastFile:null, alertingConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL && process.env.RESEND_API_KEY && process.env.OTP_FROM_EMAIL) };
+
+async function sendBackupAlert(subject, text){
+  const to=process.env.SECURITY_ALERT_EMAIL || "";
+  const apiKey=process.env.RESEND_API_KEY || "";
+  const from=process.env.OTP_FROM_EMAIL || "";
+  if(!to || !apiKey || !from) return;
+  try{
+    await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({from,to:[to],subject,text})});
+  }catch{}
+}
+
 
 function backupKey(){
   const raw=process.env.BACKUP_ENCRYPTION_KEY || "";
@@ -41,6 +52,7 @@ export function runEncryptedBackup(){
   }catch(error){
     rmSync(tmp,{force:true});
     status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error)};
+    void sendBackupAlert("SecureID encrypted backup failed","An automatic SecureID encrypted backup failed at "+new Date().toISOString()+". Review the production logs and backup status immediately.");
     throw error;
   }
 }
@@ -50,6 +62,7 @@ export function getBackupStatus(){ return {...status}; }
 export function startAutomaticBackup(){
   const configured=Boolean(process.env.BACKUP_ENCRYPTION_KEY);
   status.enabled=configured;
+  status.alertingConfigured=Boolean(process.env.SECURITY_ALERT_EMAIL && process.env.RESEND_API_KEY && process.env.OTP_FROM_EMAIL);
   if(!configured){
     console.warn(JSON.stringify({level:"warn",event:"encrypted_backup_disabled",reason:"BACKUP_ENCRYPTION_KEY is not configured"}));
     return;
