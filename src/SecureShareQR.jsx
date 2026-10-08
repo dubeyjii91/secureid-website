@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import "./secure-share-qr.css";
 
 export default function SecureShareQR({ token, expiresAt }) {
   const canvasRef = useRef(null);
