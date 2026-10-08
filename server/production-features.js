@@ -728,6 +728,8 @@ function enforceShareRateLimit(req, userId) {
     database.exec("ALTER TABLE secure_document_shares ADD COLUMN access_count INTEGER NOT NULL DEFAULT 0");
   } catch {}
 
+  try { database.exec("ALTER TABLE secure_shares ADD COLUMN purpose TEXT"); } catch {}
+  try { database.exec("ALTER TABLE secure_document_shares ADD COLUMN purpose TEXT"); } catch {}
   app.get("/api/security/shares",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
