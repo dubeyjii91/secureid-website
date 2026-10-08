@@ -100,7 +100,8 @@ export default function AccountSecurity() {
 
   const exportData = async () => {
     try {
-      const response = await api("/api/account/export");
+      const response = await fetch("/api/account/export",{credentials:"include"});
+      if(!response.ok){const d=await response.json().catch(()=>({}));throw new Error(d.message||"Unable to export your data.");}
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
