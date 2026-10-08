@@ -49,6 +49,15 @@ database.exec(`
   );
   CREATE INDEX IF NOT EXISTS security_events_user_id ON security_events(user_id);
 
+  CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    used_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS mfa_recovery_codes_user_id ON mfa_recovery_codes(user_id);
+
   CREATE TABLE IF NOT EXISTS rate_limits (
     bucket_key TEXT PRIMARY KEY,
     hits INTEGER NOT NULL,
@@ -95,6 +104,10 @@ if (!sessionColumns.includes("mfa_verified_until")) {
 const userColumns = database.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
 if (!userColumns.includes("otp_last_sent_at")) {
   database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
+}
+
+if (!userColumns.includes("password_changed_at")) {
+  database.exec("ALTER TABLE users ADD COLUMN password_changed_at INTEGER");
 }
 
 database.exec(`
