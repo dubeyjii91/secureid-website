@@ -4,6 +4,7 @@ import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
 import ShareManagement from "./ShareManagement.jsx";
 import AccountSecurity from "./AccountSecurity.jsx";
+import SecurityDashboard from "./SecurityDashboard.jsx";
 import SecureShareQR from "./SecureShareQR.jsx";
 import "./secureid-font-clean.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
