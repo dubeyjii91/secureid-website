@@ -913,7 +913,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         JSON.stringify(jsonEncrypt({
           claims:selected,
           ownerUserId:req.user.id,
-          contextLabel
+          contextLabel:share_reason
         },key)),
         new Date(now).toISOString(),
         expiresAt.toISOString(),
