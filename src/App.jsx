@@ -346,6 +346,7 @@ function App() {
     setMfaVerified(false);
     setChallengeId("");
     setOtp("");
+    setMfaRecoveryMode(false);
   };
 
   const toggleLock = async () => {
