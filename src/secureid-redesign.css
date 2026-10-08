@@ -137,3 +137,24 @@ h1, h2, h3, h4, strong, .brand, .authBrand, .authCard, .topbar, .sidebar { font-
   border-radius:14px;
   margin:18px auto;
 }
+
+
+/* SecureID visual identity */
+.welcomeSplash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:rgba(3,8,20,.78);backdrop-filter:blur(16px);animation:welcomeIn .35s ease both}
+.welcomeGlow{position:absolute;width:70vw;height:70vw;max-width:760px;max-height:760px;border-radius:50%;background:radial-gradient(circle,rgba(40,185,255,.18),rgba(117,104,255,.08) 45%,transparent 70%);animation:welcomePulse 2.8s ease-in-out infinite}
+.welcomeCard{position:relative;width:min(560px,100%);padding:28px;border:1px solid rgba(95,169,255,.35);border-radius:26px;background:linear-gradient(145deg,rgba(10,24,49,.96),rgba(12,15,38,.96));box-shadow:0 30px 100px rgba(0,0,0,.5),0 0 60px rgba(45,145,255,.14);text-align:center;color:#fff;overflow:hidden}
+.welcomeGif{display:block;width:min(360px,85%);height:auto;margin:0 auto 12px;border-radius:20px;animation:welcomeFloat 3s ease-in-out infinite}
+.welcomeCard h2{margin:8px 0 10px;font-size:30px;letter-spacing:-.03em}
+.welcomeCard p{max-width:460px;margin:0 auto 20px;color:rgba(235,244,255,.76);line-height:1.65}
+.authWelcomeVisual{margin:-8px auto 14px;width:150px}
+.authWelcomeVisual .functionVisual{padding:0;background:transparent;border:0;box-shadow:none}
+.functionHero{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:22px;padding:20px 24px;border:1px solid rgba(69,126,220,.18);border-radius:22px;background:linear-gradient(110deg,rgba(8,22,45,.96),rgba(13,20,48,.88));box-shadow:0 18px 50px rgba(0,0,0,.16);overflow:hidden}
+.functionHero h2{margin:4px 0 7px;color:#fff;font-size:24px}
+.functionHero p{margin:0;max-width:650px;color:rgba(225,236,255,.72)}
+.functionHero.compact{padding:16px 20px}
+.functionVisual{width:190px;min-width:190px;padding:8px;border:1px solid rgba(80,155,255,.28);border-radius:18px;background:rgba(3,12,29,.7);box-shadow:0 0 35px rgba(44,137,255,.13);overflow:hidden}
+.functionVisual img{display:block;width:100%;height:auto;border-radius:12px;animation:welcomeFloat 4s ease-in-out infinite}
+@keyframes welcomeIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+@keyframes welcomePulse{0%,100%{transform:scale(.92);opacity:.65}50%{transform:scale(1.04);opacity:1}}
+@keyframes welcomeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@media(max-width:720px){.welcomeCard{padding:20px}.welcomeCard h2{font-size:24px}.functionHero{align-items:flex-start}.functionVisual{width:130px;min-width:130px}.functionHero h2{font-size:20px}}
