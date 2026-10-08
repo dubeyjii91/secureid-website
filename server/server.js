@@ -131,12 +131,12 @@ function hashOtpCode(code, userId, challengeId) { return createHmac("sha256", ot
 function setSessionCookie(res, token, maxAgeMs = sessionTtlMs) {
   const parts = [`${sessionCookieName}=${encodeURIComponent(token)}`, "Path=/", `Max-Age=${Math.floor(maxAgeMs / 1000)}`, "HttpOnly", "SameSite=Strict"];
   if (isProduction) parts.push("Secure");
-  res.setHeader("Set-Cookie", parts.join("; "));
+  res.append("Set-Cookie", parts.join("; "));
 }
 function clearSessionCookie(res) {
   const parts = [`${sessionCookieName}=`, "Path=/", "Max-Age=0", "HttpOnly", "SameSite=Strict"];
   if (isProduction) parts.push("Secure");
-  res.setHeader("Set-Cookie", parts.join("; "));
+  res.append("Set-Cookie", parts.join("; "));
 }
 function createSession(userId, req, res) {
   const token = randomBytes(32).toString("base64url");
