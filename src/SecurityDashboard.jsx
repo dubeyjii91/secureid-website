@@ -13,12 +13,12 @@ async function api(path,options={}){
   return d;
 }
 export default function SecurityDashboard(){
-  const [data,setData]=useState(null),[notifications,setNotifications]=useState([]),[privacy,setPrivacy]=useState(null),[message,setMessage]=useState(""),[loading,setLoading]=useState(true);
+  const [data,setData]=useState(null),[notifications,setNotifications]=useState([]),[privacy,setPrivacy]=useState(null),[health,setHealth]=useState(null),[message,setMessage]=useState(""),[loading,setLoading]=useState(true);
   async function load(){
     setLoading(true);setMessage("");
     try{
-      const [dashboard,n,privacyResult]=await Promise.all([api("/api/security/dashboard"),api("/api/security/notifications"),api("/api/privacy")]);
-      setData(dashboard);setNotifications(n.notifications||[]);setPrivacy(privacyResult.settings);
+      const [dashboard,n,privacyResult,healthResult]=await Promise.all([api("/api/security/dashboard"),api("/api/security/notifications"),api("/api/privacy"),api("/api/health")]);
+      setData(dashboard);setNotifications(n.notifications||[]);setPrivacy(privacyResult.settings);setHealth(healthResult);
     }catch(e){setMessage(e.message)}finally{setLoading(false)}
   }
   useEffect(()=>{load()},[]);
@@ -39,6 +39,17 @@ export default function SecurityDashboard(){
       <article className="panel"><div className="eyebrow dark">SECURITY STATUS</div><div className="securityStats"><span><b>{data?.stats?.activeSessions||0}</b> active sessions</span><span><b>{data?.stats?.activeShares||0}</b> active shares</span><span><b>{data?.stats?.documents||0}</b> protected documents</span><span><b>{data?.stats?.recoveryCodesRemaining||0}</b> recovery codes left</span></div></article>
     </div>
     <section className="panel"><div className="panelHead"><div><div className="eyebrow dark">NOTIFICATIONS</div><h3>Security alerts {notifications.filter(n=>!n.readAt).length>0 && <span className="unreadBadge">{notifications.filter(n=>!n.readAt).length} unread</span>}</h3></div><button className="textButton" onClick={load}>Refresh</button></div>{notifications.length===0?<div className="activityEmpty">No security notifications.</div>:<div className="notificationList">{notifications.map(n=><button className={n.readAt?"notification read":"notification"} key={n.id} onClick={()=>markRead(n.id)}><span className="notificationDot"/><span><strong>{n.title}</strong><small>{n.message}</small><em>{new Date(n.createdAt).toLocaleString()}</em></span></button>)}</div>}</section>
+    <section className="panel systemHealthPanel">
+      <div className="eyebrow dark">SYSTEM HEALTH</div>
+      <h3>SecureID services</h3>
+      <div className="systemHealthGrid">
+        <div><span>API status</span><strong className="healthOk">{health?.status === "ready" ? "Operational" : "Check required"}</strong></div>
+        <div><span>Database</span><strong className="healthOk">{health?.database === "ok" ? "Healthy" : "Check required"}</strong></div>
+        <div><span>Encrypted backups</span><strong>{health?.backup?.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured"}</strong></div>
+      </div>
+      {health?.backup?.lastSuccessAt && <small className="healthMeta">Last encrypted backup: {new Date(health.backup.lastSuccessAt).toLocaleString()}</small>}
+    </section>
+
     <section className="panel"><div className="eyebrow dark">PRIVACY CENTER</div><h3>Control security and privacy notifications</h3><div className="privacyList">
       {privacy&&[["security_alerts","Security alerts","Show important SecureID security alerts."],["login_notifications","Login notifications","Notify you about successful sign-ins."],["share_notifications","Share notifications","Allow notifications related to secure sharing."],["analytics","Optional analytics","Allow non-essential product analytics."]].map(([key,title,desc])=><label className="privacyRow" key={key}><span><b>{title}</b><small>{desc}</small></span><input type="checkbox" checked={Boolean(privacy[key])} onChange={e=>savePrivacy({...privacy,[key]:e.target.checked?1:0})}/></label>)}
     </div></section>
