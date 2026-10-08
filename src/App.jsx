@@ -1,6 +1,7 @@
 ﻿import "./document-vault.css";
 import DocumentVault from "./DocumentVault.jsx";
 import SecurityActivity from "./SecurityActivity.jsx";
+import SecuritySessions from "./SecuritySessions.jsx";
 import "./secureid-font-clean.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -49,6 +50,7 @@ const navItems = [
   ["safety", "Safety check", "✓"],
   ["lock", "Emergency lock/unlock", "◆"],
   ["activity", "Security activity", "◉"],
+  ["sessions", "Active sessions", "▣"],
 ];
 
 function App() {
@@ -661,6 +663,8 @@ function App() {
       {page === "safety" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">SECURITY CHECK</div><h2>Check before you trust.</h2><p>Spot common phishing warning signs before you sign in.</p></div><FunctionVisual label="SecureID safety protection" /></div><section className="panel"><div className="eyebrow dark">SAFETY CHECK</div><h2>Check a website before you sign in</h2><p className="lead">This quick check looks for a few common warning signs. It is not a guarantee that a website is safe.</p><div className="urlForm"><input value={phishingUrl} onChange={(e) => setPhishingUrl(e.target.value)} placeholder="example.com" aria-label="Website address" /><button className="primary" onClick={scanPhishingUrl}>Check website</button></div>{phishingResult && <div className={`scanResult ${phishingResult.safe ? "safe" : "warning"}`}><strong>{phishingResult.safe ? "No obvious warning signs" : "Use caution"}</strong><p>{phishingResult.text}</p></div>}<div className="tips"><div><strong>Use HTTPS</strong><span>Check that the address starts with https://.</span></div><div><strong>Check the domain</strong><span>Look closely for extra words, unusual characters or misspellings.</span></div><div><strong>Never share OTPs</strong><span>SecureID verification codes should not be given to another person.</span></div></div></section></section>}
 
       {page === "activity" && <SecurityActivity />}
+
+      {page === "sessions" && <SecuritySessions />}
 
       {page === "lock" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">EMERGENCY CONTROL</div><h2>Stay in control of access.</h2><p>Pause identity sharing whenever you need extra protection.</p></div><FunctionVisual label="SecureID emergency protection" /></div><section className={`panel lockPanel ${wallet.locked ? "locked" : ""}`}><div className="lockGraphic">{wallet.locked ? "!" : "✓"}</div><div className="eyebrow dark">EMERGENCY ACCESS CONTROL</div><h2>{wallet.locked ? "Your wallet is locked" : "Your wallet is active"}</h2><p className="lead">{wallet.locked ? "Sharing is paused. Restore access when you are ready and have confirmed your account is secure." : "If you suspect unauthorized activity, lock the wallet immediately to pause selective sharing."}</p><button className={wallet.locked ? "primary" : "dangerButton"} onClick={toggleLock} disabled={busyAction === "lock"}>{busyAction === "lock" ? "Updating…" : wallet.locked ? "Restore access" : "Emergency lock"}</button><div className="lockFacts"><span>Current status <strong>{wallet.locked ? "Locked" : "Active"}</strong></span><span>Identity sharing <strong>{wallet.locked ? "Paused" : "Available"}</strong></span></div></section></section>}
 
