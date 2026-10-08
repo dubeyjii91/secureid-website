@@ -120,11 +120,16 @@ function clearSessionCookie(res) {
   if (isProduction) parts.push("Secure");
   res.setHeader("Set-Cookie", parts.join("; "));
 }
-function createSession(userId, res) {
+function createSession(userId, req, res) {
   const token = randomBytes(32).toString("base64url");
   const now = Date.now();
-  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until) VALUES (?, ?, ?, ?, 0)").run(hashSessionToken(token), userId, now + sessionTtlMs, now);
+  const tokenHash = hashSessionToken(token);
+  const userAgent = String(req?.get?.("user-agent") || "").slice(0, 512) || null;
+  const ip = String(req?.ip || req?.socket?.remoteAddress || "").trim();
+  const ipHash = ip ? createHmac("sha256", sessionPepper).update(ip).digest("hex") : null;
+  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
   setSessionCookie(res, token);
+  return tokenHash;
 }
 
 function requireAuth(req, res, next) {
@@ -138,6 +143,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ success: false, message: "Session expired. Please sign in again." });
   }
   req.session = row;
+  database.prepare("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?").run(Date.now(), tokenHash);
   req.user = { id: row.id, email: row.email, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() };
   next();
 }
@@ -177,6 +183,55 @@ const perIpOtpVerifyLimit = createRateLimit("otp-verify-ip", 20, window15m, getC
 const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 20, window15m, (req) => req.user?.id || getClientKey(req));
 const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKey);
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
+
+
+app.get("/api/security/sessions", requireAuth, requireMfa, (req, res, next) => {
+  try {
+    const now = Date.now();
+    database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+    const sessions = database.prepare("SELECT token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt, user_agent AS userAgent FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC, created_at DESC").all(req.user.id);
+    const currentHash = req.session.token_hash;
+    res.json({
+      success: true,
+      sessions: sessions.map((session) => ({
+        id: session.tokenHash.slice(0, 16),
+        current: session.tokenHash === currentHash,
+        createdAt: session.createdAt,
+        lastSeenAt: session.lastSeenAt || session.createdAt,
+        expiresAt: session.expiresAt,
+        userAgent: session.userAgent || ""
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/security/sessions/revoke", enforceSameOrigin, requireAuth, requireMfa, (req, res, next) => {
+  try {
+    const sessionId = String(req.body?.sessionId || "").trim();
+    if (!sessionId || sessionId.length !== 16) return res.status(400).json({ success: false, message: "Invalid session." });
+    const sessions = database.prepare("SELECT token_hash FROM sessions WHERE user_id = ?").all(req.user.id);
+    const target = sessions.find((session) => session.token_hash.startsWith(sessionId));
+    if (!target) return res.status(404).json({ success: false, message: "Session not found." });
+    if (target.token_hash === req.session.token_hash) return res.status(400).json({ success: false, message: "Use Sign out to end your current session." });
+    database.prepare("DELETE FROM sessions WHERE token_hash = ? AND user_id = ?").run(target.token_hash, req.user.id);
+    logEvent(req.user.id, "SESSION_REVOKED", req, { sessionId });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/security/sessions/revoke-others", enforceSameOrigin, requireAuth, requireMfa, (req, res, next) => {
+  try {
+    const result = database.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(req.user.id, req.session.token_hash);
+    logEvent(req.user.id, "ALL_OTHER_SESSIONS_REVOKED", req, { count: Number(result.changes || 0) });
+    res.json({ success: true, revoked: Number(result.changes || 0) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get("/api/security/activity", requireAuth, requireMfa, (req, res, next) => {
   try {
@@ -448,8 +503,7 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
       ).run(row.id, now, now, now);
     }
 
-    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
-    createSession(row.id, res);
+    createSession(row.id, req, res);
     logEvent(row.id, "LOGIN_SUCCESS", req);
     res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false } });
   } catch (error) { next(error); }
