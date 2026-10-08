@@ -643,7 +643,14 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
     if (!validateEmail(email) || typeof password !== "string") return res.status(401).json({ success: false, message: "Email or password is incorrect." });
     const row = database.prepare("SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE").get(email);
     const valid = await bcrypt.compare(password, row?.password_hash || dummyPasswordHash);
-    if (!row || !valid) return res.status(401).json({ success: false, message: "Email or password is incorrect." });
+    if (!row || !valid) {
+      const emailHash=createHash("sha256").update(email).digest("hex");
+      const ip=String(req.ip||req.socket?.remoteAddress||"unknown");
+      const ipHash=createHmac("sha256",sessionPepper).update(ip).digest("hex");
+      database.prepare("INSERT INTO failed_auth_attempts (id,email_hash,ip_hash,created_at,reason) VALUES (?,?,?,?,?)").run(randomUUID(),emailHash,ipHash,Date.now(),"invalid_credentials");
+      if(row) logEvent(row.id,"LOGIN_FAILED",req);
+      return res.status(401).json({ success: false, message: "Email or password is incorrect." });
+    }
 
     const emailState = database.prepare(
       "SELECT verified_at FROM email_verification_state WHERE user_id = ?"
@@ -668,6 +675,7 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
 
     createSession(row.id, req, res);
     logEvent(row.id, "LOGIN_SUCCESS", req);
+    ensureSecurityNotification(row.id,"LOGIN_SUCCESS","New sign-in","A new SecureID sign-in was completed. Review Active sessions if this was not you.");
     res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false } });
   } catch (error) { next(error); }
 });
