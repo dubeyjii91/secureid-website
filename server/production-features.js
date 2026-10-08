@@ -577,7 +577,7 @@ export function registerProductionFeatures({
       const documentId=String(req.body?.documentId || "").trim();
       const reasonText=String(req.body?.reasonText || "").trim();
       const share_reason=String(req.body?.share_reason || "").trim().replace(/\s+/g," ");
-      if(share_reason.length>160) return res.status(400).json({success:false,message:"Share share_reason must be 160 characters or fewer."});
+      if(share_reason.length>160) return res.status(400).json({success:false,message:"Sharing purpose must be 160 characters or fewer."});
       const row=database.prepare("SELECT id,original_name,mime_type FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
       if(!row) return res.status(404).json({success:false,message:"Document not found."});
       const now=Date.now();
@@ -750,7 +750,7 @@ function enforceShareRateLimit(req, userId) {
   try { database.exec("ALTER TABLE secure_document_shares ADD COLUMN share_reason TEXT"); } catch {}
   app.get("/api/security/shares",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
-      const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
+      const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS shareReason,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
         let claims=[];
         let contextLabel="";
         try { const payload=jsonDecrypt(JSON.parse(row.encryptedPayload),key); claims=Object.keys(payload.claims || {}); contextLabel=payload.contextLabel || ""; } catch {}
