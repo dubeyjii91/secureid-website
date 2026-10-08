@@ -73,6 +73,35 @@ database.exec(`
     share_address INTEGER NOT NULL DEFAULT 0,
     share_identity_id INTEGER NOT NULL DEFAULT 1
   );
+
+  CREATE TABLE IF NOT EXISTS security_notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    read_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_security_notifications_user ON security_notifications(user_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS privacy_settings (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    security_alerts INTEGER NOT NULL DEFAULT 1,
+    login_notifications INTEGER NOT NULL DEFAULT 1,
+    share_notifications INTEGER NOT NULL DEFAULT 1,
+    analytics INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS failed_auth_attempts (
+    id TEXT PRIMARY KEY,
+    email_hash TEXT NOT NULL,
+    ip_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    reason TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_failed_auth_time ON failed_auth_attempts(created_at);
 `);
 
 const securityEventColumns = database.prepare("PRAGMA table_info(security_events)").all().map((column) => column.name);
