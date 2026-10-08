@@ -979,6 +979,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       res.json({
         success:true,
         claims:payload.claims,
+        contextLabel:payload.contextLabel || "",
         createdAt:row.created_at,
         expiresAt:row.expires_at
       });
