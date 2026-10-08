@@ -625,6 +625,7 @@ function App() {
 
           <small>Multi-factor verification is required after sign-in.</small>
         </section>
+        {showWelcome && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
       </div>
     );
   }
@@ -643,6 +644,7 @@ function App() {
 
       <footer>SecureID Â· Privacy-first identity wallet <span>Security Â· Privacy Â· Trust</span></footer>
     </main>
+    {showWelcome && !publicShare && !publicDocumentShare && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
     {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="000000" required /><button className="primary full" disabled={mfaLoading || otp.length !== 6 || !challengeId}>{mfaLoading ? "Verifying…" : "Verify MFA"}</button></form><button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
   </div>;
 }
