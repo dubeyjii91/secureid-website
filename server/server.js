@@ -34,6 +34,7 @@ const distPath = path.join(__dirname, "..", "dist");
 const port = Number(process.env.PORT || 5000);
 const appOrigin = process.env.APP_ORIGIN || "http://127.0.0.1:5173";
 const sessionTtlMs = 8 * 60 * 60 * 1000;
+const sessionIdleTtlMs = 2 * 60 * 60 * 1000;
 const mfaVerifiedTtlMs = 30 * 60 * 1000;
 const otpTtlMs = (isProduction ? 300 : Number(process.env.DEV_OTP_TTL_SECONDS || 300)) * 1000;
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
@@ -158,7 +159,7 @@ function requireAuth(req, res, next) {
   if (!token || token.length < 20 || token.length > 200) return res.status(401).json({ success: false, message: "Sign in to continue." });
   const tokenHash = hashSessionToken(token);
   const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
-  if (!row || Number(row.expires_at) <= Date.now()) {
+  if (!row || Number(row.expires_at) <= Date.now() || (Number(row.last_seen_at || 0) > 0 && Date.now() - Number(row.last_seen_at) > sessionIdleTtlMs)) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     clearSessionCookie(res);
     return res.status(401).json({ success: false, message: "Session expired. Please sign in again." });
@@ -204,6 +205,8 @@ const perIpOtpVerifyLimit = createRateLimit("otp-verify-ip", 20, window15m, getC
 const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 20, window15m, (req) => req.user?.id || getClientKey(req));
 const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKey);
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
+const perIpApiLimit = createRateLimit("api-ip", 180, 60 * 1000, getClientKey);
+app.use("/api", perIpApiLimit);
 
 
 
@@ -845,6 +848,16 @@ app.post("/api/auth/reset-password", enforceSameOrigin, perIpAuthLimit, async (r
   }
 });
 
+app.get("/api/health/ready",(req,res)=>{
+  try{
+    database.prepare("SELECT 1 AS ok").get();
+    const storagePath=process.env.DOCUMENT_STORAGE_PATH || (isProduction ? "/data/secureid-documents" : path.join(process.cwd(),"data","secureid-documents"));
+    const storageOk=existsSync(storagePath);
+    if(!storageOk) return res.status(503).json({success:false,status:"degraded",database:true,storage:false});
+    res.json({success:true,status:"ready",database:true,storage:true,timestamp:new Date().toISOString()});
+  }catch(error){res.status(503).json({success:false,status:"unavailable",database:false,storage:false});}
+});
+
 app.get("/api/auth/session", requireAuth, (req, res) => res.json({ success: true, user: req.user, wallet: getWallet(req.user.id) }));
 app.post("/api/auth/logout", enforceSameOrigin, requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => {
   database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
@@ -925,9 +938,10 @@ app.post("/api/mfa/cancel", enforceSameOrigin, requireAuth, perIpWalletLimit, pe
 });
 
 app.use((error, req, res, next) => {
-  console.error(JSON.stringify({ level: "error", event: "request_error", message: error?.message || String(error), path: req.path }));
+  const statusCode = Number(error?.statusCode) || 500;
+  console.error(JSON.stringify({ level:"error", event:"request_error", requestId:res.getHeader("X-Request-Id"), method:req.method, path:req.path, statusCode, errorType:error?.name || "Error" }));
   if (res.headersSent) return next(error);
-  const statusCode = Number(error?.statusCode) || 500; res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
+  res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
 });
 
 setInterval(() => {
