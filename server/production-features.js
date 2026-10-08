@@ -663,7 +663,7 @@ function enforceShareRateLimit(req, userId) {
 
   
 // SECUREID_LOCK_REVOKES_SHARES
-app.post("/api/wallet/lock", requireAuth, enforceSameOrigin, async (req, res, next) => {
+app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, requireMfaProduction, async (req, res, next) => {
   try {
     const locked = Boolean(req.body?.locked);
 
