@@ -100,7 +100,10 @@ function enforceSameOrigin(req, res, next) {
   if (["POST","PUT","PATCH","DELETE"].includes(req.method)) {
     const cookieToken=getCookie(req,csrfCookieName);
     const headerToken=String(req.get("X-CSRF-Token") || "");
-    if(!cookieToken || !headerToken || cookieToken !== headerToken) return res.status(403).json({ success:false,message:"CSRF validation failed." });
+    if(!cookieToken || !headerToken || cookieToken !== headerToken){
+      const sameOrigin = req.get("origin") === appOrigin || req.get("sec-fetch-site") === "same-origin";
+      if(!sameOrigin) return res.status(403).json({ success:false,message:"CSRF validation failed." });
+    }
   }
   next();
 }
