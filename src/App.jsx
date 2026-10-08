@@ -154,9 +154,17 @@ function App() {
         body: JSON.stringify({ email: authEmail, password: authPassword }),
       });
 
-      applySession({ ...result, wallet: defaultWallet });
       setAuthPassword("");
-      setWallet(defaultWallet);
+
+      if (authMode === "register") {
+        setVerificationMessage(result.message || "Account created. Check your email to verify your address before signing in.");
+        setAuthMessage("");
+        setAuthMode("login");
+        return;
+      }
+
+      applySession({ ...result, wallet: result.wallet || defaultWallet });
+      setWallet(result.wallet || defaultWallet);
       await requestOtp();
     } catch (error) {
       if (error.status === 403 && error.message) {
