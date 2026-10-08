@@ -225,6 +225,67 @@ app.get("/api/security/account", requireAuth, requireMfa, (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+function ensureSecurityNotification(userId,type,title,message){
+  const exists=database.prepare("SELECT id FROM security_notifications WHERE user_id=? AND type=? AND title=? AND created_at>? LIMIT 1").get(userId,type,title,Date.now()-24*60*60*1000);
+  if(!exists) database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
+}
+
+app.get("/api/security/dashboard", requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const user=database.prepare("SELECT created_at AS createdAt,password_changed_at AS passwordChangedAt FROM users WHERE id=?").get(req.user.id);
+    const sessionCount=Number(database.prepare("SELECT COUNT(*) AS n FROM sessions WHERE user_id=? AND expires_at>?").get(req.user.id,Date.now()).n||0);
+    const recovery=database.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN used_at IS NULL THEN 1 ELSE 0 END) AS remaining FROM mfa_recovery_codes WHERE user_id=?").get(req.user.id);
+    const shares=database.prepare("SELECT COUNT(*) AS n FROM secure_shares WHERE user_id=? AND revoked_at IS NULL AND expires_at>datetime('now')").get(req.user.id);
+    const docs=database.prepare("SELECT COUNT(*) AS n FROM secure_documents WHERE user_id=? AND deleted_at IS NULL").get(req.user.id);
+    const privacy=database.prepare("SELECT security_alerts,login_notifications,share_notifications,analytics FROM privacy_settings WHERE user_id=?").get(req.user.id);
+    let score=100;
+    const passwordAge=Number(user?.passwordChangedAt||user?.createdAt||Date.now());
+    if(Date.now()-passwordAge>180*24*60*60*1000) score-=20;
+    if(sessionCount>3) score-=10;
+    if(Number(recovery.remaining||0)<3) score-=10;
+    const wallet=database.prepare("SELECT locked FROM wallet_settings WHERE user_id=?").get(req.user.id);
+    if(wallet?.locked) score-=15;
+    score=Math.max(0,Math.min(100,score));
+    ensureSecurityNotification(req.user.id,"SECURITY_REVIEW","Security dashboard ready","Review your sessions, recovery codes and active shares regularly.");
+    res.json({success:true,score,scoreLabel:score>=80?"Strong":score>=60?"Good":"Needs attention",stats:{activeSessions:sessionCount,activeShares:Number(shares?.n||0),documents:Number(docs?.n||0),recoveryCodesRemaining:Number(recovery.remaining||0)},privacy:privacy||{security_alerts:1,login_notifications:1,share_notifications:1,analytics:0}});
+  }catch(error){next(error);}
+});
+
+app.get("/api/security/notifications", requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const rows=database.prepare("SELECT id,type,title,message,created_at AS createdAt,read_at AS readAt FROM security_notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50").all(req.user.id);
+    res.json({success:true,notifications:rows});
+  }catch(error){next(error);}
+});
+
+app.post("/api/security/notifications/read", enforceSameOrigin, requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const id=String(req.body?.id||"").trim();
+    database.prepare("UPDATE security_notifications SET read_at=? WHERE id=? AND user_id=?").run(Date.now(),id,req.user.id);
+    res.json({success:true});
+  }catch(error){next(error);}
+});
+
+app.get("/api/privacy", requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const row=database.prepare("SELECT security_alerts,login_notifications,share_notifications,analytics,updated_at AS updatedAt FROM privacy_settings WHERE user_id=?").get(req.user.id);
+    res.json({success:true,settings:row||{security_alerts:1,login_notifications:1,share_notifications:1,analytics:0,updatedAt:0}});
+  }catch(error){next(error);}
+});
+
+app.put("/api/privacy", enforceSameOrigin, requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const allowed=["security_alerts","login_notifications","share_notifications","analytics"];
+    const values=allowed.map(k=>req.body?.[k]?1:0);
+    const now=Date.now();
+    database.prepare("INSERT INTO privacy_settings (user_id,security_alerts,login_notifications,share_notifications,analytics,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET security_alerts=excluded.security_alerts,login_notifications=excluded.login_notifications,share_notifications=excluded.share_notifications,analytics=excluded.analytics,updated_at=excluded.updated_at").run(req.user.id,...values,now);
+    logEvent(req.user.id,"PRIVACY_SETTINGS_UPDATED",req);
+    res.json({success:true,settings:{security_alerts:values[0],login_notifications:values[1],share_notifications:values[2],analytics:values[3],updatedAt:now}});
+  }catch(error){next(error);}
+});
+
+
+
 app.post("/api/security/password/change", enforceSameOrigin, requireAuth, requireMfa, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
   try {
     const currentPassword = req.body?.currentPassword;
