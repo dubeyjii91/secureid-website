@@ -52,6 +52,7 @@ if (otpPepper.length < 32) throw new Error("OTP_HASH_SECRET must be at least 32 
 if (!["console", "resend"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console or resend.");
 
 if (otpDelivery === "resend" && (!resendApiKey || !otpFromEmail)) throw new Error("RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.");
+if (isProduction && otpDelivery !== "resend") throw new Error("Production OTP delivery must use Resend.");
 if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIGIN must use HTTPS in production.");
 
 
@@ -135,6 +136,11 @@ function requireAuth(req, res, next) {
   }
   req.session = row;
   req.user = { id: row.id, email: row.email, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() };
+  next();
+}
+
+function requireMfa(req, res, next) {
+  if (!req.user?.mfaVerified) return res.status(403).json({ success: false, message: "MFA verification is required for this action." });
   next();
 }
 
@@ -666,7 +672,7 @@ app.post("/api/mfa/cancel", enforceSameOrigin, requireAuth, perIpWalletLimit, pe
 });
 
 app.get("/api/wallet", requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => res.json({ success: true, wallet: getWallet(req.user.id) }));
-app.post("/api/wallet/risk", enforceSameOrigin, requireAuth, perIpWalletLimit, perUserWalletLimit, (req, res) => {
+app.post("/api/wallet/risk", enforceSameOrigin, requireAuth, requireMfa, perIpWalletLimit, perUserWalletLimit, (req, res) => {
   const current = getWallet(req.user.id);
   if (current.locked) return res.status(423).json({ success: false, message: "Wallet is locked. Restore access first." });
   const risk = Math.max(0, Math.min(100, Number(req.body?.risk)));
