@@ -5,7 +5,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import "./secureid-redesign.css";
 const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
-const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };\n\nfunction WelcomeSplash({ onClose }) {\n  return <div className="welcomeSplash" role="dialog" aria-label="Welcome to SecureID">\n    <div className="welcomeGlow" />\n    <div className="welcomeCard">\n      <img className="welcomeGif" src="/secureid-welcome.svg" alt="SecureID security animation" />\n      <div className="eyebrow">SECUREID</div>\n      <h2>Welcome to SecureID! ✨</h2>\n      <p>Well wishes for a safer digital identity journey — private, secure and always in your control.</p>\n      <button className="primary" onClick={onClose}>Continue securely</button>\n    </div>\n  </div>;\n}\n\nfunction FunctionVisual({ label }) {\n  return <div className="functionVisual" aria-label={label}><img src="/secureid-welcome.svg" alt="" /></div>;\n}
+const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
+
+function WelcomeSplash({ onClose }) {
+  return <div className="welcomeSplash" role="dialog" aria-label="Welcome to SecureID">
+    <div className="welcomeGlow" />
+    <div className="welcomeCard">
+      <img className="welcomeGif" src="/secureid-welcome.svg" alt="SecureID security animation" />
+      <div className="eyebrow">SECUREID</div>
+      <h2>Welcome to SecureID! ✨</h2>
+      <p>Well wishes for a safer digital identity journey — private, secure and always in your control.</p>
+      <button className="primary" onClick={onClose}>Continue securely</button>
+    </div>
+  </div>;
+}
+
+function FunctionVisual({ label }) {
+  return <div className="functionVisual" aria-label={label}><img src="/secureid-welcome.svg" alt="" /></div>;
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -64,7 +81,8 @@ function App() {
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [resetToken, setResetToken] = useState("");
   const [resetPassword, setResetPassword] = useState("");
-  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");\n  const [showWelcome, setShowWelcome] = useState(true);
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const riskState = useMemo(() => {
     if (wallet.locked) return { label: "Action needed", tone: "danger", detail: "Your wallet is locked." };
