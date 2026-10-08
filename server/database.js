@@ -110,6 +110,17 @@ database.exec(`
     last_failed_at INTEGER NOT NULL DEFAULT 0,
     locked_until INTEGER NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS application_errors (
+    id TEXT PRIMARY KEY,
+    request_id TEXT,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    error_type TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_application_errors_created ON application_errors(created_at);
 `);
 
 const securityEventColumns = database.prepare("PRAGMA table_info(security_events)").all().map((column) => column.name);
