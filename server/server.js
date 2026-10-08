@@ -1,6 +1,6 @@
 ﻿import { registerProductionFeatures } from "./production-features.js";
 import path from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import bcrypt from "bcryptjs";
@@ -42,11 +42,13 @@ const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
 const otpDelivery = process.env.OTP_DELIVERY || "console";
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const securityAlertEmail = process.env.SECURITY_ALERT_EMAIL || "";
 const resendCooldownMs = Math.max(15, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60)) * 1000;
 const bcryptRounds = Math.min(15, Math.max(10, Number(process.env.BCRYPT_ROUNDS || (isProduction ? 12 : 10))));
 const sessionPepper = process.env.SESSION_HASH_SECRET || (!isProduction ? randomBytes(32).toString("hex") : "");
 const otpPepper = process.env.OTP_HASH_SECRET || (!isProduction ? randomBytes(32).toString("hex") : "");
 const sessionCookieName = isProduction ? "__Host-secureid.sid" : "secureid.sid";
+const trustedDeviceTtlMs = 30 * 24 * 60 * 60 * 1000;
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535.");
 if (sessionPepper.length < 32) throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
@@ -150,7 +152,7 @@ function createSession(userId, req, res) {
   const userAgent = String(req?.get?.("user-agent") || "").slice(0, 512) || null;
   const ip = String(req?.ip || req?.socket?.remoteAddress || "").trim();
   const ipHash = ip ? createHmac("sha256", sessionPepper).update(ip).digest("hex") : null;
-  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
+  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, trusted_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
   setSessionCookie(res, token);
   return tokenHash;
 }
@@ -159,7 +161,7 @@ function requireAuth(req, res, next) {
   const token = getCookie(req, sessionCookieName);
   if (!token || token.length < 20 || token.length > 200) return res.status(401).json({ success: false, message: "Sign in to continue." });
   const tokenHash = hashSessionToken(token);
-  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
+  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
   if (!row || Number(row.expires_at) <= Date.now() || (Number(row.last_seen_at || 0) > 0 && Date.now() - Number(row.last_seen_at) > sessionIdleTtlMs)) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     clearSessionCookie(res);
@@ -167,7 +169,7 @@ function requireAuth(req, res, next) {
   }
   req.session = row;
   database.prepare("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?").run(Date.now(), tokenHash);
-  req.user = { id: row.id, email: row.email, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() };
+  req.user = { id: row.id, email: row.email, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() || Number(row.trusted_until || 0) > Date.now(), trustedDevice: Number(row.trusted_until || 0) > Date.now() };
   next();
 }
 
@@ -239,6 +241,11 @@ function ensureSecurityNotification(userId,type,title,message){
   if(settings && Number(settings[preference] ?? 1) !== 1) return;
   const exists=database.prepare("SELECT id FROM security_notifications WHERE user_id=? AND type=? AND title=? AND created_at>? LIMIT 1").get(userId,type,title,Date.now()-24*60*60*1000);
   if(!exists) database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
+  const emailTypes=new Set(["LOGIN_SUCCESS","LOGIN_FAILED","MFA_FAILED","PASSWORD_CHANGED","PASSWORD_RESET_COMPLETED","SHARE_CREATED","DOCUMENT_SHARE_CREATED","SESSION_REVOKED","ALL_OTHER_SESSIONS_REVOKED"]);
+  if(emailTypes.has(type) && otpDelivery==="resend"){
+    const user=database.prepare("SELECT email FROM users WHERE id=?").get(userId);
+    if(user?.email) void sendSecurityEmail({to:user.email,subject:"SecureID security alert",text:title+"\n\n"+message+"\n\nIf you did not perform this action, sign in to SecureID and review Active sessions and Security activity."}).catch(()=>{});
+  }
 }
 
 app.get("/api/security/dashboard", requireAuth, requireMfa, (req,res,next)=>{
@@ -347,7 +354,7 @@ app.get("/api/security/sessions", requireAuth, requireMfa, (req, res, next) => {
   try {
     const now = Date.now();
     database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
-    const sessions = database.prepare("SELECT token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt, user_agent AS userAgent FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC, created_at DESC").all(req.user.id);
+    const sessions = database.prepare("SELECT token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt, trusted_until AS trustedUntil, user_agent AS userAgent FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC, created_at DESC").all(req.user.id);
     const currentHash = req.session.token_hash;
     res.json({
       success: true,
@@ -357,7 +364,7 @@ app.get("/api/security/sessions", requireAuth, requireMfa, (req, res, next) => {
         createdAt: session.createdAt,
         lastSeenAt: session.lastSeenAt || session.createdAt,
         expiresAt: session.expiresAt,
-        userAgent: session.userAgent || ""
+        userAgent: session.userAgent || "", trustedUntil: Number(session.trustedUntil || 0) || null
       }))
     });
   } catch (error) {
@@ -391,6 +398,58 @@ app.post("/api/security/sessions/revoke-others", enforceSameOrigin, requireAuth,
   }
 });
 
+app.get("/api/account/export", requireAuth, requireMfa, (req,res,next)=>{
+  try{
+    const user=database.prepare("SELECT id,email,created_at AS createdAt,password_changed_at AS passwordChangedAt FROM users WHERE id=?").get(req.user.id);
+    const wallet=database.prepare("SELECT risk,locked,share_name,share_age,share_date_of_birth,share_address,share_email,share_phone,share_identity_id,share_college,share_student_id,share_government_id,share_verification_status FROM wallet_settings WHERE user_id=?").get(req.user.id);
+    const privacy=database.prepare("SELECT security_alerts,login_notifications,share_notifications,analytics,updated_at AS updatedAt FROM privacy_settings WHERE user_id=?").get(req.user.id);
+    const documents=database.prepare("SELECT id,original_name AS originalName,mime_type AS mimeType,size_bytes AS sizeBytes,document_category AS category,created_at AS createdAt,deleted_at AS deletedAt FROM secure_documents WHERE user_id=?").all(req.user.id);
+    const identityShares=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
+    const documentShares=database.prepare("SELECT id,document_id AS documentId,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_document_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
+    const events=database.prepare("SELECT event_type AS eventType,created_at AS createdAt,metadata_json AS metadata FROM security_events WHERE user_id=? ORDER BY created_at DESC LIMIT 1000").all(req.user.id).map(e=>({...e,metadata:e.metadata?JSON.parse(e.metadata):null}));
+    const payload={exportVersion:1,exportedAt:new Date().toISOString(),account:{email:user.email,createdAt:user.createdAt,passwordChangedAt:user.passwordChangedAt||null},wallet,privacy,documents,identityShares,documentShares,securityActivity:events};
+    res.setHeader("Content-Type","application/json");
+    res.setHeader("Content-Disposition",'attachment; filename="secureid-data-export.json"');
+    res.json(payload);
+  }catch(error){next(error);}
+});
+
+app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (req,res,next)=>{
+  try{
+    const password=String(req.body?.password||"");
+    const row=database.prepare("SELECT password_hash FROM users WHERE id=?").get(req.user.id);
+    if(!row || !(await bcrypt.compare(password,row.password_hash))) return res.status(400).json({success:false,message:"Password confirmation is incorrect."});
+    const storagePath=process.env.DOCUMENT_STORAGE_PATH || (isProduction ? "/data/secureid-documents" : path.join(process.cwd(),"data","secureid-documents"));
+    const docs=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=?").all(req.user.id);
+    database.exec("BEGIN");
+    try{
+      database.prepare("DELETE FROM secure_document_shares WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM secure_shares WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM security_events WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM security_notifications WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM privacy_settings WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM failed_auth_attempts WHERE email_hash=?").run(authEmailHash(req.user.email));
+      database.prepare("DELETE FROM auth_lockouts WHERE email_hash=?").run(authEmailHash(req.user.email));
+      database.prepare("DELETE FROM wallet_settings WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM otp_challenges WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM password_reset_tokens WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM email_verification_tokens WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM email_verification_state WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM sessions WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM users WHERE id=?").run(req.user.id);
+      database.exec("COMMIT");
+    }catch(error){database.exec("ROLLBACK");throw error;}
+    for(const doc of docs){
+      const p=String(doc.encrypted_path||"");
+      if(p && p.startsWith(path.resolve(storagePath))) try{unlinkSync(p);}catch{}
+    }
+    clearSessionCookie(res);
+    res.json({success:true,message:"Your SecureID account and stored account data were deleted."});
+  }catch(error){next(error);}
+});
 app.get("/api/security/activity", requireAuth, requireMfa, (req, res, next) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
@@ -998,7 +1057,10 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
       if(failure.count>=3) ensureSecurityNotification(req.user.id,"MFA_FAILED","MFA verification warning","Several unsuccessful MFA verification attempts were detected on your SecureID account.");
       return res.status(400).json({ success: false, message: "Incorrect verification code." });
     }
-    database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(Date.now() + mfaVerifiedTtlMs, req.session.token_hash);
+    const trustDevice = req.body?.trustDevice === true;
+    const verifiedNow = Date.now();
+    database.prepare("UPDATE sessions SET mfa_verified_until = ?, trusted_until = ?, expires_at = ? WHERE token_hash = ?").run(verifiedNow + mfaVerifiedTtlMs, trustDevice ? verifiedNow + trustedDeviceTtlMs : 0, trustDevice ? verifiedNow + trustedDeviceTtlMs : Number(req.session.expires_at), req.session.token_hash);
+    if (trustDevice) setSessionCookie(res, getCookie(req, sessionCookieName), trustedDeviceTtlMs);
     database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
     logEvent(req.user.id, "MFA_VERIFIED", req);
     res.json({ success: true, message: "MFA verification successful.", user: { email: req.user.email, mfaVerified: true } });
