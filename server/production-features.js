@@ -738,10 +738,11 @@ function enforceShareRateLimit(req, userId) {
     try{
       const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
         let claims=[];
-        try { claims=Object.keys(jsonDecrypt(JSON.parse(row.encryptedPayload),key).claims || {}); } catch {}
-        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),claims};
+        let contextLabel="";
+        try { const payload=jsonDecrypt(JSON.parse(row.encryptedPayload),key); claims=Object.keys(payload.claims || {}); contextLabel=payload.contextLabel || ""; } catch {}
+        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel,claims};
       });
-      const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0)}));
+      const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,s.share_reason AS shareReason,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel:row.shareReason||""}));
       res.json({success:true,shares:[...identity,...documents]});
     }catch(error){next(error);}
   });
