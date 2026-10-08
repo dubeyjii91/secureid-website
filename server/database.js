@@ -77,7 +77,7 @@ if (!userColumns.includes("otp_last_sent_at")) {
 
 database.exec(`
 
-  // SECUREID_EMAIL_RECOVERY_V1
+  -- SECUREID_EMAIL_RECOVERY_V1
   CREATE TABLE IF NOT EXISTS email_verification_state (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     verified_at INTEGER,
