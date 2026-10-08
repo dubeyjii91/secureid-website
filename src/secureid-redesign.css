@@ -158,3 +158,38 @@ h1, h2, h3, h4, strong, .brand, .authBrand, .authCard, .topbar, .sidebar { font-
 @keyframes welcomePulse{0%,100%{transform:scale(.92);opacity:.65}50%{transform:scale(1.04);opacity:1}}
 @keyframes welcomeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @media(max-width:720px){.welcomeCard{padding:20px}.welcomeCard h2{font-size:24px}.functionHero{align-items:flex-start}.functionVisual{width:130px;min-width:130px}.functionHero h2{font-size:20px}}
+
+
+.verificationBadge{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:16px 0;
+  padding:12px 14px;
+  border:1px solid rgba(22,163,74,.28);
+  border-radius:14px;
+  background:rgba(22,163,74,.07);
+}
+.verificationBadge>span{
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  background:#16a34a;
+  color:#fff;
+  font-weight:800;
+}
+.verificationBadge strong{display:block;font-size:14px}
+.verificationBadge small{display:block;margin-top:2px;opacity:.72}
+.miniVerifiedBadge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  color:#15803d;
+  background:rgba(22,163,74,.1);
+}
