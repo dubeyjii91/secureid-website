@@ -560,15 +560,17 @@ export function registerProductionFeatures({
       enforceShareRateLimit(req,req.user.id);
       assertWalletUnlocked(req.user.id);
       const documentId=String(req.body?.documentId || "").trim();
+      const purpose=String(req.body?.purpose || "").trim().replace(/\s+/g," ");
+      if(purpose.length>160) return res.status(400).json({success:false,message:"Share purpose must be 160 characters or fewer."});
       const row=database.prepare("SELECT id,original_name,mime_type FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
       if(!row) return res.status(404).json({success:false,message:"Document not found."});
       const now=Date.now();
       const expiresAt=new Date(now+SHARE_TTL_MS);
       const token=crypto.randomBytes(32).toString("base64url");
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
-      database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at) VALUES (?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString());
+      database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,purpose) VALUES (?,?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString(),purpose || null);
       logEvent(req.user.id,"DOCUMENT_SHARED",req);
-      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
+      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),purpose:purpose || "",document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
     }catch(error){ next(error); }
   });
 
@@ -846,6 +848,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       }
 
       const profile=jsonDecrypt(JSON.parse(row.encrypted_data),key);
+      const purpose=String(req.body?.purpose || "").trim().replace(/\s+/g," ");
+      if(purpose.length>160) return res.status(400).json({success:false,message:"Share purpose must be 160 characters or fewer."});
       const selected={};
 
       for(const field of shareFields){
@@ -898,8 +902,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
       database.prepare(`
         INSERT INTO secure_shares
-          (user_id,token_hash,encrypted_payload,created_at,expires_at)
-        VALUES (?,?,?,?,?)
+          (user_id,token_hash,encrypted_payload,created_at,expires_at,purpose)
+        VALUES (?,?,?,?,?,?)
       `).run(
         req.user.id,
         shareTokenHash(token),
