@@ -71,7 +71,8 @@ export function registerProductionFeatures({
   requireAuth,
   enforceSameOrigin,
   isProduction,
-  logEvent
+  logEvent,
+  ensureSecurityNotification
 }){
   const key=createCryptoKey(isProduction);
 
@@ -586,6 +587,7 @@ export function registerProductionFeatures({
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
       database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,share_reason) VALUES (?,?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString(),share_reason || null);
       logEvent(req.user.id,"DOCUMENT_SHARED",req);
+      if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"DOCUMENT_SHARE_CREATED","Document shared","A secure document share was created. Review Share management to check its purpose and expiry.");
       res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),share_reason:share_reason || "",document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
     }catch(error){ next(error); }
   });
@@ -598,6 +600,7 @@ export function registerProductionFeatures({
       const result=database.prepare("UPDATE secure_document_shares SET revoked_at=? WHERE token_hash=? AND user_id=? AND revoked_at IS NULL").run(new Date().toISOString(),tokenHash,req.user.id);
       if(!result.changes) return res.status(404).json({success:false,message:"Document share not found."});
       logEvent(req.user.id,"DOCUMENT_SHARE_REVOKED",req);
+      if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"SHARE_REVOKED","Document share revoked","A document share was revoked.");
       res.json({success:true});
     }catch(error){ next(error); }
   });
@@ -615,6 +618,8 @@ export function registerProductionFeatures({
       logEvent(row.user_id,"DOCUMENT_SHARE_ACCESSED",req);
       res.setHeader("Content-Type",row.mime_type);
       res.setHeader("Content-Disposition",`inline; filename="${safeFilename(row.original_name)}"`);
+      res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
+      res.setHeader("X-SecureID-Share-Expires-At",row.expires_at);
       res.setHeader("Cache-Control","no-store");
       res.setHeader("Pragma","no-cache");
       res.setHeader("X-Content-Type-Options","nosniff");
@@ -770,6 +775,7 @@ function enforceShareRateLimit(req, userId) {
       const result=database.prepare(`UPDATE ${table} SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL`).run(new Date().toISOString(),Number(id),req.user.id);
       if(!result.changes) return res.status(404).json({success:false,message:"Share not found or already revoked."});
       logEvent(req.user.id,type==="identity"?"IDENTITY_SHARE_REVOKED":"DOCUMENT_SHARE_REVOKED",req,{shareId:id});
+      if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"SHARE_REVOKED","Secure share revoked","A secure share was revoked and can no longer be used.");
       res.json({success:true});
     }catch(error){next(error);}
   });
@@ -828,6 +834,7 @@ app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, requireMfaProductio
     if (typeof logEvent === "function") {
       logEvent(req.user.id, locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",req);
     }
+    if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,locked?"WALLET_LOCKED":"WALLET_UNLOCKED",locked?"Wallet locked":"Wallet unlocked",locked?"Identity sharing was paused and active shares were revoked.":"Your SecureID wallet was unlocked.");
 
     res.json({
       success: true,
@@ -935,6 +942,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       );
 
       logEvent(req.user.id,"IDENTITY_SHARED",req);
+      if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"SHARE_CREATED","Identity share created","A new secure identity share was created. Check its purpose and expiry in Share management.");
 
       res.json({
         success:true,
