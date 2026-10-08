@@ -75,7 +75,41 @@ if (!userColumns.includes("otp_last_sent_at")) {
   database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
 }
 
-// Bootstrap the requested local account using a bcrypt password hash, never plaintext.
+database.exec(`
+
+  // SECUREID_EMAIL_RECOVERY_V1
+  CREATE TABLE IF NOT EXISTS email_verification_state (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    verified_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS email_verification_tokens_user_id ON email_verification_tokens(user_id);
+  CREATE INDEX IF NOT EXISTS email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
+
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS password_reset_tokens_user_id ON password_reset_tokens(user_id);
+  CREATE INDEX IF NOT EXISTS password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+
+`);
+
+// // Bootstrap the requested local account using a bcrypt password hash, never plaintext.
 const bootstrapEmail = "police420ias@gmail.com";
 const bootstrapPasswordHash = process.env.SECUREID_BOOTSTRAP_PASSWORD_HASH || "$2b$12$uyVB3jpz2H4f.Tew7kYuru3z0P4ZJHF1jIpcKclw4SGZlL3cvBoXW";
 const existingBootstrapUser = database.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(bootstrapEmail);

@@ -250,19 +250,149 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = req.body?.password;
-    if (!validateEmail(email)) return res.status(400).json({ success: false, message: "Please enter a valid email address." });
-    if (!validatePassword(password)) return res.status(400).json({ success: false, message: "Password must be 12 to 72 bytes long." });
-    if (database.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(email)) return res.status(409).json({ success: false, message: "An account with this email already exists." });
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ success: false, message: "Please enter a valid email address." });
+    }
+
+    if (!validatePassword(password)) {
+      return res.status(400).json({ success: false, message: "Password must be 12 to 72 bytes long." });
+    }
+
+    if (database.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(email)) {
+      return res.status(409).json({ success: false, message: "An account with this email already exists." });
+    }
+
     const id = randomUUID();
     const passwordHash = await bcrypt.hash(password, bcryptRounds);
     const now = Date.now();
-    database.prepare("INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)").run(id, email, passwordHash, now);
+
+    database.prepare(
+      "INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)"
+    ).run(id, email, passwordHash, now);
+
     database.prepare("INSERT INTO wallet_settings (user_id) VALUES (?)").run(id);
-    createSession(id, res);
+
+    database.prepare(
+      "INSERT INTO email_verification_state (user_id, verified_at, created_at, updated_at) VALUES (?, NULL, ?, ?)"
+    ).run(id, now, now);
+
+    try {
+      await issueEmailVerification(id, email);
+    } catch (deliveryError) {
+      database.prepare("DELETE FROM email_verification_tokens WHERE user_id = ?").run(id);
+      database.prepare("DELETE FROM email_verification_state WHERE user_id = ?").run(id);
+      database.prepare("DELETE FROM wallet_settings WHERE user_id = ?").run(id);
+      database.prepare("DELETE FROM users WHERE id = ?").run(id);
+      throw deliveryError;
+    }
+
     logEvent(id, "ACCOUNT_CREATED");
-    res.status(201).json({ success: true, mfaRequired: true, user: { email, mfaVerified: false } });
-  } catch (error) { next(error); }
+    logEvent(id, "EMAIL_VERIFICATION_SENT");
+
+    res.status(201).json({
+      success: true,
+      emailVerificationRequired: true,
+      user: { email, mfaVerified: false }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
+
+
+/* SECUREID_EMAIL_RECOVERY_V1 */
+const emailVerificationTtlMs = 30 * 60 * 1000;
+const passwordResetTtlMs = 30 * 60 * 1000;
+
+function hashSecurityToken(token) {
+  return createHmac("sha256", otpPepper).update(String(token)).digest("hex");
+}
+
+function createSecurityToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+async function sendSecurityEmail({ to, subject, text }) {
+  if (otpDelivery === "console") {
+    console.log(JSON.stringify({
+      level: "info",
+      event: "security_email_console",
+      to,
+      subject,
+      text
+    }));
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: otpFromEmail,
+      to: [to],
+      subject,
+      text
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Security email delivery failed with status ${response.status}.`);
+  }
+}
+
+async function issueEmailVerification(userId, email) {
+  database.prepare("DELETE FROM email_verification_tokens WHERE user_id = ?").run(userId);
+
+  const token = createSecurityToken();
+  const now = Date.now();
+
+  database.prepare(
+    "INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, used_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)"
+  ).run(
+    randomUUID(),
+    userId,
+    hashSecurityToken(token),
+    now + emailVerificationTtlMs,
+    now
+  );
+
+  const url = `${appOrigin}/?verify_email=${encodeURIComponent(token)}`;
+
+  await sendSecurityEmail({
+    to: email,
+    subject: "Verify your SecureID email address",
+    text: `Verify your SecureID email address by opening this link:\n\n${url}\n\nThis link expires in 30 minutes. If you did not create this account, you can ignore this email.`
+  });
+}
+
+async function issuePasswordReset(userId, email) {
+  database.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(userId);
+
+  const token = createSecurityToken();
+  const now = Date.now();
+
+  database.prepare(
+    "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)"
+  ).run(
+    randomUUID(),
+    userId,
+    hashSecurityToken(token),
+    now + passwordResetTtlMs,
+    now
+  );
+
+  const url = `${appOrigin}/?reset_password=${encodeURIComponent(token)}`;
+
+  await sendSecurityEmail({
+    to: email,
+    subject: "Reset your SecureID password",
+    text: `Reset your SecureID password by opening this link:\n\n${url}\n\nThis link expires in 30 minutes. If you did not request a password reset, you can ignore this email.`
+  });
+}
 
 const dummyPasswordHash = bcrypt.hashSync("SecureID-dummy-password-2026", bcryptRounds);
 app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
@@ -273,11 +403,198 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
     const row = database.prepare("SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE").get(email);
     const valid = await bcrypt.compare(password, row?.password_hash || dummyPasswordHash);
     if (!row || !valid) return res.status(401).json({ success: false, message: "Email or password is incorrect." });
+
+    const emailState = database.prepare(
+      "SELECT verified_at FROM email_verification_state WHERE user_id = ?"
+    ).get(row.id);
+
+    // Existing accounts created before email verification was introduced remain usable.
+    // New accounts must verify their email before login.
+    if (emailState && !emailState.verified_at) {
+      return res.status(403).json({
+        success: false,
+        emailVerificationRequired: true,
+        message: "Please verify your email address before signing in."
+      });
+    }
+
+    if (!emailState) {
+      const now = Date.now();
+      database.prepare(
+        "INSERT INTO email_verification_state (user_id, verified_at, created_at, updated_at) VALUES (?, ?, ?, ?)"
+      ).run(row.id, now, now, now);
+    }
+
     database.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
     createSession(row.id, res);
     logEvent(row.id, "LOGIN_SUCCESS");
     res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false } });
   } catch (error) { next(error); }
+});
+
+
+app.get("/api/auth/verify-email", async (req, res, next) => {
+  try {
+    const token = String(req.query?.token || "");
+
+    if (!token || token.length < 20) {
+      return res.status(400).json({ success: false, message: "Invalid verification link." });
+    }
+
+    const tokenHash = hashSecurityToken(token);
+    const record = database.prepare(
+      "SELECT id, user_id, expires_at, used_at FROM email_verification_tokens WHERE token_hash = ? LIMIT 1"
+    ).get(tokenHash);
+
+    if (!record || record.used_at || Number(record.expires_at) <= Date.now()) {
+      return res.status(400).json({ success: false, message: "This verification link is invalid or expired." });
+    }
+
+    const now = Date.now();
+
+    database.prepare(
+      "UPDATE email_verification_tokens SET used_at = ? WHERE id = ?"
+    ).run(now, record.id);
+
+    database.prepare(
+      "UPDATE email_verification_state SET verified_at = ?, updated_at = ? WHERE user_id = ?"
+    ).run(now, now, record.user_id);
+
+    logEvent(record.user_id, "EMAIL_VERIFIED");
+
+    res.json({
+      success: true,
+      emailVerified: true,
+      message: "Email verified successfully. You can now sign in."
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/resend-verification", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+
+    if (!validateEmail(email)) {
+      return res.json({ success: true, message: "If an account exists, a verification email has been sent." });
+    }
+
+    const user = database.prepare(
+      "SELECT id, email FROM users WHERE email = ? COLLATE NOCASE LIMIT 1"
+    ).get(email);
+
+    if (!user) {
+      return res.json({ success: true, message: "If an account exists, a verification email has been sent." });
+    }
+
+    const state = database.prepare(
+      "SELECT verified_at FROM email_verification_state WHERE user_id = ?"
+    ).get(user.id);
+
+    if (state?.verified_at) {
+      return res.json({ success: true, message: "Email is already verified." });
+    }
+
+    await issueEmailVerification(user.id, user.email);
+    logEvent(user.id, "EMAIL_VERIFICATION_SENT");
+
+    res.json({
+      success: true,
+      message: "If the account exists and is not verified, a verification email has been sent."
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/forgot-password", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+
+    if (!validateEmail(email)) {
+      return res.json({ success: true, message: "If an account exists, a password reset email has been sent." });
+    }
+
+    const user = database.prepare(
+      "SELECT id, email FROM users WHERE email = ? COLLATE NOCASE LIMIT 1"
+    ).get(email);
+
+    if (!user) {
+      return res.json({ success: true, message: "If an account exists, a password reset email has been sent." });
+    }
+
+    await issuePasswordReset(user.id, user.email);
+    logEvent(user.id, "PASSWORD_RESET_REQUESTED");
+
+    res.json({
+      success: true,
+      message: "If the account exists, a password reset email has been sent."
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/reset-password", enforceSameOrigin, perIpAuthLimit, async (req, res, next) => {
+  try {
+    const token = String(req.body?.token || "");
+    const password = req.body?.password;
+
+    if (!token || !validatePassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid reset request or password must be 12 to 72 bytes long."
+      });
+    }
+
+    const record = database.prepare(
+      "SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = ? LIMIT 1"
+    ).get(hashSecurityToken(token));
+
+    if (!record || record.used_at || Number(record.expires_at) <= Date.now()) {
+      return res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or expired."
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, bcryptRounds);
+    const now = Date.now();
+
+    database.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, record.user_id);
+
+    database.prepare(
+      "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?"
+    ).run(now, record.id);
+
+    database.prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND id != ?").run(record.user_id, record.id);
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(record.user_id);
+    database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(record.user_id);
+
+    const state = database.prepare(
+      "SELECT user_id FROM email_verification_state WHERE user_id = ?"
+    ).get(record.user_id);
+
+    if (state) {
+      database.prepare(
+        "UPDATE email_verification_state SET verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE user_id = ?"
+      ).run(now, now, record.user_id);
+    } else {
+      database.prepare(
+        "INSERT INTO email_verification_state (user_id, verified_at, created_at, updated_at) VALUES (?, ?, ?, ?)"
+      ).run(record.user_id, now, now, now);
+    }
+
+    logEvent(record.user_id, "PASSWORD_RESET_COMPLETED");
+
+    res.json({
+      success: true,
+      message: "Password reset successfully. Please sign in again."
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/auth/session", requireAuth, (req, res) => res.json({ success: true, user: req.user, wallet: getWallet(req.user.id) }));
