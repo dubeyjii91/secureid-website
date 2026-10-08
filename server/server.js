@@ -235,7 +235,8 @@ app.get("/api/security/dashboard", requireAuth, requireMfa, (req,res,next)=>{
     const user=database.prepare("SELECT created_at AS createdAt,password_changed_at AS passwordChangedAt FROM users WHERE id=?").get(req.user.id);
     const sessionCount=Number(database.prepare("SELECT COUNT(*) AS n FROM sessions WHERE user_id=? AND expires_at>?").get(req.user.id,Date.now()).n||0);
     const recovery=database.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN used_at IS NULL THEN 1 ELSE 0 END) AS remaining FROM mfa_recovery_codes WHERE user_id=?").get(req.user.id);
-    const shares=database.prepare("SELECT COUNT(*) AS n FROM secure_shares WHERE user_id=? AND revoked_at IS NULL AND expires_at>datetime('now')").get(req.user.id);
+    const shareRows=database.prepare("SELECT expires_at FROM secure_shares WHERE user_id=? AND revoked_at IS NULL").all(req.user.id);
+    const shares={n:shareRows.filter(s=>Date.parse(s.expires_at)>Date.now()).length};
     const docs=database.prepare("SELECT COUNT(*) AS n FROM secure_documents WHERE user_id=? AND deleted_at IS NULL").get(req.user.id);
     const privacy=database.prepare("SELECT security_alerts,login_notifications,share_notifications,analytics FROM privacy_settings WHERE user_id=?").get(req.user.id);
     let score=100;
