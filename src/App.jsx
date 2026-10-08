@@ -53,6 +53,8 @@ function App() {
   const [phishingUrl, setPhishingUrl] = useState("");
   const [phishingResult, setPhishingResult] = useState(null);
   const [shareToken, setShareToken] = useState("");
+  const [shareExpiresAt, setShareExpiresAt] = useState("");
+  const [publicShare, setPublicShare] = useState(null);
   const [busyAction, setBusyAction] = useState("");
   const [verificationPending, setVerificationPending] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState("");
@@ -132,6 +134,15 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const match = window.location.pathname.match(/^\\/share\\/([A-Za-z0-9_-]{30,100})$/);
+    if (match) {
+      api("/api/share/" + match[1])
+        .then((result) => setPublicShare(result))
+        .catch((error) => setPublicShare({ success: false, message: error.message }))
+        .finally(() => setSessionLoading(false));
+      return;
+    }
+
     api("/api/auth/session")
       .then(async (result) => {
         applySession(result);
@@ -311,6 +322,7 @@ function App() {
       const result = await api("/api/wallet/share", { method: "POST", body: JSON.stringify(wallet.shareData) });
       setWallet(result.wallet);
       setShareToken(result.shareToken);
+      setShareExpiresAt(result.shareExpiresAt || "");
     } catch (error) {
       setMfaMessage(error.message);
     } finally {
@@ -323,6 +335,7 @@ function App() {
     try {
       await api("/api/wallet/share/revoke", { method: "POST" });
       setShareToken("");
+      setShareExpiresAt("");
       setMfaMessage("All active secure shares have been revoked.");
     } catch (error) {
       setMfaMessage(error.message);
@@ -345,7 +358,13 @@ function App() {
     }
   };
 
-  if (sessionLoading) return <div className="loadingPage"><div className="spinner" /><span>Checking your SecureID sessionâ€¦</span></div>;
+  if (sessionLoading) return <div className="loadingPage"><div className="spinner" /><span>Loading SecureID shareâ€¦</span></div>;
+
+  if (publicShare) {
+    if (!publicShare.success) return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE SHARE</div><h1>Share unavailable</h1><p>{publicShare.message || "This secure share is no longer available."}</p><a className="textButton" href="/">Open SecureID</a></section></div>;
+    const claims = publicShare.claims || {};
+    return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE SHARE</div><h1>Shared identity</h1><p>This page contains only the identity claims selected by the account owner.</p><div className="sharePublicGrid">{Object.entries(claims).filter(([, value]) => String(value ?? "").trim() !== "").map(([key,value]) => <div className="sharePublicItem" key={key}><span>{key.replace(/([A-Z])/g, " $1").replace(/^./, (m) => m.toUpperCase())}</span><strong>{String(value)}</strong></div>)}</div><p className="shareExpiry">Expires {publicShare.expiresAt ? new Date(publicShare.expiresAt).toLocaleString() : "soon"}.</p></section></div>;
+  }
 
   if (!isAuthenticated) {
     if (verificationPending) {
@@ -563,7 +582,7 @@ function App() {
 
       {page === "identity" && <section className="content"><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your verified identity</h2></div><span className="statusBadge success">âœ“ Verified</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-â€¢â€¢â€¢â€¢</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "âœ“" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="sectionTitle"><div><div className="eyebrow dark">QUICK ACTIONS</div><h2>Manage your identity</h2></div></div><div className="actionGrid"><button className="actionCard" onClick={() => setPage("share")}><span className="actionIcon">â†—</span><strong>Share my ID</strong><p>Choose exactly which identity claims to share.</p></button><button className="actionCard" onClick={() => setPage("safety")}><span className="actionIcon">âœ“</span><strong>Check a website</strong><p>Look for common phishing indicators before signing in.</p></button><button className="actionCard" onClick={() => setPage("lock")}><span className="actionIcon">â–£</span><strong>Emergency lock/unlock</strong><p>Pause wallet sharing if you think your account is at risk.</p></button></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
 
-      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["dateOfBirth","Date of Birth"],["address","Address"],["email","Email"],["phone","Phone Number"],["identityId","Identity ID"],["college","College / Institution"],["studentId","Student ID"],["governmentId","Government ID (masked)"],["verificationStatus","Verification Status"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generatingâ€¦" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{shareToken}</code><button className="textButton" onClick={revokeSecureShares} disabled={busyAction === "revoke"}>{busyAction === "revoke" ? "Revoking…" : "Revoke active shares"}</button></div>}</section></section>}
+      {page === "share" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["dateOfBirth","Date of Birth"],["address","Address"],["email","Email"],["phone","Phone Number"],["identityId","Identity ID"],["college","College / Institution"],["studentId","Student ID"],["governmentId","Government ID (masked)"],["verificationStatus","Verification Status"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generatingâ€¦" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{window.location.origin + "/share/" + shareToken}</code><button className="textButton" onClick={() => navigator.clipboard?.writeText(window.location.origin + "/share/" + shareToken)} type="button">Copy secure link</button><p className="shareExpiry">Expires {shareExpiresAt ? new Date(shareExpiresAt).toLocaleString() : "soon"}.</p><button className="textButton" onClick={revokeSecureShares} disabled={busyAction === "revoke"}>{busyAction === "revoke" ? "Revoking…" : "Revoke active shares"}</button></div>}</section></section>}
 
       {page === "safety" && <section className="content narrow"><section className="panel"><div className="eyebrow dark">SAFETY CHECK</div><h2>Check a website before you sign in</h2><p className="lead">This quick check looks for a few common warning signs. It is not a guarantee that a website is safe.</p><div className="urlForm"><input value={phishingUrl} onChange={(e) => setPhishingUrl(e.target.value)} placeholder="example.com" aria-label="Website address" /><button className="primary" onClick={scanPhishingUrl}>Check website</button></div>{phishingResult && <div className={`scanResult ${phishingResult.safe ? "safe" : "warning"}`}><strong>{phishingResult.safe ? "No obvious warning signs" : "Use caution"}</strong><p>{phishingResult.text}</p></div>}<div className="tips"><div><strong>Use HTTPS</strong><span>Check that the address starts with https://.</span></div><div><strong>Check the domain</strong><span>Look closely for extra words, unusual characters or misspellings.</span></div><div><strong>Never share OTPs</strong><span>SecureID verification codes should not be given to another person.</span></div></div></section></section>}
 
