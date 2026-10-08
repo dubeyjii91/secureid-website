@@ -145,6 +145,10 @@ if (!sessionColumns.includes("last_seen_at")) {
   database.exec("ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER");
 }
 
+if (!sessionColumns.includes("trusted_until")) {
+  database.exec("ALTER TABLE sessions ADD COLUMN trusted_until INTEGER NOT NULL DEFAULT 0");
+}
+
 if (!sessionColumns.includes("mfa_verified_until")) {
   database.exec("ALTER TABLE sessions ADD COLUMN mfa_verified_until INTEGER NOT NULL DEFAULT 0");
 }
