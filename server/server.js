@@ -13,6 +13,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { database } from "./database.js";
+import { startAutomaticBackup, getBackupStatus } from "./backup-manager.js";
 
 const envFile = path.resolve(process.cwd(), ".env");
 if (existsSync(envFile)) {
@@ -510,10 +511,11 @@ registerProductionFeatures({
   logEvent,
   ensureSecurityNotification
 });
+startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt},timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
