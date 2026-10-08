@@ -738,6 +738,25 @@ function enforceShareRateLimit(req, userId) {
     return "*".repeat(Math.max(4,text.length-4)) + text.slice(-4);
   }
 
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS secure_document_shares (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      document_id TEXT NOT NULL REFERENCES secure_documents(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      share_reason TEXT,
+      accessed_at TEXT,
+      access_count INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_secure_document_shares_user
+      ON secure_document_shares(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_secure_document_shares_token
+      ON secure_document_shares(token_hash);
+  `);
+
   try {
     database.exec("ALTER TABLE secure_shares ADD COLUMN accessed_at TEXT");
   } catch {}
