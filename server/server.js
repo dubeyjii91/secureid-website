@@ -241,7 +241,8 @@ function ensureSecurityNotification(userId,type,title,message){
   const settings = database.prepare("SELECT security_alerts,login_notifications,share_notifications FROM privacy_settings WHERE user_id=?").get(userId);
   if(settings && Number(settings[preference] ?? 1) !== 1) return;
   const exists=database.prepare("SELECT id FROM security_notifications WHERE user_id=? AND type=? AND title=? AND created_at>? LIMIT 1").get(userId,type,title,Date.now()-24*60*60*1000);
-  if(!exists) database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
+  if(exists) return;
+  database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
   const emailTypes=new Set(["LOGIN_SUCCESS","LOGIN_FAILED","MFA_FAILED","PASSWORD_CHANGED","PASSWORD_RESET_COMPLETED","SHARE_CREATED","DOCUMENT_SHARE_CREATED","SESSION_REVOKED","ALL_OTHER_SESSIONS_REVOKED"]);
   if(emailTypes.has(type) && otpDelivery==="resend"){
     const user=database.prepare("SELECT email FROM users WHERE id=?").get(userId);
