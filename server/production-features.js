@@ -120,6 +120,13 @@ export function registerProductionFeatures({
     }
   });
 
+  function requireMfaProduction(req,res,next){
+    if(!req.user?.mfaVerified){
+      return res.status(403).json({success:false,message:"MFA verification is required for this action."});
+    }
+    next();
+  }
+
   function assertWalletUnlocked(userId){
     const row=database.prepare(
       "SELECT locked FROM wallet_settings WHERE user_id = ?"
@@ -137,7 +144,7 @@ export function registerProductionFeatures({
    * All 11 fields are stored server-side.
    * Sensitive values are encrypted before entering SQLite.
    */
-  app.get("/api/identity/profile",requireAuth,(req,res,next)=>{
+  app.get("/api/identity/profile",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const row=database.prepare(
         "SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id = ?"
@@ -237,7 +244,7 @@ export function registerProductionFeatures({
    * Metadata only. The encrypted file itself never leaves the server
    * except through the authenticated download endpoint.
    */
-  app.get("/api/documents",requireAuth,(req,res,next)=>{
+  app.get("/api/documents",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const documents=database.prepare(`
         SELECT
@@ -389,7 +396,7 @@ export function registerProductionFeatures({
    * DOCUMENT DOWNLOAD
    * Ownership is checked before decryption.
    */
-  app.get("/api/documents/:id",requireAuth,(req,res,next)=>{
+  app.get("/api/documents/:id",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const row=database.prepare(`
         SELECT
@@ -648,11 +655,7 @@ app.post("/api/wallet/lock", requireAuth, enforceSameOrigin, async (req, res, ne
     }
 
     if (typeof logEvent === "function") {
-      logEvent(
-        locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED",
-        req.user.id,
-        { sharesRevoked: locked }
-      );
+      logEvent(req.user.id, locked ? "WALLET_LOCKED" : "WALLET_UNLOCKED");
     }
 
     res.json({
@@ -665,7 +668,7 @@ app.post("/api/wallet/lock", requireAuth, enforceSameOrigin, async (req, res, ne
   }
 });
 
-app.post("/api/wallet/share",enforceSameOrigin,requireAuth,(req,res,next)=>{
+app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
     enforceShareRateLimit(req, req.user.id);
 
     try{
@@ -765,7 +768,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,(req,res,next)=>{
     }catch(error){ next(error); }
   });
 
-  app.post("/api/wallet/share/revoke",enforceSameOrigin,requireAuth,(req,res,next)=>{
+  app.post("/api/wallet/share/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       database.prepare(`
         UPDATE secure_shares
