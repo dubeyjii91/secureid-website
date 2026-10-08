@@ -9,7 +9,9 @@
     "build": "vite build",
     "lint": "oxlint",
     "start": "node server/server.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backup": "node scripts/secure-backup.mjs",
+    "restore": "node scripts/secure-restore.mjs"
   },
   "engines": {
     "node": ">=24"
