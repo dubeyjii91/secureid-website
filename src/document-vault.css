@@ -131,3 +131,12 @@
 .proofUpload input[type="file"]{
   width:100%;
 }
+
+
+.verificationStatusCard{display:flex;justify-content:space-between;gap:24px;align-items:center;padding:20px;border:1px solid rgba(80,150,255,.22);border-radius:16px;background:rgba(20,45,90,.18);margin:18px 0 26px}
+.verificationStatusCard h3{margin:6px 0 6px;font-size:1.25rem}
+.verificationStatusCard p{margin:0;max-width:620px;color:#91a0ba}
+.verificationChecks{display:grid;gap:8px;min-width:180px}
+.verificationChecks span{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);color:#8e99ad}
+.verificationChecks span.complete{color:#73e6ad;background:rgba(50,180,120,.08)}
+@media(max-width:700px){.verificationStatusCard{display:block}.verificationChecks{margin-top:14px}}
