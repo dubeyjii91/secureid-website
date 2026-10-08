@@ -127,6 +127,26 @@ export function registerProductionFeatures({
     next();
   }
 
+  function getWalletState(userId){
+    const row=database.prepare(`
+      SELECT risk,locked,
+        share_name,share_age,share_date_of_birth,share_address,
+        share_email,share_phone,share_identity_id,share_college,
+        share_student_id,share_government_id,share_verification_status
+      FROM wallet_settings WHERE user_id=?
+    `).get(userId);
+    return {
+      risk:Number(row?.risk || 0),
+      locked:Boolean(row?.locked),
+      shareData:{
+        name:Boolean(row?.share_name), age:Boolean(row?.share_age), dateOfBirth:Boolean(row?.share_date_of_birth),
+        address:Boolean(row?.share_address), email:Boolean(row?.share_email), phone:Boolean(row?.share_phone),
+        identityId:Boolean(row?.share_identity_id), college:Boolean(row?.share_college), studentId:Boolean(row?.share_student_id),
+        governmentId:Boolean(row?.share_government_id), verificationStatus:Boolean(row?.share_verification_status)
+      }
+    };
+  }
+
   function assertWalletUnlocked(userId){
     const row=database.prepare(
       "SELECT locked FROM wallet_settings WHERE user_id = ?"
@@ -174,6 +194,7 @@ export function registerProductionFeatures({
     "/api/identity/profile",
     enforceSameOrigin,
     requireAuth,
+    requireMfaProduction,
     upload.none(),
     (req,res,next)=>{
       try{
@@ -275,6 +296,7 @@ export function registerProductionFeatures({
     "/api/documents",
     enforceSameOrigin,
     requireAuth,
+    requireMfaProduction,
     (req,res,next)=>{
       assertWalletUnlocked(req.user.id);
       upload.array("documents",5)(req,res,(error)=>{
@@ -454,6 +476,7 @@ export function registerProductionFeatures({
     "/api/documents/:id",
     enforceSameOrigin,
     requireAuth,
+    requireMfaProduction,
     (req,res,next)=>{
       try{
         assertWalletUnlocked(req.user.id);
@@ -659,9 +682,10 @@ app.post("/api/wallet/lock", requireAuth, enforceSameOrigin, async (req, res, ne
     }
 
     res.json({
-      ok: true,
+      success: true,
       locked,
-      sharesRevoked: locked
+      sharesRevoked: locked,
+      wallet: getWalletState(req.user.id)
     });
   } catch (error) {
     next(error);
@@ -763,7 +787,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       res.json({
         success:true,
         shareToken:token,
-        shareExpiresAt:expiresAt.toISOString()
+        shareExpiresAt:expiresAt.toISOString(),
+        wallet:getWalletState(req.user.id)
       });
     }catch(error){ next(error); }
   });
