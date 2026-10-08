@@ -112,3 +112,22 @@
     flex-direction:column;
   }
 }
+
+.proofUpload{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:14px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;
+}
+
+.proofUpload>div{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.proofUpload input[type="file"]{
+  width:100%;
+}
