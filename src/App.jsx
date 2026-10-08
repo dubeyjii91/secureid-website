@@ -190,7 +190,7 @@ function App() {
           }
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          setPublicDocumentShare({ success: true, url, mimeType: blob.type || contentType || "application/octet-stream", name: "Shared SecureID document" });
+          setPublicDocumentShare({ success: true, url, mimeType: blob.type || contentType || "application/octet-stream", name: "Shared SecureID document", purpose: response.headers.get("X-SecureID-Share-Reason") || "" });
         })
         .catch((error) => setPublicDocumentShare({ success: false, message: error.message }))
         .finally(() => setSessionLoading(false));
@@ -456,7 +456,7 @@ function App() {
   if (publicDocumentShare) {
     if (!publicDocumentShare.success) return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE DOCUMENT SHARE</div><h1>Document unavailable</h1><p>{publicDocumentShare.message || "This secure document share has expired or was revoked."}</p><a className="textButton" href="/">Open SecureID</a></section></div>;
     const mime = publicDocumentShare.mimeType || "";
-    return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard publicDocumentCard"><div className="eyebrow">SECURE DOCUMENT SHARE</div><h1>Shared document</h1><p>This document was shared through a time-limited SecureID link.</p>{mime === "application/pdf" ? <iframe className="sharedDocumentFrame" src={publicDocumentShare.url} title="Shared SecureID document" /> : mime.startsWith("image/") ? <img className="sharedDocumentImage" src={publicDocumentShare.url} alt="Shared SecureID document" /> : <a className="primary" href={publicDocumentShare.url} target="_blank" rel="noreferrer">Open document</a>}<a className="textButton" href="/">Open SecureID</a></section></div>;
+    return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard publicDocumentCard"><div className="eyebrow">SECURE DOCUMENT SHARE</div><h1>Shared document</h1><p>This document was shared through a time-limited SecureID link.</p>{publicDocumentShare.purpose && <div className="shareContextPublic"><strong>Share purpose</strong><span>{publicDocumentShare.purpose}</span></div>}{mime === "application/pdf" ? <iframe className="sharedDocumentFrame" src={publicDocumentShare.url} title="Shared SecureID document" /> : mime.startsWith("image/") ? <img className="sharedDocumentImage" src={publicDocumentShare.url} alt="Shared SecureID document" /> : <a className="primary" href={publicDocumentShare.url} target="_blank" rel="noreferrer">Open document</a>}<a className="textButton" href="/">Open SecureID</a></section></div>;
   }
 
   if (publicShare) {
