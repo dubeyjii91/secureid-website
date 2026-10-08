@@ -1,10 +1,16 @@
 ﻿import { useEffect, useState } from "react";
 import "./document-vault.css";
 
+function csrfToken(){
+  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
 async function api(path, options={}){
   const response=await fetch(path,{
     credentials:"include",
-    ...options
+    ...options,
+    headers: { ...(options.headers || {}), ...(["POST","PUT","PATCH","DELETE"].includes(String(options.method||"GET").toUpperCase()) && csrfToken() ? {"X-CSRF-Token":csrfToken()} : {}) }
   });
 
   const contentType=response.headers.get("content-type") || "";
@@ -238,6 +244,18 @@ export default function DocumentVault(){
       <strong>Production storage active</strong>
       <span>Files are not stored in browser localStorage and are not publicly accessible.</span>
     </div>
+
+    <section className="verificationStatusCard">
+      <div>
+        <div className="eyebrow dark">DOCUMENT VERIFICATION STATUS</div>
+        <h3>{verificationStatus?.status || "Not submitted"}</h3>
+        <p>{verificationStatus?.status === "Pending review" ? "Both required proof documents are present and ready for verification." : verificationStatus?.status === "Partially submitted" ? "Upload both Student ID and College / Institution proof to complete your proof set." : "Add your Student ID and College / Institution proof to start verification."}</p>
+      </div>
+      <div className="verificationChecks">
+        <span className={verificationStatus?.proofs?.studentId ? "complete" : ""}>✓ Student ID</span>
+        <span className={verificationStatus?.proofs?.institution ? "complete" : ""}>✓ Institution proof</span>
+      </div>
+    </section>
 
     <section className="vaultBlock">
       <h3>Identity details</h3>
