@@ -47,6 +47,9 @@ export default function AccountSecurity() {
   const [loading, setLoading] = useState(false);
   const [codes, setCodes] = useState([]);
   const [codesMessage, setCodesMessage] = useState("");
+  const [accountActionMessage, setAccountActionMessage] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [codesLoading, setCodesLoading] = useState(false);
   const [authMonitoring, setAuthMonitoring] = useState(null);
 
@@ -92,6 +95,41 @@ export default function AccountSecurity() {
       setMessage(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportData = async () => {
+    try {
+      const response = await api("/api/account/export");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "secureid-data-export.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setAccountActionMessage("Your SecureID data export was downloaded.");
+    } catch (error) {
+      setAccountActionMessage(error.message);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (deleteBusy) return;
+    if (!deletePassword) { setAccountActionMessage("Enter your current password to confirm account deletion."); return; }
+    if (!window.confirm("Delete your SecureID account and stored account data permanently? This cannot be undone.")) return;
+    setDeleteBusy(true);
+    setAccountActionMessage("");
+    try {
+      const result = await api("/api/account", { method:"DELETE", body:JSON.stringify({password:deletePassword}) });
+      setAccountActionMessage(result.message || "Account deleted.");
+      window.location.href = "/";
+    } catch (error) {
+      setAccountActionMessage(error.message);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -179,6 +217,22 @@ export default function AccountSecurity() {
         {(authMonitoring?.recent || []).slice(0,8).map((event,index)=><div key={event.createdAt+"-"+index}><span>{event.eventType==="LOGIN_SUCCESS"?"Successful sign-in":event.eventType==="MFA_FAILED"?"MFA verification failed":"Sign-in failed"}</span><small>{formatDate(event.createdAt)}</small></div>)}
         {authMonitoring && (authMonitoring.recent || []).length===0 && <div className="activityEmpty">No recent login or MFA events.</div>}
       </div>
+    </section>
+
+    <section className="panel accountDataPanel">
+      <div className="eyebrow dark">YOUR DATA</div>
+      <h2>Export or delete your account</h2>
+      <p className="lead">Download a portable copy of your SecureID account metadata, security activity, documents metadata and share history. Account deletion permanently removes stored account data and encrypted document files.</p>
+      <div className="accountDataActions">
+        <button className="secondaryButton" onClick={exportData}>Download my data</button>
+      </div>
+      <div className="dangerAccountBox">
+        <strong>Delete account</strong>
+        <small>This permanently removes your account, security history, shares and stored documents.</small>
+        <input type="password" autoComplete="current-password" placeholder="Current password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)} />
+        <button className="dangerButton" onClick={deleteAccount} disabled={deleteBusy}>{deleteBusy ? "Deleting…" : "Permanently delete account"}</button>
+      </div>
+      {accountActionMessage && <div className="accountSecurityMessage">{accountActionMessage}</div>}
     </section>
 
     <section className="panel recoveryPanel">
