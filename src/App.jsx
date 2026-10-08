@@ -3,6 +3,7 @@ import DocumentVault from "./DocumentVault.jsx";
 import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
 import ShareManagement from "./ShareManagement.jsx";
+import AccountSecurity from "./AccountSecurity.jsx";
 import "./secureid-font-clean.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -53,6 +54,7 @@ const navItems = [
   ["activity", "Security activity", "◉"],
   ["sessions", "Active sessions", "▣"],
   ["shares", "Share management", "↗"],
+  ["account", "Account security", "⚿"],
 ];
 
 function App() {
@@ -69,6 +71,7 @@ function App() {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaVerified, setMfaVerified] = useState(false);
   const [otp, setOtp] = useState("");
+  const [mfaRecoveryMode, setMfaRecoveryMode] = useState(false);
   const [challengeId, setChallengeId] = useState("");
   const [mfaMessage, setMfaMessage] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
@@ -312,7 +315,8 @@ function App() {
 
   const verifyOtp = async (event) => {
     event.preventDefault();
-    if (otp.length !== 6 || !challengeId || mfaLoading) return;
+    const validRecovery = mfaRecoveryMode && /^[A-Za-z0-9-]{16,24}$/.test(otp);
+    if ((!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && !validRecovery) || mfaLoading) return;
     setMfaLoading(true);
     setMfaMessage("Verifying your code…");
     try {
@@ -321,6 +325,7 @@ function App() {
       setMfaRequired(false);
       setChallengeId("");
       setOtp("");
+      setMfaRecoveryMode(false);
       setMfaMessage(result.message);
     } catch (error) {
       if (error.status === 410) setChallengeId("");
@@ -670,12 +675,14 @@ function App() {
 
       {page === "shares" && <ShareManagement />}
 
+      {page === "account" && <AccountSecurity />}
+
       {page === "lock" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">EMERGENCY CONTROL</div><h2>Stay in control of access.</h2><p>Pause identity sharing whenever you need extra protection.</p></div><FunctionVisual label="SecureID emergency protection" /></div><section className={`panel lockPanel ${wallet.locked ? "locked" : ""}`}><div className="lockGraphic">{wallet.locked ? "!" : "✓"}</div><div className="eyebrow dark">EMERGENCY ACCESS CONTROL</div><h2>{wallet.locked ? "Your wallet is locked" : "Your wallet is active"}</h2><p className="lead">{wallet.locked ? "Sharing is paused. Restore access when you are ready and have confirmed your account is secure." : "If you suspect unauthorized activity, lock the wallet immediately to pause selective sharing."}</p><button className={wallet.locked ? "primary" : "dangerButton"} onClick={toggleLock} disabled={busyAction === "lock"}>{busyAction === "lock" ? "Updating…" : wallet.locked ? "Restore access" : "Emergency lock"}</button><div className="lockFacts"><span>Current status <strong>{wallet.locked ? "Locked" : "Active"}</strong></span><span>Identity sharing <strong>{wallet.locked ? "Paused" : "Available"}</strong></span></div></section></section>}
 
       <footer>SecureID Â· Privacy-first identity wallet <span>Security Â· Privacy Â· Trust</span></footer>
     </main>
     {showWelcome && !publicShare && !publicDocumentShare && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
-    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="000000" required /><button className="primary full" disabled={mfaLoading || otp.length !== 6 || !challengeId}>{mfaLoading ? "Verifying…" : "Verify MFA"}</button></form><button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
+    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : <>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
   </div>;
 }
 
