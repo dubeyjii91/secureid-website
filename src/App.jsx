@@ -57,6 +57,7 @@ async function api(path, options = {}) {
 const navItems = [
   ["dashboard", "Dashboard", "◉"],
   ["identity", "My identity", "◆"],
+  ["documents", "Document vault", "▣"],
   ["share", "Share ID", "↗"],
   ["safety", "Safety check", "✓"],
   ["lock", "Emergency lock/unlock", "◆"],
@@ -76,7 +77,7 @@ function App() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [page, setPage] = useState("identity");
+  const [page, setPage] = useState("dashboard");
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaVerified, setMfaVerified] = useState(false);
   const [otp, setOtp] = useState("");
@@ -110,6 +111,12 @@ function App() {
     if (wallet.risk >= 40) return { label: "Review recommended", tone: "warning", detail: "Some activity may need your attention." };
     return { label: "Protected", tone: "success", detail: "No immediate action is required." };
   }, [wallet]);
+
+  useEffect(() => {
+    const navigate=(event)=>{ if(event.detail) setPage(event.detail); };
+    window.addEventListener("secureid:navigate",navigate);
+    return()=>window.removeEventListener("secureid:navigate",navigate);
+  }, []);
 
   useEffect(() => {
     if (resendCooldown <= 0) return undefined;
@@ -682,6 +689,8 @@ function App() {
     <main className="main"><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "Verified" : "MFA pending"}</span></div></header>
 
       {page === "dashboard" && <SecurityDashboard />}
+
+      {page === "documents" && <section className="content"><DocumentVault /></section>}
 
       {page === "identity" && <section className="content"><div className="functionHero"><div><div className="eyebrow dark">SECUREID SECURITY CENTER</div><h2>Privacy-first identity, protected by design.</h2><p>Keep control of your identity while every important action stays protected.</p></div><FunctionVisual label="SecureID identity protection" /></div><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your verified identity</h2></div><span className="statusBadge success">✓ Verified</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-â€¢â€¢â€¢â€¢</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="sectionTitle"><div><div className="eyebrow dark">QUICK ACTIONS</div><h2>Manage your identity</h2></div></div><div className="actionGrid"><button className="actionCard" onClick={() => setPage("share")}><span className="actionIcon">↗</span><strong>Share my ID</strong><p>Choose exactly which identity claims to share.</p></button><button className="actionCard" onClick={() => setPage("safety")}><span className="actionIcon">✓</span><strong>Check a website</strong><p>Look for common phishing indicators before signing in.</p></button><button className="actionCard" onClick={() => setPage("lock")}><span className="actionIcon">◆</span><strong>Emergency lock/unlock</strong><p>Pause wallet sharing if you think your account is at risk.</p></button></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div>{mfaVerified && <DocumentVault />}</section>}
 
