@@ -13,14 +13,16 @@ async function api(path, options = {}) {
     ...options,
     headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) },
   });
-  const data = await response.json().catch(() => ({}));
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : null;
   if (!response.ok) {
-    const error = new Error(data.message || "Request failed.");
+    const error = new Error(data?.message || "Request failed.");
     error.status = response.status;
-    error.retryAfter = Number(data.retryAfter || response.headers.get("Retry-After") || 0);
+    error.retryAfter = Number(data?.retryAfter || response.headers.get("Retry-After") || 0);
     throw error;
   }
-  return data;
+  if (contentType.includes("application/json")) return data;
+  return response;
 }
 
 const navItems = [
