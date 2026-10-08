@@ -19,7 +19,7 @@ To use MFA locally or in production, set `OTP_DELIVERY=resend`, `RESEND_API_KEY`
 
 Production startup deliberately fails closed unless `SESSION_HASH_SECRET`, `OTP_HASH_SECRET`, `OTP_DELIVERY=resend`, `RESEND_API_KEY`, and `OTP_FROM_EMAIL` are set. Configure `APP_ORIGIN` as the exact frontend origin allowed by CORS, `DATABASE_PATH` to durable protected storage, and `TRUST_PROXY_HOPS` to the actual trusted proxy count. The frontend uses `/api`; route it through a same-origin or same-site HTTPS reverse proxy. Use HTTPS, durable encrypted backups, monitoring, and a deployment secret manager. Never commit `.env`, credentials, or database files.
 
-The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, operational alerting, automated migrations/backups, and an independent security review are still required before production onboarding.
+The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, account export/deletion, security email alerts, encrypted automated backups, and privacy-safe operational error alerting are implemented. Production onboarding should still include a managed PostgreSQL migration before horizontal scaling and an independent security review.
 
 ## Project checks
 
