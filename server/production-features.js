@@ -703,7 +703,7 @@ function enforceShareRateLimit(req, userId) {
   }
 
   function shareTokenHash(token){
-    return createHash("sha256").update(token,"utf8").digest("hex");
+    return crypto.createHash("sha256").update(token,"utf8").digest("hex");
   }
 
   function maskGovernmentId(value){
@@ -823,7 +823,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
       const now=Date.now();
       const expiresAt=new Date(now+SHARE_TTL_MS);
-      const token=randomBytes(32).toString("base64url");
+      const token=crypto.randomBytes(32).toString("base64url");
 
       database.prepare(`
         UPDATE wallet_settings SET
