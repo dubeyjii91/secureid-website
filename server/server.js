@@ -92,7 +92,7 @@ app.use((req, res, next) => {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token");
   if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigin(origin) ? 204 : 403);
   next();
 });
@@ -106,8 +106,7 @@ function enforceSameOrigin(req, res, next) {
     const cookieToken=getCookie(req,csrfCookieName);
     const headerToken=String(req.get("X-CSRF-Token") || "");
     if(!cookieToken || !headerToken || cookieToken !== headerToken){
-      const sameOrigin = req.get("origin") === appOrigin || req.get("sec-fetch-site") === "same-origin";
-      if(!sameOrigin) return res.status(403).json({ success:false,message:"CSRF validation failed." });
+      return res.status(403).json({ success:false,message:"CSRF validation failed." });
     }
   }
   next();
