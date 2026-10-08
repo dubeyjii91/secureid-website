@@ -593,6 +593,7 @@ export function registerProductionFeatures({
       if(!row || row.revoked_at || Date.now()>=Date.parse(row.expires_at)) return res.status(404).json({success:false,message:"Document share not found or expired."});
       if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
       const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
+      database.prepare("UPDATE secure_document_shares SET accessed_at=?, access_count=COALESCE(access_count,0)+1 WHERE token_hash=?").run(new Date().toISOString(),tokenHash);
       logEvent(row.user_id,"DOCUMENT_SHARE_ACCESSED",req);
       res.setHeader("Content-Type",row.mime_type);
       res.setHeader("Content-Disposition",`inline; filename="${safeFilename(row.original_name)}"`);
@@ -713,6 +714,44 @@ function enforceShareRateLimit(req, userId) {
     if(text.length <= 4) return "****";
     return "*".repeat(Math.max(4,text.length-4)) + text.slice(-4);
   }
+
+  try {
+    database.exec("ALTER TABLE secure_shares ADD COLUMN accessed_at TEXT");
+  } catch {}
+  try {
+    database.exec("ALTER TABLE secure_shares ADD COLUMN access_count INTEGER NOT NULL DEFAULT 0");
+  } catch {}
+  try {
+    database.exec("ALTER TABLE secure_document_shares ADD COLUMN accessed_at TEXT");
+  } catch {}
+  try {
+    database.exec("ALTER TABLE secure_document_shares ADD COLUMN access_count INTEGER NOT NULL DEFAULT 0");
+  } catch {}
+
+  app.get("/api/security/shares",requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
+        let claims=[];
+        try { claims=Object.keys(jsonDecrypt(JSON.parse(row.encryptedPayload),key).claims || {}); } catch {}
+        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),claims};
+      });
+      const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0)}));
+      res.json({success:true,shares:[...identity,...documents]});
+    }catch(error){next(error);}
+  });
+
+  app.post("/api/security/shares/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      const type=String(req.body?.type||"");
+      const id=String(req.body?.id||"");
+      if(!/^(identity|document)$/.test(type)||!/^[0-9]+$/.test(id)) return res.status(400).json({success:false,message:"Invalid share."});
+      const table=type==="identity"?"secure_shares":"secure_document_shares";
+      const result=database.prepare(`UPDATE ${table} SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL`).run(new Date().toISOString(),Number(id),req.user.id);
+      if(!result.changes) return res.status(404).json({success:false,message:"Share not found or already revoked."});
+      logEvent(req.user.id,type==="identity"?"IDENTITY_SHARE_REVOKED":"DOCUMENT_SHARE_REVOKED",req,{shareId:id});
+      res.json({success:true});
+    }catch(error){next(error);}
+  });
 
   app.get("/api/wallet",requireAuth,(req,res,next)=>{
     try{
@@ -921,6 +960,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
       const payload=jsonDecrypt(JSON.parse(row.encrypted_payload),key);
 
+      database.prepare("UPDATE secure_shares SET accessed_at=?, access_count=COALESCE(access_count,0)+1 WHERE token_hash=?").run(new Date().toISOString(),shareTokenHash(token));
       logEvent(payload.ownerUserId,"IDENTITY_SHARE_ACCESSED",req);
 
       res.setHeader("Cache-Control","no-store");
