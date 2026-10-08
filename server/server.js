@@ -67,9 +67,10 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=());
+  res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src 'self' blob:;");
   res.setHeader("Cache-Control", "no-store");
-  if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   next();
 });
 
@@ -94,8 +95,13 @@ app.use((req, res, next) => {
 app.use(express.static(distPath));
 
 function enforceSameOrigin(req, res, next) {
-  if (!isProduction) return next();
-  if (req.get("origin") !== appOrigin) return res.status(403).json({ success: false, message: "Request origin is not allowed." });
+  ensureCsrfCookie(req,res);
+  if (isProduction && req.get("origin") !== appOrigin) return res.status(403).json({ success: false, message: "Request origin is not allowed." });
+  if (["POST","PUT","PATCH","DELETE"].includes(req.method)) {
+    const cookieToken=getCookie(req,csrfCookieName);
+    const headerToken=String(req.get("X-CSRF-Token") || "");
+    if(!cookieToken || !headerToken || cookieToken !== headerToken) return res.status(403).json({ success:false,message:"CSRF validation failed." });
+  }
   next();
 }
 
@@ -106,6 +112,18 @@ function getCookie(req, name) {
     if (key === name) return decodeURIComponent(value.join("="));
   }
   return "";
+}
+
+const csrfCookieName = isProduction ? "__Host-secureid.csrf" : "secureid.csrf";
+function ensureCsrfCookie(req,res){
+  let token=getCookie(req,csrfCookieName);
+  if(!/^[A-Za-z0-9_-]{32,}$/.test(token)){
+    token=randomBytes(32).toString("base64url");
+    const parts=[`${csrfCookieName}=${encodeURIComponent(token)}`,"Path=/","Max-Age=28800","SameSite=Strict"];
+    if(isProduction) parts.push("Secure");
+    res.append("Set-Cookie",parts.join("; "));
+  }
+  return token;
 }
 
 function hashSessionToken(token) { return createHmac("sha256", sessionPepper).update(token).digest("hex"); }
