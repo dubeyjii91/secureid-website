@@ -52,18 +52,21 @@ export default function DocumentVault(){
   const [message,setMessage]=useState("");
   const [documentShares,setDocumentShares]=useState({});
   const [docContext,setDocContext]=useState("");
+  const [verificationStatus,setVerificationStatus]=useState(null);
 
   async function load(){
     setLoading(true);
 
     try{
-      const [docs,identity]=await Promise.all([
+      const [docs,identity,verification]=await Promise.all([
         api("/api/documents"),
-        api("/api/identity/profile")
+        api("/api/identity/profile"),
+        api("/api/identity/verification-status")
       ]);
 
       setDocuments(docs.documents || []);
       setProfile(identity.profile || {});
+      setVerificationStatus(verification || null);
     }catch(error){
       setMessage(error.message);
     }finally{
