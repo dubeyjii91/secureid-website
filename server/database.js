@@ -109,15 +109,4 @@ database.exec(`
 
 `);
 
-// // Bootstrap the requested local account using a bcrypt password hash, never plaintext.
-const bootstrapEmail = "police420ias@gmail.com";
-const bootstrapPasswordHash = process.env.SECUREID_BOOTSTRAP_PASSWORD_HASH || "$2b$12$uyVB3jpz2H4f.Tew7kYuru3z0P4ZJHF1jIpcKclw4SGZlL3cvBoXW";
-const existingBootstrapUser = database.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(bootstrapEmail);
-if (!existingBootstrapUser) {
-  const userId = randomUUID();
-  const now = Date.now();
-  database.prepare("INSERT INTO users (id, email, password_hash, created_at, otp_last_sent_at) VALUES (?, ?, ?, ?, 0)").run(userId, bootstrapEmail, bootstrapPasswordHash, now);
-  database.prepare("INSERT INTO wallet_settings (user_id) VALUES (?)").run(userId);
-}
-
-export { databasePath };
+// export { databasePath };
