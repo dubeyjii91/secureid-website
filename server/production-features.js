@@ -100,6 +100,7 @@ export function registerProductionFeatures({
       mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL,
       encrypted_path TEXT NOT NULL,
+      document_category TEXT NOT NULL DEFAULT 'general',
       created_at INTEGER NOT NULL,
       deleted_at INTEGER
     );
@@ -107,6 +108,8 @@ export function registerProductionFeatures({
     CREATE INDEX IF NOT EXISTS idx_secure_documents_user
       ON secure_documents(user_id, deleted_at);
   `);
+
+  try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
 
   const upload=multer({
     storage:multer.memoryStorage(),
@@ -273,6 +276,7 @@ export function registerProductionFeatures({
           original_name AS name,
           mime_type AS mimeType,
           size_bytes AS sizeBytes,
+          document_category AS category,
           created_at AS createdAt
         FROM secure_documents
         WHERE user_id = ?
@@ -339,8 +343,8 @@ export function registerProductionFeatures({
 
         const insert=database.prepare(`
           INSERT INTO secure_documents
-          (id,user_id,original_name,mime_type,size_bytes,encrypted_path,created_at)
-          VALUES (?,?,?,?,?,?,?)
+          (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at)
+          VALUES (?,?,?,?,?,?,?,?)
         `);
 
         for(const file of files){
@@ -390,6 +394,7 @@ export function registerProductionFeatures({
             file.mimetype,
             file.size,
             absolute,
+            "general",
             now
           );
 
@@ -398,6 +403,7 @@ export function registerProductionFeatures({
             name:safeFilename(file.originalname),
             mimeType:file.mimetype,
             sizeBytes:file.size,
+            category:"general",
             createdAt:now
           });
 
@@ -413,6 +419,35 @@ export function registerProductionFeatures({
       }
     }
   );
+
+  /* IDENTITY PROOF DOCUMENTS */
+  app.post("/api/identity/proof",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    assertWalletUnlocked(req.user.id);
+    upload.single("document")(req,res,async(error)=>{
+      if(error){
+        if(error instanceof multer.MulterError && error.code==="LIMIT_FILE_SIZE") return res.status(413).json({success:false,message:"Each document must be 10 MB or smaller."});
+        return res.status(400).json({success:false,message:error.message || "Proof upload failed."});
+      }
+      try{
+        const category=String(req.body?.category || "").trim();
+        if(!["student_id","institution_proof"].includes(category)) return res.status(400).json({success:false,message:"Invalid identity proof category."});
+        if(!req.file) return res.status(400).json({success:false,message:"Select a PDF or image first."});
+        const detected=await fileTypeFromBuffer(req.file.buffer);
+        if(detected && !ALLOWED_MIME.has(detected.mime)) return res.status(400).json({success:false,message:"File content does not match its declared type."});
+        const previous=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
+        const id=crypto.randomUUID();
+        const encrypted=encryptBuffer(req.file.buffer,key);
+        const absolute=path.join(dataRoot,id+".json");
+        fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600});
+        const now=Date.now();
+        database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
+        database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)").run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
+        for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
+        logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED");
+        res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
+      }catch(error){ next(error); }
+    });
+  });
 
   /*
    * DOCUMENT DOWNLOAD

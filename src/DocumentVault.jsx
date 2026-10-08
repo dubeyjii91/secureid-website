@@ -43,6 +43,8 @@ const fields=[
 export default function DocumentVault(){
   const [documents,setDocuments]=useState([]);
   const [profile,setProfile]=useState({});
+  const [proofFiles,setProofFiles]=useState({student_id:null,institution_proof:null});
+  const [proofUploading,setProofUploading]=useState("");
   const [selected,setSelected]=useState([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
@@ -106,6 +108,19 @@ export default function DocumentVault(){
     }finally{
       setSaving(false);
     }
+  }
+
+  async function uploadProof(category){
+    const file=proofFiles[category];
+    if(!file){ setMessage("Select a PDF or image first."); return; }
+    setProofUploading(category); setMessage("");
+    try{
+      const form=new FormData(); form.append("category",category); form.append("document",file);
+      const result=await api("/api/identity/proof",{method:"POST",body:form});
+      setDocuments(current=>[result.document,...current.filter(doc=>doc.category!==category)]);
+      setProofFiles(current=>({...current,[category]:null}));
+      setMessage(category==="student_id"?"Student ID proof uploaded securely.":"College / Institution proof uploaded securely.");
+    }catch(error){ setMessage(error.message); } finally{ setProofUploading(""); }
   }
 
   async function upload(){
@@ -242,27 +257,24 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Add documents</h3>
+      <h3>Identity proof documents</h3>
+      <p className="lead">Attach the actual Student ID card and College / Institution proof as a photo or PDF. Each proof is encrypted and linked to its identity field.</p>
+      {[["student_id","Student ID Card"],["institution_proof","College / Institution Proof"]].map(([category,label])=>{
+        const existing=documents.find(doc=>doc.category===category);
+        return <div className="proofUpload" key={category}>
+          <div><strong>{label}</strong><small>{existing ? "Current: "+existing.name : "No proof uploaded yet."}</small></div>
+          <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={event=>setProofFiles(current=>({...current,[category]:event.target.files?.[0] || null}))}/>
+          <button className="primary" onClick={()=>uploadProof(category)} disabled={proofUploading===category || !proofFiles[category]}>{proofUploading===category ? "Encrypting…" : existing ? "Replace proof" : "Upload proof"}</button>
+        </div>;
+      })}
+      <small>PDF/JPEG/PNG/WebP · maximum 10 MB per file. Uploading a replacement securely invalidates the previous proof.</small>
+    </section>
 
-      <input
-        id="secureid-document-input"
-        type="file"
-        accept="application/pdf,image/jpeg,image/png,image/webp"
-        multiple
-        onChange={event=>setSelected(Array.from(event.target.files || []))}
-      />
-
-      <small>
-        PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once
-      </small>
-
-      <button
-        className="primary"
-        onClick={upload}
-        disabled={uploading || selected.length===0}
-      >
-        {uploading ? "Encrypting & uploading…" : "Secure upload"}
-      </button>
+    <section className="vaultBlock">
+      <h3>Add other documents</h3>
+      <input id="secureid-document-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={event=>setSelected(Array.from(event.target.files || []))}/>
+      <small>PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once</small>
+      <button className="primary" onClick={upload} disabled={uploading || selected.length===0}>{uploading ? "Encrypting & uploading…" : "Secure upload"}</button>
     </section>
 
     <section className="vaultBlock">
