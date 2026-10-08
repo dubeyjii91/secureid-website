@@ -29,11 +29,17 @@ function FunctionVisual({ label }) {
   return <div className="functionVisual" aria-label={label}><img src="/secureid-welcome.svg" alt="" /></div>;
 }
 
+function csrfToken(){
+  const match=document.cookie.match(/(?:^|; )(?:__Host-secureid\\.csrf|secureid\\.csrf)=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
 async function api(path, options = {}) {
+  const method=String(options.method || "GET").toUpperCase();
+  const csrf=csrfToken();
   const response = await fetch(path, {
     credentials: "include",
     ...options,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) },
+    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(["POST","PUT","PATCH","DELETE"].includes(method)&&csrf ? {"X-CSRF-Token":csrf} : {}), ...(options.headers || {}) },
   });
   const contentType = response.headers.get("content-type") || "";
   const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : null;
