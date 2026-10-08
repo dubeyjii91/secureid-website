@@ -318,9 +318,9 @@ function App() {
     const validRecovery = mfaRecoveryMode && /^[A-Za-z0-9-]{16,24}$/.test(otp);
     if ((!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && !validRecovery) || mfaLoading) return;
     setMfaLoading(true);
-    setMfaMessage("Verifying your code…");
+    setMfaMessage(mfaRecoveryMode ? "Verifying recovery code…" : "Verifying your code…");
     try {
-      const result = await api("/api/mfa/verify", { method: "POST", body: JSON.stringify({ challengeId, code: otp }) });
+      const result = await api("/api/mfa/verify", { method: "POST", body: JSON.stringify({ challengeId: mfaRecoveryMode ? "" : challengeId, code: otp }) });
       setMfaVerified(true);
       setMfaRequired(false);
       setChallengeId("");
