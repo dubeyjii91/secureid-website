@@ -118,9 +118,9 @@ export default function SecuritySessions() {
           {sessions.map((session) => <article className={`sessionItem ${session.current ? "current" : ""}`} key={session.id}>
             <div className="sessionDeviceIcon">▣</div>
             <div className="sessionInfo">
-              <div className="sessionTitle"><strong>{deviceName(session.userAgent)}</strong>{session.current && <span className="currentBadge">This device</span>}</div>
+              <div className="sessionTitle"><strong>{deviceName(session.userAgent)}</strong>{session.current && <span className="currentBadge">This device</span>}{session.trustedUntil && Number(session.trustedUntil)>Date.now() && <span className="trustedBadge">Trusted</span>}</div>
               <span>{browserName(session.userAgent)}</span>
-              <small>Last active: {relativeTime(session.lastSeenAt)} · Started: {new Date(session.createdAt).toLocaleString()}</small>
+              <small>Last active: {relativeTime(session.lastSeenAt)} · Started: {new Date(session.createdAt).toLocaleString()}{session.trustedUntil && Number(session.trustedUntil)>Date.now() ? " · Trusted until "+new Date(session.trustedUntil).toLocaleDateString() : ""}</small>
             </div>
             {!session.current && <button className="textDangerButton" onClick={() => revoke(session.id)} disabled={busy === session.id}>{busy === session.id ? "Signing out…" : "Sign out"}</button>}
           </article>)}
