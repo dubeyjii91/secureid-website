@@ -46,6 +46,7 @@ export default function SecurityDashboard(){
         <div><span>API status</span><strong className="healthOk">{health?.status === "ready" ? "Operational" : "Check required"}</strong></div>
         <div><span>Database</span><strong className="healthOk">{health?.database === "ok" ? "Healthy" : "Check required"}</strong></div>
         <div><span>Encrypted backups</span><strong>{health?.backup?.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured"}</strong></div>
+        <div><span>Operational alerts</span><strong className={health?.operationalAlerting ? "healthOk" : ""}>{health?.operationalAlerting ? "Configured" : "Configure alert email"}</strong></div>
       </div>
       {health?.backup?.lastSuccessAt && <small className="healthMeta">Last encrypted backup: {new Date(health.backup.lastSuccessAt).toLocaleString()}</small>}
     </section>
