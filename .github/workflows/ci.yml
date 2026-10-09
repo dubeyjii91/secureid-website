@@ -3,7 +3,7 @@ name: SecureID CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'security/**']
 
 permissions:
   contents: read
