@@ -377,8 +377,9 @@ export function registerProductionFeatures({
            * so compare the actual detected type whenever available.
            */
           if(
-            detected &&
-            !ALLOWED_MIME.has(detected.mime)
+            !detected ||
+            !ALLOWED_MIME.has(detected.mime) ||
+            detected.mime !== file.mimetype
           ){
             return res.status(400).json({
               success:false,
@@ -448,7 +449,7 @@ export function registerProductionFeatures({
         if(!["student_id","institution_proof"].includes(category)) return res.status(400).json({success:false,message:"Invalid identity proof category."});
         if(!req.file) return res.status(400).json({success:false,message:"Select a PDF or image first."});
         const detected=await fileTypeFromBuffer(req.file.buffer);
-        if(detected && !ALLOWED_MIME.has(detected.mime)) return res.status(400).json({success:false,message:"File content does not match its declared type."});
+        if(!detected || !ALLOWED_MIME.has(detected.mime) || detected.mime !== req.file.mimetype) return res.status(400).json({success:false,message:"File content does not match its declared type."});
         const previous=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
         const id=crypto.randomUUID();
         const encrypted=encryptBuffer(req.file.buffer,key);
