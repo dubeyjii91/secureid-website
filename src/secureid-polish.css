@@ -1,0 +1,43 @@
+/* SecureID readability and visual polish — additive overrides only */
+:root {
+  color-scheme: dark;
+  --sid-readable-text: #f8fafc;
+  --sid-readable-muted: #cbd5e1;
+}
+html, body, #root {
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+body { color: var(--sid-readable-text); }
+h1, h2, h3, h4, h5, h6,
+.sectionTitle, .panelHead h2, .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+p, small, label, .lead, .details span, .securityRow,
+.navItem, .privacy p, .shareHint, .shareExpiry {
+  line-height: 1.6;
+}
+p, small, .lead, .details span, .shareHint {
+  color: var(--sid-readable-muted);
+}
+.panel, .authCard, .mfaModal, .profilePanel, .statusPanel,
+.actionCard, .claim, .shareResult, .lockPanel {
+  backdrop-filter: blur(14px);
+}
+.panel, .authCard, .mfaModal, .profilePanel, .statusPanel,
+.actionCard, .claim, .shareResult {
+  border-color: rgba(148, 163, 184, .28);
+}
+input, textarea, select {
+  color: #f8fafc;
+  background-color: rgba(15, 23, 42, .94);
+  border-color: rgba(148, 163, 184, .42);
+}
+input::placeholder, textarea::placeholder { color: #aebdd0; opacity: 1; }
+button { transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+button:hover:not(:disabled) { transform: translateY(-1px); }
+button:disabled { cursor: not-allowed; opacity: .65; }
+:focus-visible { outline: 3px solid #67e8f9; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
