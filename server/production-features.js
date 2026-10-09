@@ -453,14 +453,27 @@ export function registerProductionFeatures({
         if(!req.file) return res.status(400).json({success:false,message:"Select a PDF or image first."});
         const detected=await fileTypeFromBuffer(req.file.buffer);
         if(!detected || !ALLOWED_MIME.has(detected.mime) || detected.mime !== req.file.mimetype) return res.status(400).json({success:false,message:"File content does not match its declared type."});
-        const previous=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
+        const previous=database.prepare("SELECT id,encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
         const id=crypto.randomUUID();
         const encrypted=encryptBuffer(req.file.buffer,key);
         const absolute=path.join(dataRoot,id+".json");
-        fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600});
         const now=Date.now();
-        database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
-        database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)").run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
+        // Keep the previous proof active unless both the new file and DB transaction succeed.
+        const insertProof=database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)");
+        let fileCreated=false;
+        try {
+          fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600,flag:"wx"});
+          fileCreated=true;
+          database.exec("BEGIN");
+          database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
+          insertProof.run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
+          database.exec("COMMIT");
+        } catch(error) {
+          try { database.exec("ROLLBACK"); } catch {}
+          if(fileCreated) { try { fs.rmSync(absolute,{force:true}); } catch {} }
+          throw error;
+        }
+        // Remove superseded encrypted files only after the DB commit succeeds.
         for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
         logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED",req);
         res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
