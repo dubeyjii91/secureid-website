@@ -387,12 +387,13 @@ export function registerProductionFeatures({
             const encrypted=encryptBuffer(file.buffer,key);
             const absolute=path.join(dataRoot,`${id}.json`);
 
+            // Track the path before writing so cleanup also covers a partial write failure.
+            createdPaths.push(absolute);
             fs.writeFileSync(absolute,JSON.stringify(encrypted),{
               encoding:"utf8",
               mode:0o600,
               flag:"wx"
             });
-            createdPaths.push(absolute);
 
             const now=Date.now();
             insert.run(
