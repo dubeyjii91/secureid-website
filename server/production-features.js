@@ -171,12 +171,11 @@ export function registerProductionFeatures({
   app.get("/api/identity/verification-status",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const profileRow=database.prepare("SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id=?").get(req.user.id);
-      let declaredStatus="";
-      if(profileRow){ try{ declaredStatus=jsonDecrypt(JSON.parse(profileRow.encrypted_data),key).verificationStatus || ""; }catch{} }
       const proofs=database.prepare("SELECT document_category,created_at FROM secure_documents WHERE user_id=? AND document_category IN ('student_id','institution_proof') AND deleted_at IS NULL ORDER BY created_at DESC").all(req.user.id);
       const hasStudent=proofs.some(x=>x.document_category==="student_id");
       const hasInstitution=proofs.some(x=>x.document_category==="institution_proof");
-      const status=declaredStatus || (hasStudent && hasInstitution ? "Pending review" : (hasStudent || hasInstitution ? "Partially submitted" : "Not submitted"));
+      // Verification status is derived from submitted proofs, never from user-editable profile text.
+      const status=hasStudent && hasInstitution ? "Pending review" : (hasStudent || hasInstitution ? "Partially submitted" : "Not submitted");
       res.json({success:true,status,proofs:{studentId:hasStudent,institution:hasInstitution},updatedAt:profileRow?.updated_at||null});
     }catch(error){next(error);}
   });
@@ -228,8 +227,7 @@ export function registerProductionFeatures({
           "identityId",
           "college",
           "studentId",
-          "governmentId",
-          "verificationStatus"
+          "governmentId"
         ];
 
         const profile={};
@@ -699,8 +697,7 @@ function enforceShareRateLimit(req, userId) {
     "identityId",
     "college",
     "studentId",
-    "governmentId",
-    "verificationStatus"
+    "governmentId"
   ];
 
   try {
@@ -779,7 +776,7 @@ function enforceShareRateLimit(req, userId) {
         let claims=[];
         let contextLabel="";
         try { const payload=jsonDecrypt(JSON.parse(row.encryptedPayload),key); claims=Object.keys(payload.claims || {}); contextLabel=payload.contextLabel || ""; } catch {}
-        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel,claims,verificationBadge:{verified:true,label:"SecureID Verified Share"}};
+        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel,claims,verificationBadge:{verified:false,label:"Shared by account owner",assurance:"Identity claims have not been independently verified."}};
       });
       const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,s.share_reason AS shareReason,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel:row.shareReason||""}));
       res.json({success:true,shares:[...identity,...documents]});
@@ -1024,9 +1021,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         claims:payload.claims,
         contextLabel:payload.contextLabel || "",
         verificationBadge:{
-          verified:true,
-          label:"SecureID Verified Share",
-          assurance:"MFA-authenticated at creation",
+          verified:false,
+          label:"Shared by account owner",
+          assurance:"Identity claims are user-provided and have not been independently verified.",
           issuedAt:row.created_at,
           expiresAt:row.expires_at
         },
