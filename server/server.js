@@ -161,7 +161,7 @@ function requireAuth(req, res, next) {
   const token = getCookie(req, sessionCookieName);
   if (!token || token.length < 20 || token.length > 200) return res.status(401).json({ success: false, message: "Sign in to continue." });
   const tokenHash = hashSessionToken(token);
-  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
+  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, s.last_seen_at, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
   if (!row || Number(row.expires_at) <= Date.now() || (Number(row.last_seen_at || 0) > 0 && Date.now() - Number(row.last_seen_at) > sessionIdleTtlMs)) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     clearSessionCookie(res);
