@@ -353,6 +353,7 @@ export function registerProductionFeatures({
         }
 
         const saved=[];
+        const createdPaths=[];
 
         const insert=database.prepare(`
           INSERT INTO secure_documents
@@ -360,6 +361,7 @@ export function registerProductionFeatures({
           VALUES (?,?,?,?,?,?,?,?)
         `);
 
+        // Validate the entire batch before writing any file or database row.
         for(const file of files){
           if(!ALLOWED_MIME.has(file.mimetype)){
             return res.status(400).json({
@@ -369,58 +371,61 @@ export function registerProductionFeatures({
           }
 
           const detected=await fileTypeFromBuffer(file.buffer);
-
-          /*
-           * file-type does not identify every valid PDF/image variant,
-           * so compare the actual detected type whenever available.
-           */
-          if(
-            !detected ||
-            !ALLOWED_MIME.has(detected.mime) ||
-            detected.mime !== file.mimetype
-          ){
+          if(!detected || !ALLOWED_MIME.has(detected.mime) || detected.mime !== file.mimetype){
             return res.status(400).json({
               success:false,
               message:"File content does not match its declared type."
             });
           }
+        }
 
-          const id=crypto.randomUUID();
-          const encrypted=encryptBuffer(file.buffer,key);
-          const filename=`${id}.json`;
-          const absolute=path.join(dataRoot,filename);
+        // Keep a multi-file upload all-or-nothing if storage or SQLite fails.
+        database.exec("BEGIN");
+        try{
+          for(const file of files){
+            const id=crypto.randomUUID();
+            const encrypted=encryptBuffer(file.buffer,key);
+            const absolute=path.join(dataRoot,`${id}.json`);
 
-          fs.writeFileSync(
-            absolute,
-            JSON.stringify(encrypted),
-            {
+            // Track the path before writing so cleanup also covers a partial write failure.
+            createdPaths.push(absolute);
+            fs.writeFileSync(absolute,JSON.stringify(encrypted),{
               encoding:"utf8",
-              mode:0o600
-            }
-          );
+              mode:0o600,
+              flag:"wx"
+            });
 
-          const now=Date.now();
+            const now=Date.now();
+            insert.run(
+              id,
+              req.user.id,
+              safeFilename(file.originalname),
+              file.mimetype,
+              file.size,
+              absolute,
+              "general",
+              now
+            );
 
-          insert.run(
-            id,
-            req.user.id,
-            safeFilename(file.originalname),
-            file.mimetype,
-            file.size,
-            absolute,
-            "general",
-            now
-          );
+            saved.push({
+              id,
+              name:safeFilename(file.originalname),
+              mimeType:file.mimetype,
+              sizeBytes:file.size,
+              category:"general",
+              createdAt:now
+            });
+          }
+          database.exec("COMMIT");
+        }catch(error){
+          try{ database.exec("ROLLBACK"); }catch{}
+          for(const filename of createdPaths){
+            try{ fs.rmSync(filename,{force:true}); }catch{}
+          }
+          throw error;
+        }
 
-          saved.push({
-            id,
-            name:safeFilename(file.originalname),
-            mimeType:file.mimetype,
-            sizeBytes:file.size,
-            category:"general",
-            createdAt:now
-          });
-
+        for(const document of saved){
           logEvent(req.user.id,"DOCUMENT_UPLOADED",req);
         }
 
