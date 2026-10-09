@@ -453,14 +453,28 @@ export function registerProductionFeatures({
         if(!req.file) return res.status(400).json({success:false,message:"Select a PDF or image first."});
         const detected=await fileTypeFromBuffer(req.file.buffer);
         if(!detected || !ALLOWED_MIME.has(detected.mime) || detected.mime !== req.file.mimetype) return res.status(400).json({success:false,message:"File content does not match its declared type."});
-        const previous=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
+        const previous=database.prepare("SELECT id,encrypted_path FROM secure_documents WHERE user_id=? AND document_category=? AND deleted_at IS NULL").all(req.user.id,category);
         const id=crypto.randomUUID();
         const encrypted=encryptBuffer(req.file.buffer,key);
         const absolute=path.join(dataRoot,id+".json");
-        fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600});
         const now=Date.now();
-        database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
-        database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)").run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
+        // Keep the previous proof active unless both the new file and DB transaction succeed.
+        const insertProof=database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)");
+        let fileCreated=false;
+        try {
+          // Mark for cleanup before writing so partial writes are removed on failure.
+          fileCreated=true;
+          fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600,flag:"wx"});
+          database.exec("BEGIN");
+          database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
+          insertProof.run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
+          database.exec("COMMIT");
+        } catch(error) {
+          try { database.exec("ROLLBACK"); } catch {}
+          if(fileCreated) { try { fs.rmSync(absolute,{force:true}); } catch {} }
+          throw error;
+        }
+        // Remove superseded encrypted files only after the DB commit succeeds.
         for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
         logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED",req);
         res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
@@ -506,7 +520,8 @@ export function registerProductionFeatures({
 
       const plaintext=decryptBuffer(encrypted,key);
 
-      res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
+      // Share-purpose metadata is not part of a normal document record.
+
       res.setHeader("Content-Type",row.mime_type);
       res.setHeader(
         "Content-Disposition",
@@ -638,60 +653,44 @@ export function registerProductionFeatures({
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
 
-// SECUREID_SHARE_RATE_LIMIT
+// Share limits are persisted in SQLite so restarts do not reset the counters.
 const SHARE_RATE_WINDOW_MS = 15 * 60 * 1000;
 const SHARE_RATE_IP_MAX = 20;
 const SHARE_RATE_USER_MAX = 10;
-const shareRateByIp = new Map();
-const shareRateByUser = new Map();
-
-function consumeShareRate(map, key, max) {
-  const now = Date.now();
-  const current = map.get(key);
-
-  if (!current || now - current.startedAt >= SHARE_RATE_WINDOW_MS) {
-    map.set(key, { startedAt: now, count: 1 });
-    return true;
-  }
-
-  if (current.count >= max) return false;
-
-  current.count += 1;
-  return true;
-}
 
 function enforceShareRateLimit(req, userId) {
-  const ip = String(req.ip || req.headers["x-forwarded-for"] || "unknown");
-  const userKey = String(userId);
+  const now = Date.now();
+  const identities = [
+    { scope: "ip", value: String(req.ip || "unknown"), max: SHARE_RATE_IP_MAX },
+    { scope: "user", value: String(userId), max: SHARE_RATE_USER_MAX }
+  ];
 
-  if (!consumeShareRate(shareRateByIp, ip, SHARE_RATE_IP_MAX)) {
-    const error = new Error("Too many share requests. Try again later.");
-    error.statusCode = 429;
-    throw error;
-  }
+  for (const identity of identities) {
+    const digest = crypto.createHash("sha256").update(identity.value).digest("hex");
+    const bucketKey = `secure-share:${identity.scope}:${digest}`;
+    const current = database.prepare(
+      "SELECT hits, reset_at FROM rate_limits WHERE bucket_key = ?"
+    ).get(bucketKey);
 
-  if (!consumeShareRate(shareRateByUser, userKey, SHARE_RATE_USER_MAX)) {
-    const error = new Error("Too many share requests. Try again later.");
-    error.statusCode = 429;
-    throw error;
-  }
-
-  if (shareRateByIp.size > 5000) {
-    for (const [key, value] of shareRateByIp) {
-      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
-        shareRateByIp.delete(key);
-      }
+    if (!current || Number(current.reset_at) <= now) {
+      database.prepare(
+        "INSERT OR REPLACE INTO rate_limits (bucket_key, hits, reset_at) VALUES (?, ?, ?)"
+      ).run(bucketKey, 1, now + SHARE_RATE_WINDOW_MS);
+      continue;
     }
-  }
 
-  if (shareRateByUser.size > 5000) {
-    for (const [key, value] of shareRateByUser) {
-      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
-        shareRateByUser.delete(key);
-      }
+    if (Number(current.hits) >= identity.max) {
+      const error = new Error("Too many share requests. Try again later.");
+      error.statusCode = 429;
+      throw error;
     }
+
+    database.prepare(
+      "UPDATE rate_limits SET hits = hits + 1 WHERE bucket_key = ? AND reset_at > ?"
+    ).run(bucketKey, now);
   }
 }
+
   const shareFields = [
     "name",
     "age",
