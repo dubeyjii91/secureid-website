@@ -32,7 +32,7 @@ function FunctionVisual({ label }) {
 }
 
 function csrfToken(){
-  const match=document.cookie.match(/(?:^|; )(?:__Host-secureid\\.csrf|secureid\\.csrf)=([^;]+)/);
+  const match=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : "";
 }
 async function api(path, options = {}) {
