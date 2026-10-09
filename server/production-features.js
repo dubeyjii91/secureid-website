@@ -462,8 +462,9 @@ export function registerProductionFeatures({
         const insertProof=database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at) VALUES (?,?,?,?,?,?,?,?)");
         let fileCreated=false;
         try {
-          fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600,flag:"wx"});
+          // Mark for cleanup before writing so partial writes are removed on failure.
           fileCreated=true;
+          fs.writeFileSync(absolute,JSON.stringify(encrypted),{encoding:"utf8",mode:0o600,flag:"wx"});
           database.exec("BEGIN");
           database.prepare("UPDATE secure_documents SET deleted_at=? WHERE user_id=? AND document_category=? AND deleted_at IS NULL").run(now,req.user.id,category);
           insertProof.run(id,req.user.id,safeFilename(req.file.originalname),req.file.mimetype,req.file.size,absolute,category,now);
