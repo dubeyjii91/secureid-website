@@ -653,60 +653,44 @@ export function registerProductionFeatures({
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
 
-// SECUREID_SHARE_RATE_LIMIT
+// Share limits are persisted in SQLite so restarts do not reset the counters.
 const SHARE_RATE_WINDOW_MS = 15 * 60 * 1000;
 const SHARE_RATE_IP_MAX = 20;
 const SHARE_RATE_USER_MAX = 10;
-const shareRateByIp = new Map();
-const shareRateByUser = new Map();
-
-function consumeShareRate(map, key, max) {
-  const now = Date.now();
-  const current = map.get(key);
-
-  if (!current || now - current.startedAt >= SHARE_RATE_WINDOW_MS) {
-    map.set(key, { startedAt: now, count: 1 });
-    return true;
-  }
-
-  if (current.count >= max) return false;
-
-  current.count += 1;
-  return true;
-}
 
 function enforceShareRateLimit(req, userId) {
-  const ip = String(req.ip || req.headers["x-forwarded-for"] || "unknown");
-  const userKey = String(userId);
+  const now = Date.now();
+  const identities = [
+    { scope: "ip", value: String(req.ip || "unknown"), max: SHARE_RATE_IP_MAX },
+    { scope: "user", value: String(userId), max: SHARE_RATE_USER_MAX }
+  ];
 
-  if (!consumeShareRate(shareRateByIp, ip, SHARE_RATE_IP_MAX)) {
-    const error = new Error("Too many share requests. Try again later.");
-    error.statusCode = 429;
-    throw error;
-  }
+  for (const identity of identities) {
+    const digest = crypto.createHash("sha256").update(identity.value).digest("hex");
+    const bucketKey = `secure-share:${identity.scope}:${digest}`;
+    const current = database.prepare(
+      "SELECT hits, reset_at FROM rate_limits WHERE bucket_key = ?"
+    ).get(bucketKey);
 
-  if (!consumeShareRate(shareRateByUser, userKey, SHARE_RATE_USER_MAX)) {
-    const error = new Error("Too many share requests. Try again later.");
-    error.statusCode = 429;
-    throw error;
-  }
-
-  if (shareRateByIp.size > 5000) {
-    for (const [key, value] of shareRateByIp) {
-      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
-        shareRateByIp.delete(key);
-      }
+    if (!current || Number(current.reset_at) <= now) {
+      database.prepare(
+        "INSERT OR REPLACE INTO rate_limits (bucket_key, hits, reset_at) VALUES (?, ?, ?)"
+      ).run(bucketKey, 1, now + SHARE_RATE_WINDOW_MS);
+      continue;
     }
-  }
 
-  if (shareRateByUser.size > 5000) {
-    for (const [key, value] of shareRateByUser) {
-      if (Date.now() - value.startedAt >= SHARE_RATE_WINDOW_MS) {
-        shareRateByUser.delete(key);
-      }
+    if (Number(current.hits) >= identity.max) {
+      const error = new Error("Too many share requests. Try again later.");
+      error.statusCode = 429;
+      throw error;
     }
+
+    database.prepare(
+      "UPDATE rate_limits SET hits = hits + 1 WHERE bucket_key = ? AND reset_at > ?"
+    ).run(bucketKey, now);
   }
 }
+
   const shareFields = [
     "name",
     "age",
