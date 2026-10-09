@@ -520,7 +520,8 @@ export function registerProductionFeatures({
 
       const plaintext=decryptBuffer(encrypted,key);
 
-      res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
+      // Share-purpose metadata is not part of a normal document record.
+
       res.setHeader("Content-Type",row.mime_type);
       res.setHeader(
         "Content-Disposition",
