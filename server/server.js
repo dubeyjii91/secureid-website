@@ -1,4 +1,5 @@
 ﻿import { registerProductionFeatures } from "./production-features.js";
+import { registerDigiLockerIntegration } from "./digilocker-integration.js";
 import path from "node:path";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -571,6 +572,7 @@ registerProductionFeatures({
   logEvent,
   ensureSecurityNotification
 });
+registerDigiLockerIntegration({ app, database, requireAuth, requireMfa, enforceSameOrigin, isProduction, logEvent });
 startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
