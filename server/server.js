@@ -152,7 +152,7 @@ function createSession(userId, req, res) {
   const userAgent = String(req?.get?.("user-agent") || "").slice(0, 512) || null;
   const ip = String(req?.ip || req?.socket?.remoteAddress || "").trim();
   const ipHash = ip ? createHmac("sha256", sessionPepper).update(ip).digest("hex") : null;
-  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, trusted_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
+  database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, trusted_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
   setSessionCookie(res, token);
   return tokenHash;
 }
