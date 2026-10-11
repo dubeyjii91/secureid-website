@@ -1,0 +1,111 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import express from "express";
+import { DatabaseSync } from "node:sqlite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { registerProductionFeatures } from "../server/production-features.js";
+import { randomBytes } from "node:crypto";
+
+test("document ownership isolation, share access, revocation, and expiry", async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), "secureid-integration-"));
+  const priorStorage = process.env.DOCUMENT_STORAGE_PATH;
+  const priorKey = process.env.DOCUMENT_ENCRYPTION_KEY;
+  process.env.DOCUMENT_STORAGE_PATH = path.join(root, "documents");
+  process.env.DOCUMENT_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+
+  const database = new DatabaseSync(":memory:");
+  database.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE);
+    CREATE TABLE wallet_settings (
+      user_id TEXT PRIMARY KEY REFERENCES users(id), risk INTEGER DEFAULT 0, locked INTEGER DEFAULT 0,
+      share_name INTEGER DEFAULT 1, share_age INTEGER DEFAULT 0, share_date_of_birth INTEGER DEFAULT 0,
+      share_address INTEGER DEFAULT 0, share_email INTEGER DEFAULT 0, share_phone INTEGER DEFAULT 0,
+      share_identity_id INTEGER DEFAULT 0, share_college INTEGER DEFAULT 0, share_student_id INTEGER DEFAULT 0,
+      share_government_id INTEGER DEFAULT 0, share_verification_status INTEGER DEFAULT 0
+    );
+    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test');
+    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b');
+  `);
+
+  const app = express();
+  app.use(express.json());
+  const requireAuth = (req, res, next) => {
+    const id = req.get("x-test-user");
+    if (!id) return res.status(401).json({ success: false });
+    req.user = { id, mfaVerified: true };
+    next();
+  };
+  registerProductionFeatures({
+    app,
+    database,
+    requireAuth,
+    enforceSameOrigin: (req, res, next) => next(),
+    isProduction: false,
+    logEvent: () => {},
+    ensureSecurityNotification: () => {}
+  });
+
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    database.close();
+    rmSync(root, { recursive: true, force: true });
+    if (priorStorage === undefined) delete process.env.DOCUMENT_STORAGE_PATH;
+    else process.env.DOCUMENT_STORAGE_PATH = priorStorage;
+    if (priorKey === undefined) delete process.env.DOCUMENT_ENCRYPTION_KEY;
+    else process.env.DOCUMENT_ENCRYPTION_KEY = priorKey;
+  });
+
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const asUser = (id) => ({ "x-test-user": id });
+  const form = new FormData();
+  form.append("documents", new Blob([Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")], { type: "application/pdf" }), "sample.pdf");
+  const upload = await fetch(base + "/api/documents", { method: "POST", headers: asUser("user-a"), body: form });
+  assert.equal(upload.status, 201, await upload.clone().text());
+  const uploaded = await upload.json();
+  const documentId = uploaded.documents[0].id;
+
+  const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
+  assert.equal(ownerList.status, 200);
+  assert.equal((await ownerList.json()).documents.length, 1);
+  const otherList = await fetch(base + "/api/documents", { headers: asUser("user-b") });
+  assert.equal(otherList.status, 200);
+  assert.equal((await otherList.json()).documents.length, 0);
+  const crossAccountDownload = await fetch(base + `/api/documents/${documentId}`, { headers: asUser("user-b") });
+  assert.equal(crossAccountDownload.status, 404);
+
+  const createShare = async () => fetch(base + "/api/document-share", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "content-type": "application/json" },
+    body: JSON.stringify({ documentId, share_reason: "integration test" })
+  });
+  const created = await createShare();
+  assert.equal(created.status, 200, await created.clone().text());
+  const share = await created.json();
+  const accessible = await fetch(base + `/api/document-share/${share.shareToken}`);
+  assert.equal(accessible.status, 200);
+
+  const revoked = await fetch(base + "/api/document-share/revoke", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "content-type": "application/json" },
+    body: JSON.stringify({ shareToken: share.shareToken })
+  });
+  assert.equal(revoked.status, 200, await revoked.clone().text());
+  const afterRevoke = await fetch(base + `/api/document-share/${share.shareToken}`);
+  assert.equal(afterRevoke.status, 404);
+
+  const expiring = await createShare();
+  assert.equal(expiring.status, 200, await expiring.clone().text());
+  const expiringShare = await expiring.json();
+  const tokenHash = (await import("node:crypto")).createHash("sha256").update(expiringShare.shareToken).digest("hex");
+  database.prepare("UPDATE secure_document_shares SET expires_at=? WHERE token_hash=?").run(new Date(Date.now() - 1000).toISOString(), tokenHash);
+  const afterExpiry = await fetch(base + `/api/document-share/${expiringShare.shareToken}`);
+  assert.equal(afterExpiry.status, 404);
+});
