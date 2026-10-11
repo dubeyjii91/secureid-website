@@ -140,3 +140,45 @@
 .verificationChecks span{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);color:#8e99ad}
 .verificationChecks span.complete{color:#73e6ad;background:rgba(50,180,120,.08)}
 @media(max-width:700px){.verificationStatusCard{display:block}.verificationChecks{margin-top:14px}}
+
+
+/* Keep the optional document-share purpose label and input on separate lines. */
+.documentVault .documentShareContext {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0 10px;
+  line-height: 1.5;
+}
+
+.documentVault .documentShareContext > span {
+  display: block;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.documentVault .documentShareContext input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 11px 13px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.documentVault .vaultBlock > h3 {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.documentVault .vaultBlock > small {
+  display: block;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
