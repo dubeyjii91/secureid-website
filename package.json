@@ -11,7 +11,8 @@
     "start": "node server/server.js",
     "preview": "vite preview",
     "backup": "node scripts/secure-backup.mjs",
-    "restore": "node scripts/secure-restore.mjs"
+    "restore": "node scripts/secure-restore.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=24"
