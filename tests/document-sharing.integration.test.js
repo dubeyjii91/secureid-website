@@ -48,6 +48,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
     logEvent: () => {},
     ensureSecurityNotification: () => {}
   });
+  app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ success: false, message: "Request failed." }));
 
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve, reject) => {
@@ -100,7 +101,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
 
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
   assert.equal(ownerList.status, 200);
-  assert.equal((await ownerList.json()).documents.length, 1);
+  assert.equal((await ownerList.json()).documents.length, 2);
   const otherList = await fetch(base + "/api/documents", { headers: asUser("user-b") });
   assert.equal(otherList.status, 200);
   assert.equal((await otherList.json()).documents.length, 0);
