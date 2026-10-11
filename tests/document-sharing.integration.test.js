@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerProductionFeatures } from "../server/production-features.js";
@@ -71,6 +71,31 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.equal(upload.status, 201, await upload.clone().text());
   const uploaded = await upload.json();
   const documentId = uploaded.documents[0].id;
+
+  const proofUpload = async (label) => {
+    const proofForm = new FormData();
+    proofForm.append("category", "student_id");
+    proofForm.append("document", new Blob([Buffer.from(`%PDF-1.7\nSecureID proof ${label}\n%%EOF`)], { type: "application/pdf" }), `${label}.pdf`);
+    return fetch(base + "/api/identity/proof", { method: "POST", headers: asUser("user-a"), body: proofForm });
+  };
+  const firstProofResponse = await proofUpload("first");
+  assert.equal(firstProofResponse.status, 201, await firstProofResponse.clone().text());
+  const firstProof = (await firstProofResponse.json()).document;
+  const firstPath = database.prepare("SELECT encrypted_path FROM secure_documents WHERE id=?").get(firstProof.id).encrypted_path;
+  const secondProofResponse = await proofUpload("replacement");
+  assert.equal(secondProofResponse.status, 201, await secondProofResponse.clone().text());
+  const secondProof = (await secondProofResponse.json()).document;
+  assert.equal(database.prepare("SELECT deleted_at FROM secure_documents WHERE id=?").get(firstProof.id).deleted_at > 0, true);
+  assert.equal(existsSync(firstPath), false);
+  const secondPath = database.prepare("SELECT encrypted_path FROM secure_documents WHERE id=?").get(secondProof.id).encrypted_path;
+
+  database.exec("CREATE TRIGGER fail_student_proof_insert BEFORE INSERT ON secure_documents WHEN NEW.document_category='student_id' BEGIN SELECT RAISE(ABORT, 'simulated database failure'); END");
+  const failedReplacement = await proofUpload("failure");
+  assert.equal(failedReplacement.status, 500, await failedReplacement.clone().text());
+  assert.equal(database.prepare("SELECT deleted_at FROM secure_documents WHERE id=?").get(secondProof.id).deleted_at, null);
+  assert.equal(existsSync(secondPath), true);
+  assert.equal(readdirSync(process.env.DOCUMENT_STORAGE_PATH).filter((name) => name.endsWith(".json")).length, 3);
+  database.exec("DROP TRIGGER fail_student_proof_insert");
 
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
   assert.equal(ownerList.status, 200);
