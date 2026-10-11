@@ -832,9 +832,8 @@ app.post("/api/wallet/lock", enforceSameOrigin, requireAuth, requireMfaProductio
 });
 
 app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
-    enforceShareRateLimit(req, req.user.id);
-
     try{
+      enforceShareRateLimit(database, req, req.user.id);
       assertWalletUnlocked(req.user.id);
 
       if(!req.user.mfaVerified){
