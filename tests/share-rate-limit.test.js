@@ -24,7 +24,7 @@ test("rejects a user over the limit without incrementing counters", () => {
   for (let i = 0; i < SHARE_RATE_USER_MAX; i++) enforceShareRateLimit(database, { ip: "192.0.2.2" }, "user-b", 2000 + i);
   assert.throws(() => enforceShareRateLimit(database, { ip: "192.0.2.2" }, "user-b", 3000), (error) => error.statusCode === 429);
   const rows = database.prepare("SELECT hits FROM rate_limits").all().map((row) => row.hits);
-  assert.deepEqual(rows.sort((a, b) => a - b), [1, SHARE_RATE_USER_MAX]);
+  assert.deepEqual(rows.sort((a, b) => a - b), [SHARE_RATE_USER_MAX, SHARE_RATE_USER_MAX]);
   database.close();
 });
 
