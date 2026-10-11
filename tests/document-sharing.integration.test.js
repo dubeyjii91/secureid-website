@@ -18,6 +18,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const database = new DatabaseSync(":memory:");
   database.exec(`
     PRAGMA foreign_keys = ON;
+    CREATE TABLE rate_limits (bucket_key TEXT PRIMARY KEY, hits INTEGER NOT NULL, reset_at INTEGER NOT NULL);
     CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE);
     CREATE TABLE wallet_settings (
       user_id TEXT PRIMARY KEY REFERENCES users(id), risk INTEGER DEFAULT 0, locked INTEGER DEFAULT 0,
