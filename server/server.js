@@ -580,14 +580,6 @@ app.get("/api/health", (req, res) => {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
 });
-app.get("/api/health/ready", (req,res)=>{
-  try{
-    database.prepare("SELECT 1").get();
-    res.json({success:true,status:"ready",database:"ok",timestamp:new Date().toISOString()});
-  }catch{
-    res.status(503).json({success:false,status:"not_ready",database:"error",timestamp:new Date().toISOString()});
-  }
-});
 
 app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
   try {
