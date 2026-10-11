@@ -654,8 +654,6 @@ export function registerProductionFeatures({
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
 
-  const SHARE_TTL_MS = 15 * 60 * 1000;
-
   const shareFields = [
     "name",
     "age",
