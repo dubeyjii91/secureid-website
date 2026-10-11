@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
 
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 function ActionCard({ icon, title, description, onPress }: {
   icon: IconName; title: string; description: string; onPress: () => void;
