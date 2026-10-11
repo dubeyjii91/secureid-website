@@ -1,10 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ComponentProps } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
 
-function SecurityRow({ icon, title, detail }: { icon: React.ComponentProps<typeof Ionicons>["name"]; title: string; detail: string }) {
+function SecurityRow({ icon, title, detail }: { icon: ComponentProps<typeof Ionicons>["name"]; title: string; detail: string }) {
   return <View style={styles.row}><View style={styles.rowIcon}><Ionicons name={icon} size={21} color={colors.accent}/></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{title}</Text><Text style={styles.rowDetail}>{detail}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></View>;
 }
 export default function SecurityScreen() {
