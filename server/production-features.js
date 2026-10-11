@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import multer from "multer";
 import { fileTypeFromBuffer } from "file-type";
+import { enforceShareRateLimit } from "./share-rate-limit.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
@@ -592,7 +593,7 @@ export function registerProductionFeatures({
   /* DOCUMENT SHARING */
   app.post("/api/document-share",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
-      enforceShareRateLimit(req,req.user.id);
+      enforceShareRateLimit(database,req,req.user.id);
       assertWalletUnlocked(req.user.id);
       const documentId=String(req.body?.documentId || "").trim();
       const reasonText=String(req.body?.reasonText || "").trim();
@@ -653,43 +654,7 @@ export function registerProductionFeatures({
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
 
-// Share limits are persisted in SQLite so restarts do not reset the counters.
-const SHARE_RATE_WINDOW_MS = 15 * 60 * 1000;
-const SHARE_RATE_IP_MAX = 20;
-const SHARE_RATE_USER_MAX = 10;
-
-function enforceShareRateLimit(req, userId) {
-  const now = Date.now();
-  const identities = [
-    { scope: "ip", value: String(req.ip || "unknown"), max: SHARE_RATE_IP_MAX },
-    { scope: "user", value: String(userId), max: SHARE_RATE_USER_MAX }
-  ];
-
-  for (const identity of identities) {
-    const digest = crypto.createHash("sha256").update(identity.value).digest("hex");
-    const bucketKey = `secure-share:${identity.scope}:${digest}`;
-    const current = database.prepare(
-      "SELECT hits, reset_at FROM rate_limits WHERE bucket_key = ?"
-    ).get(bucketKey);
-
-    if (!current || Number(current.reset_at) <= now) {
-      database.prepare(
-        "INSERT OR REPLACE INTO rate_limits (bucket_key, hits, reset_at) VALUES (?, ?, ?)"
-      ).run(bucketKey, 1, now + SHARE_RATE_WINDOW_MS);
-      continue;
-    }
-
-    if (Number(current.hits) >= identity.max) {
-      const error = new Error("Too many share requests. Try again later.");
-      error.statusCode = 429;
-      throw error;
-    }
-
-    database.prepare(
-      "UPDATE rate_limits SET hits = hits + 1 WHERE bucket_key = ? AND reset_at > ?"
-    ).run(bucketKey, now);
-  }
-}
+  const SHARE_TTL_MS = 15 * 60 * 1000;
 
   const shareFields = [
     "name",
