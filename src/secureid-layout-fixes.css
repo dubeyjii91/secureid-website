@@ -1,0 +1,111 @@
+/* SecureID UI spacing, wrapping and responsive overflow fixes */
+:root {
+  --sid-space-1: 6px;
+  --sid-space-2: 10px;
+  --sid-space-3: 14px;
+  --sid-space-4: 20px;
+}
+
+/* Prevent long text, inputs and nested grids from forcing cards wider. */
+*, *::before, *::after { box-sizing: border-box; }
+.shell, .main, .content, .panel, .functionHero, .shareResult,
+.profileGrid, .actionGrid, .claimGrid, .documentVault,
+.documentItem, .topbar, .topbarActions { min-width: 0; }
+p, small, label, strong, span, code, a, h1, h2, h3 {
+  overflow-wrap: anywhere;
+}
+.panel p, .functionHero p, .shareResult p { line-height: 1.65; }
+
+/* Consistent separation between labels, fields, helper text and actions. */
+.shareContextField {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch;
+  gap: 8px !important;
+  margin: 20px 0 18px !important;
+  width: 100%;
+  line-height: 1.5;
+}
+.shareContextField > span {
+  display: block;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.shareContextField input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+}
+.shareContextField small {
+  display: block;
+  margin: 0;
+  padding: 0 2px;
+  color: #cbd5e1 !important;
+  font-size: 12px;
+  line-height: 1.55;
+  opacity: 1;
+}
+.claimGrid { gap: 12px !important; margin: 20px 0 !important; }
+.claim { min-width: 0; gap: 10px; line-height: 1.5; }
+.claim span { min-width: 0; }
+.shareResult {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 18px;
+  padding: clamp(14px, 2.5vw, 22px);
+  line-height: 1.6;
+}
+.shareResult > p, .shareResult > strong, .shareResult > code { margin: 0; }
+.shareResult code { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.shareLinkActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px; }
+.shareLinkActions button { max-width: 100%; }
+.shareHint { line-height: 1.65; }
+.shareExpiry { line-height: 1.55; overflow-wrap: anywhere; }
+
+/* Give all major panels and forms reliable vertical rhythm. */
+.content { padding-top: clamp(20px, 3vw, 34px); padding-bottom: clamp(20px, 3vw, 34px); }
+.content > .panel, .content > section.panel { margin-bottom: 18px; }
+.panel { padding: clamp(16px, 2.5vw, 25px); }
+.panelHead { align-items: flex-start; flex-wrap: wrap; }
+.sectionTitle { margin-top: 28px; margin-bottom: 14px; }
+.urlForm, .authRecovery { align-items: stretch; gap: 12px; }
+.urlForm input { min-width: 0; width: 100%; }
+button, .primary, .dangerButton { line-height: 1.4; white-space: normal; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Header and sidebar should wrap instead of colliding on smaller screens. */
+.topbar { gap: 14px; flex-wrap: wrap; min-height: 92px; height: auto; padding-top: 16px; padding-bottom: 16px; }
+.topbarActions { gap: 10px; flex-wrap: wrap; }
+.account { min-width: 0; flex-wrap: wrap; }
+.sidebar nav { min-width: 0; }
+.navItem { min-width: 0; line-height: 1.45; }
+.functionHero { flex-wrap: wrap; gap: 18px; }
+.functionHero > div:first-child { flex: 1 1 240px; min-width: 0; }
+.functionVisual { flex: 0 1 190px; }
+
+/* Mobile: no fixed-width overflow, cramped buttons or touching helper text. */
+@media (max-width: 760px) {
+  .topbar { align-items: flex-start; }
+  .topbarActions { width: 100%; justify-content: flex-start; }
+  .profileGrid, .actionGrid { grid-template-columns: minmax(0, 1fr); }
+  .claimGrid { grid-template-columns: minmax(0, 1fr) !important; }
+  .functionHero { align-items: flex-start; }
+  .functionVisual { flex-basis: 112px; width: 112px; min-width: 0; }
+  .shareLinkActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shareLinkActions button { width: 100%; }
+}
+@media (max-width: 420px) {
+  .content { padding-left: 12px; padding-right: 12px; }
+  .panel { padding: 15px; }
+  .shareLinkActions { grid-template-columns: minmax(0, 1fr); }
+  .functionVisual { flex-basis: 84px; width: 84px; }
+  .topbar h1 { overflow-wrap: anywhere; }
+  .lockFacts { flex-wrap: wrap; gap: 18px; }
+}
