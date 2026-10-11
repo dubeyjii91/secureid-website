@@ -135,4 +135,39 @@ test("document ownership isolation, share access, revocation, and expiry", async
   database.prepare("UPDATE secure_document_shares SET expires_at=? WHERE token_hash=?").run(new Date(Date.now() - 1000).toISOString(), tokenHash);
   const afterExpiry = await fetch(base + `/api/document-share/${expiringShare.shareToken}`);
   assert.equal(afterExpiry.status, 404);
+
+  const profileUpdate = await fetch(base + "/api/identity/profile", {
+    method: "PUT",
+    headers: { ...asUser("user-a"), "content-type": "application/json" },
+    body: JSON.stringify({ name: "Test User", age: "20", college: "Example College" })
+  });
+  assert.equal(profileUpdate.status, 200, await profileUpdate.clone().text());
+
+  const createIdentityShare = async () => fetch(base + "/api/wallet/share", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "content-type": "application/json" },
+    body: JSON.stringify({ name: true, age: false })
+  });
+  const identityShareResponse = await createIdentityShare();
+  assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
+  const identityShare = await identityShareResponse.json();
+  const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
+  assert.equal(sharedIdentityResponse.status, 200);
+  const sharedIdentity = await sharedIdentityResponse.json();
+  assert.deepEqual(Object.keys(sharedIdentity.claims), ["name"]);
+  assert.equal(sharedIdentity.claims.name, "Test User");
+
+  const revokeIdentity = await fetch(base + "/api/wallet/share/revoke", {
+    method: "POST",
+    headers: asUser("user-a")
+  });
+  assert.equal(revokeIdentity.status, 200, await revokeIdentity.clone().text());
+  assert.equal((await fetch(base + `/api/share/${identityShare.shareToken}`)).status, 404);
+
+  const expiringIdentityResponse = await createIdentityShare();
+  assert.equal(expiringIdentityResponse.status, 200, await expiringIdentityResponse.clone().text());
+  const expiringIdentity = await expiringIdentityResponse.json();
+  const identityTokenHash = (await import("node:crypto")).createHash("sha256").update(expiringIdentity.shareToken).digest("hex");
+  database.prepare("UPDATE secure_shares SET expires_at=? WHERE token_hash=?").run(new Date(Date.now() - 1000).toISOString(), identityTokenHash);
+  assert.equal((await fetch(base + `/api/share/${expiringIdentity.shareToken}`)).status, 404);
 });
