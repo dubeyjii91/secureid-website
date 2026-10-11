@@ -24,7 +24,7 @@ function ActionCard({ icon, title, description, onPress }: {
 
 export default function DashboardScreen() {
   const [activeTab, setActiveTab] = useState("Home");
-  const tabs: { label: string; icon: IconName; route: "/ " | "/vault" | "/share" | "/security" }[] = [
+  const tabs: { label: string; icon: IconName; route: "/" | "/vault" | "/share" | "/security" }[] = [
     { label: "Home", icon: "grid-outline", route: "/" },
     { label: "Vault", icon: "folder-outline", route: "/vault" },
     { label: "Share", icon: "share-social-outline", route: "/share" },
@@ -73,7 +73,7 @@ export default function DashboardScreen() {
 
       <View style={styles.tabBar}>
         {tabs.map((tab) => (
-          <Pressable key={tab.label} accessibilityRole="button" onPress={() => { setActiveTab(tab.label); router.replace(tab.route === "/ " ? "/" : tab.route); }} style={styles.tab}>
+          <Pressable key={tab.label} accessibilityRole="button" onPress={() => { setActiveTab(tab.label); router.replace(tab.route); }} style={styles.tab}>
             <Ionicons name={tab.icon} size={21} color={activeTab === tab.label ? colors.accent : colors.muted} />
             <Text style={[styles.tabLabel, activeTab === tab.label && styles.tabLabelActive]}>{tab.label}</Text>
           </Pressable>
