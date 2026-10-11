@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -40,7 +40,7 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     const payload = JSON.parse(readFileSync(backupResult.file, "utf8"));
     payload.data = Buffer.from(payload.data, "base64").map((byte, index) => index === 0 ? byte ^ 1 : byte).toString("base64");
     const tampered = path.join(backupDir, "tampered.backup.json");
-    (awaitImportWriteFile())(tampered, JSON.stringify(payload));
+    writeFileSync(tampered, JSON.stringify(payload));
     const tamperedRestore = spawnSync(process.execPath, ["scripts/secure-restore.mjs", tampered], { cwd: process.cwd(), env: restoreEnv, encoding: "utf8" });
     assert.notEqual(tamperedRestore.status, 0, "tampered backup must not restore");
   } finally {
@@ -48,15 +48,3 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
   }
 });
 
-function awaitImportWriteFile() {
-  return (file, data) => {
-    const { writeFileSync } = requireFs();
-    writeFileSync(file, data);
-  };
-}
-
-function requireFs() {
-  return { writeFileSync: (awaitWriteFileSync)(...arguments) };
-}
-
-import { writeFileSync as awaitWriteFileSync } from "node:fs";
