@@ -94,7 +94,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.equal(failedReplacement.status, 500, await failedReplacement.clone().text());
   assert.equal(database.prepare("SELECT deleted_at FROM secure_documents WHERE id=?").get(secondProof.id).deleted_at, null);
   assert.equal(existsSync(secondPath), true);
-  assert.equal(readdirSync(process.env.DOCUMENT_STORAGE_PATH).filter((name) => name.endsWith(".json")).length, 3);
+  assert.equal(readdirSync(process.env.DOCUMENT_STORAGE_PATH).filter((name) => name.endsWith(".json")).length, 2);
   database.exec("DROP TRIGGER fail_student_proof_insert");
 
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
