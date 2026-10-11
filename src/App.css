@@ -3,3 +3,55 @@
 @media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px)}.profileGrid,.actionGrid{grid-template-columns:1fr}.topbar{padding:0 25px}.content{padding:25px}.content.narrow{margin:0}.account{display:none}}
 @media(max-width:650px){.shell{display:block}.sidebar{position:static;width:100%;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px}.brand{padding:5px 8px 12px}.navLabel{display:none}.sidebar nav{grid-template-columns:repeat(2,1fr)}.sideBottom{display:none}.main{margin:0;width:100%}.topbar{height:auto;padding:18px 16px}.topbar h1{font-size:19px}.content{padding:18px 14px}.details{grid-template-columns:1fr}.claimGrid{grid-template-columns:1fr}.urlForm{flex-direction:column}.urlForm .primary{width:100%}footer{margin:0 14px;flex-direction:column;gap:8px}.authBrand{position:static;margin-bottom:20px}.authShell{display:block;padding:35px 16px}.authCard{margin:auto}}
 .trustDeviceRow{display:flex;gap:10px;align-items:flex-start;margin:12px 0;padding:10px;border:1px solid rgba(120,145,190,.18);border-radius:10px;background:rgba(255,255,255,.03);cursor:pointer}.trustDeviceRow input{margin-top:3px}.trustDeviceRow strong,.trustDeviceRow small{display:block}.trustDeviceRow small{margin-top:3px;color:#8fa0b8;font-size:11px}
+
+/* Accessible text-size controls in the authenticated top bar. */
+.topbarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.textSizeControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text, #1e293b);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.textSizeButton {
+  min-width: 30px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.textSizeButton:hover:not(:disabled),
+.textSizeButton:focus-visible {
+  background: #eaf2ff;
+  outline: 2px solid #477fe8;
+  outline-offset: 1px;
+}
+
+.textSizeButton:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+@media (max-width: 760px) {
+  .topbarActions {
+    justify-content: flex-start;
+  }
+}
