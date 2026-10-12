@@ -74,6 +74,15 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const uploaded = await upload.json();
   const documentId = uploaded.documents[0].id;
 
+  // Verify encrypted storage can be decrypted for the owner and returns the exact original bytes.
+  const ownerDownload = await fetch(base + `/api/documents/${documentId}`, { headers: asUser("user-a") });
+  assert.equal(ownerDownload.status, 200, await ownerDownload.clone().text());
+  assert.match(ownerDownload.headers.get("content-type") || "", /application\/pdf/);
+  assert.deepEqual(
+    Buffer.from(await ownerDownload.arrayBuffer()),
+    Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
+  );
+
   const proofUpload = async (label) => {
     const proofForm = new FormData();
     proofForm.append("category", "student_id");
@@ -118,6 +127,11 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const share = await created.json();
   const accessible = await fetch(base + `/api/document-share/${share.shareToken}`);
   assert.equal(accessible.status, 200);
+  assert.match(accessible.headers.get("content-type") || "", /application\/pdf/);
+  assert.deepEqual(
+    Buffer.from(await accessible.arrayBuffer()),
+    Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
+  );
 
   const revoked = await fetch(base + "/api/document-share/revoke", {
     method: "POST",
