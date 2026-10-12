@@ -41,3 +41,75 @@ button:disabled { cursor: not-allowed; opacity: .65; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+
+/* Readability pass: high contrast text, clear hierarchy, and consistent visual cues. */
+:root {
+  --sid-readable-text: #f8fafc;
+  --sid-readable-muted: #d4deec;
+}
+body, .main, .content { color: #f8fafc; }
+p, small, .lead, .description, .subtitle, .details span, .securityRow,
+.shareHint, .shareExpiry, .privacy p, .tips span, .note span {
+  color: #d4deec !important;
+  opacity: 1;
+}
+.eyebrow, .breadcrumb, .navLabel {
+  color: #9ddcff !important;
+  font-weight: 800 !important;
+  letter-spacing: .09em !important;
+}
+h1, h2, h3, h4, .sectionTitle, .panelHead h2 {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+.panel h2, .functionHero h2, .sectionTitle h2 {
+  text-transform: uppercase !important;
+  letter-spacing: .035em;
+}
+.panel p, .panel small, .panel label, .panel .tips strong,
+.actionCard p, .actionCard strong {
+  text-transform: none !important;
+}
+.panel, .profilePanel, .statusPanel, .actionCard, .claim, .shareResult,
+.authCard, .mfaModal {
+  color: #f8fafc;
+  border-color: rgba(148, 190, 225, .32) !important;
+}
+.navItem { color: #e7edf8 !important; }
+.navItem.active { color: #fff !important; background: rgba(56, 189, 248, .18) !important; }
+input, select, textarea {
+  color: #fff !important;
+  background: #0b1426 !important;
+  border-color: #52647d !important;
+}
+input::placeholder, textarea::placeholder { color: #aebed2 !important; opacity: 1; }
+.functionVisual { position: relative; }
+.functionEmoji {
+  display: grid;
+  place-items: center;
+  min-height: 74px;
+  margin: 2px auto 8px;
+  font-size: clamp(2.6rem, 5vw, 4rem);
+  filter: drop-shadow(0 8px 18px rgba(56,189,248,.22));
+}
+.functionVisual img { max-height: 100px; object-fit: contain; }
+.navItem > span { display: inline-grid; place-items: center; width: 28px; font-size: 1.1rem; }
+.appErrorFallback {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px;
+  text-align: center;
+  color: #f8fafc;
+  background: linear-gradient(145deg, #070b14, #111c32);
+}
+.appErrorFallback h1 { max-width: 720px; margin: 0; font-size: clamp(1.5rem, 4vw, 2.4rem); }
+.appErrorFallback p { max-width: 560px; color: #d4deec !important; line-height: 1.7; }
+.appErrorIcon { font-size: 3.5rem; }
+@media (max-width: 720px) {
+  .functionEmoji { min-height: 44px; font-size: 2.5rem; }
+  .functionVisual img { max-height: 68px; }
+}
