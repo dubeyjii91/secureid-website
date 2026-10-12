@@ -160,7 +160,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const createIdentityShare = async () => fetch(base + "/api/wallet/share", {
     method: "POST",
     headers: { ...asUser("user-a"), "content-type": "application/json" },
-    body: JSON.stringify({ name: true, age: false })
+    body: JSON.stringify({ name: true, age: true })
   });
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
@@ -168,8 +168,11 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
   assert.equal(sharedIdentityResponse.status, 200);
   const sharedIdentity = await sharedIdentityResponse.json();
-  assert.deepEqual(Object.keys(sharedIdentity.claims), ["name"]);
+  assert.deepEqual(Object.keys(sharedIdentity.claims).sort(), ["age", "name"]);
   assert.equal(sharedIdentity.claims.name, "Test User");
+  assert.equal(sharedIdentity.claims.age, "20");
+  assert.equal(sharedIdentity.claims.email, undefined);
+  assert.equal(sharedIdentity.claims.college, undefined);
 
   const revokeIdentity = await fetch(base + "/api/wallet/share/revoke", {
     method: "POST",
