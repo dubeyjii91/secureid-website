@@ -485,6 +485,11 @@ function App() {
     return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard"><div className="eyebrow">SECURE SHARE</div><h1>Shared identity</h1>{publicShare.verificationBadge?.verified && <div className="verificationBadge" title="This badge is issued by SecureID for a valid share created after MFA verification."><span>✓</span><div><strong>{publicShare.verificationBadge.label || "SecureID Verified Share"}</strong><small>{publicShare.verificationBadge.assurance || "MFA-authenticated at creation"}</small></div></div>}<p>This page contains only the identity claims selected by the account owner.</p>{publicShare.contextLabel && <div className="shareContextPublic"><strong>Share purpose</strong><span>{publicShare.contextLabel}</span></div>}<div className="sharePublicGrid">{Object.entries(claims).filter(([, value]) => String(value ?? "").trim() !== "").map(([key,value]) => <div className="sharePublicItem" key={key}><span>{key.replace(/([A-Z])/g, " $1").replace(/^./, (m) => m.toUpperCase())}</span><strong>{String(value)}</strong></div>)}</div><p className="shareExpiry">Expires {publicShare.expiresAt ? new Date(publicShare.expiresAt).toLocaleString() : "soon"}.</p></section></div>;
   }
 
+  if (!isAuthenticated && (page === "privacy" || page === "terms")) {
+    const isPrivacy = page === "privacy";
+    return <div className="authShell"><div className="authBrand"><span className="shield">S</span><span>SecureID</span></div><section className="authCard legalPublic"><div className="eyebrow">{isPrivacy ? "PRIVACY CENTER" : "TERMS & RESPONSIBLE USE"}</div><h1>{isPrivacy ? "Privacy notice" : "Service-use summary"}</h1>{isPrivacy ? <><p>SecureID processes account email, authentication/MFA and session metadata, identity profile fields, uploaded documents, share records, and security activity as needed to operate the wallet and protect accounts.</p><p>When you create a share, the claims you select are available to someone with the link until the share expires or is revoked. Check the selected claims and share links only with the intended recipient.</p><p>Before using real documents, the service operator should publish complete retention periods, provider details, a verified privacy contact, backup/restore practices, and incident-response information.</p></> : <><p>Use a unique password, keep MFA and recovery codes private, and sign out on devices you do not control.</p><p>Upload only documents you have the right to store and share. Review every selected identity claim before generating a link.</p><p>Website checks and verification indicators do not guarantee that a website, recipient, document, or external decision is safe or officially accepted.</p><p>The service operator must review and publish complete legal terms, operator identity, contact details, dispute process, and governing law before launch.</p></>}<button className="textButton" type="button" onClick={() => setPage("dashboard")}>Back to sign in</button></section></div>;
+  }
+
   if (!isAuthenticated) {
     if (verificationPending) {
       return (
@@ -689,7 +694,7 @@ function App() {
             </>
           )}
 
-          <small>Multi-factor verification is required after sign-in.</small>
+          <small>Multi-factor verification is required after sign-in.</small><div className="authLegalLinks"><button className="textButton" type="button" onClick={() => setPage("privacy")}>Privacy notice</button><button className="textButton" type="button" onClick={() => setPage("terms")}>Terms & use</button></div>
         </section>
         {showWelcome && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
       </div>
