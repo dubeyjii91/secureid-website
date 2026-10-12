@@ -29,7 +29,7 @@ jobs:
 
           const routes = [
             { path: "/", type: "text/html" },
-            { path: "/manifest.webmanifest", type: "json" },
+            { path: "/manifest.webmanifest", type: "manifest-json" },
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
             { path: "/api/health", type: "json" },
@@ -52,7 +52,7 @@ jobs:
                 if (route.type === "json" && !contentType.includes("application/json")) {
                   throw new Error(`Expected JSON content type, got ${contentType || "missing"}`);
                 }
-                if (route.type !== "json" && !contentType.toLowerCase().includes(route.type)) {
+                if (route.type === "manifest-json" && !contentType.toLowerCase().includes("application/manifest+json")) {\n                  throw new Error(`Expected application/manifest+json, got ${contentType || "missing"}`);\n                }\n                if (route.type !== "json" && route.type !== "manifest-json" && !contentType.toLowerCase().includes(route.type)) {
                   throw new Error(`Expected ${route.type}, got ${contentType || "missing"}`);
                 }
                 if (!body.trim()) throw new Error("Empty response body");
