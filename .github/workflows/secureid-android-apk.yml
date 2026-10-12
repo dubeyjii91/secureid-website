@@ -7,34 +7,53 @@ on:
       - "mobile/**"
       - ".github/workflows/secureid-android-apk.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: mobile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate Expo app configuration
+        run: npx expo config --type public
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+
       - name: Build installable debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
-      - name: Upload APK
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK exists
+        run: test -s android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: secureid-android-debug-apk
