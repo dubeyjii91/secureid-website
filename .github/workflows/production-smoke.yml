@@ -33,7 +33,7 @@ jobs:
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
             { path: "/api/health", type: "json" },
-            { path: "/api/privacy", type: "json" },
+            { path: "/api/privacy", type: "json", expectedStatus: 401 },
           ];
 
           let failed = false;
@@ -48,7 +48,7 @@ jobs:
                 });
                 const contentType = response.headers.get("content-type") || "";
                 const body = await response.text();
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (route.expectedStatus !== undefined ? response.status !== route.expectedStatus : !response.ok) {\n                  throw new Error(`Expected HTTP ${route.expectedStatus ?? "2xx"}, got ${response.status}`);\n                }
                 if (route.type === "json" && !contentType.includes("application/json")) {
                   throw new Error(`Expected JSON content type, got ${contentType || "missing"}`);
                 }
