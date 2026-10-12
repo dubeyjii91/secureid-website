@@ -7,7 +7,7 @@ import AccountSecurity from "./AccountSecurity.jsx";
 import SecurityDashboard from "./SecurityDashboard.jsx";
 import SecureShareQR from "./SecureShareQR.jsx";
 import "./secureid-font-clean.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import "./secureid-redesign.css";
 import "./secureid-polish.css";
@@ -29,7 +29,8 @@ function WelcomeSplash({ onClose }) {
 }
 
 function FunctionVisual({ label }) {
-  return <div className="functionVisual" aria-label={label}><img src="/secureid-welcome.svg" alt="" /></div>;
+  const visual = /identity/i.test(label) ? "🪪" : /sharing/i.test(label) ? "🔗" : /safety|phishing/i.test(label) ? "🛡️" : /privacy/i.test(label) ? "🔐" : /responsible use/i.test(label) ? "📋" : /emergency/i.test(label) ? "🚨" : /document/i.test(label) ? "📁" : "🔒";
+  return <div className="functionVisual" aria-label={label}><span className="functionEmoji" aria-hidden="true">{visual}</span><img src="/secureid-welcome.svg" alt="" /></div>;
 }
 
 function csrfToken(){
@@ -57,18 +58,18 @@ async function api(path, options = {}) {
 }
 
 const navItems = [
-  ["dashboard", "Dashboard", "◉"],
-  ["identity", "My identity", "◆"],
-  ["documents", "Document vault", "▣"],
-  ["share", "Share ID", "↗"],
-  ["safety", "Safety check", "✓"],
-  ["lock", "Emergency lock/unlock", "◆"],
-  ["activity", "Security activity", "◉"],
-  ["sessions", "Active sessions", "▣"],
-  ["shares", "Share management", "↗"],
-  ["account", "Account security", "⚿"],
-  ["privacy", "Privacy center", "◈"],
-  ["terms", "Terms & use", "§"],
+  ["dashboard", "Dashboard", "🏠"],
+  ["identity", "My identity", "🪪"],
+  ["documents", "Document vault", "📁"],
+  ["share", "Share ID", "🔗"],
+  ["safety", "Safety check", "🛡️"],
+  ["lock", "Emergency lock/unlock", "🚨"],
+  ["activity", "Security activity", "📊"],
+  ["sessions", "Active sessions", "💻"],
+  ["shares", "Share management", "🔐"],
+  ["account", "Account security", "⚙️"],
+  ["privacy", "Privacy center", "🕵️"],
+  ["terms", "Terms & use", "📜"],
 ];
 
 function App() {
@@ -709,7 +710,7 @@ function App() {
 
       {page === "documents" && <section className="content"><DocumentVault /></section>}
 
-      {page === "identity" && <section className="content"><div className="functionHero"><div><div className="eyebrow dark">SECUREID SECURITY CENTER</div><h2>Privacy-first identity, protected by design.</h2><p>Keep control of your identity while every important action stays protected.</p></div><FunctionVisual label="SecureID identity protection" /></div><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your identity profile</h2></div><span className="statusBadge success">✓ Account active</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-••••</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="sectionTitle"><div><div className="eyebrow dark">QUICK ACTIONS</div><h2>Manage your identity</h2></div></div><div className="actionGrid"><button className="actionCard" onClick={() => setPage("share")}><span className="actionIcon">↗</span><strong>Share my ID</strong><p>Choose exactly which identity claims to share.</p></button><button className="actionCard" onClick={() => setPage("safety")}><span className="actionIcon">✓</span><strong>Check a website</strong><p>Look for common phishing indicators before signing in.</p></button><button className="actionCard" onClick={() => setPage("lock")}><span className="actionIcon">◆</span><strong>Emergency lock/unlock</strong><p>Pause wallet sharing if you think your account is at risk.</p></button></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
+      {page === "identity" && <section className="content"><div className="functionHero"><div><div className="eyebrow dark">SECUREID SECURITY CENTER</div><h2>Privacy-first identity, protected by design.</h2><p>Keep control of your identity while every important action stays protected.</p></div><FunctionVisual label="SecureID identity protection" /></div><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your identity profile</h2></div><span className="statusBadge success">✓ Account active</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-••••</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
 
       {page === "share" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need.</h2><p>Secure, controlled identity sharing with time-limited access.</p></div><FunctionVisual label="SecureID secure sharing" /></div><section className="panel"><div className="eyebrow dark">SELECTIVE DISCLOSURE</div><h2>Share only what you need</h2><p className="lead">Choose the identity claims you want to include. Your wallet will not create a share while it is locked, and MFA must be verified.</p><div className="claimGrid">{[["name","Name"],["age","Age"],["dateOfBirth","Date of Birth"],["address","Address"],["email","Email"],["phone","Phone Number"],["identityId","Identity ID"],["college","College / Institution"],["studentId","Student ID"],["governmentId","Government ID (masked)"],["verificationStatus","Verification Status"]].map(([key,label]) => <label className={`claim ${wallet.shareData[key] ? "selected" : ""}`} key={key}><input type="checkbox" checked={wallet.shareData[key]} onChange={() => toggleShareData(key)} disabled={wallet.locked} /><span>{label}</span></label>)}</div><label className="shareContextField"><span>Share purpose</span><input maxLength={160} value={shareContext} onChange={(e) => setShareContext(e.target.value)} placeholder="e.g. College verification" disabled={wallet.locked} /><small>Optional: tell the recipient why you are sharing this information.</small></label><button className="primary" onClick={generateSecureShare} disabled={wallet.locked || busyAction === "share" || !mfaVerified}>{busyAction === "share" ? "Generating…" : "Generate secure share"}</button>{shareToken && <div className="shareResult"><strong>Secure share created</strong><p>Keep this token private and only provide it to the intended recipient.</p><code>{window.location.origin + "/share/" + shareToken}</code><div className="shareLinkActions"><button className="primary" onClick={shareSecureLink} type="button">Share now</button><button className="textButton" onClick={copySecureLink} type="button">Copy link</button></div><p className="shareHint">Send this link through WhatsApp, email, SMS, or any app you normally use. The recipient does not need a SecureID account.</p><p className="shareExpiry">{shareRemaining || "Expires soon"} · {shareExpiresAt ? new Date(shareExpiresAt).toLocaleString() : ""}</p><button className="textButton" onClick={revokeSecureShares} disabled={busyAction === "revoke"}>{busyAction === "revoke" ? "Revoking…" : "Revoke active shares"}</button></div>}<SecureShareQR token={shareToken} expiresAt={shareExpiresAt} /></section></section>}
 
@@ -736,7 +737,33 @@ function App() {
   </div>;
 }
 
-export default App;
+class SecureIDErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error) {
+    console.error("SecureID interface error:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <main className="appErrorFallback" role="alert">
+        <div className="appErrorIcon">🛡️</div>
+        <h1>SecureID is temporarily unavailable</h1>
+        <p>Your account data has not been intentionally changed. Reload the page to try again.</p>
+        <button className="primary" onClick={() => window.location.reload()}>Reload SecureID</button>
+      </main>;
+    }
+    return this.props.children;
+  }
+}
+
+export default function SecureIDApp() {
+  return <SecureIDErrorBoundary><App /></SecureIDErrorBoundary>;
+}
 
 
 
