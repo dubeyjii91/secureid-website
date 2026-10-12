@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
 
+# Passive, non-destructive scan is intended to check the currently live production release.
 jobs:
   zap-baseline:
     name: OWASP ZAP passive production scan
