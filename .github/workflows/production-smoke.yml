@@ -77,6 +77,23 @@ jobs:
                   throw new Error(`Expected ${route.type}, got ${contentType || "missing"}`);
                 }
                 if (!body.trim()) throw new Error("Empty response body");
+                if (route.type === "json") {
+                  let payload;
+                  try { payload = JSON.parse(body); } catch { throw new Error("Expected valid JSON response"); }
+                  if (route.path === "/api/health") {
+                    if (payload.success !== true || payload.status !== "ready" || payload.database !== "ok") {
+                      throw new Error("Health endpoint did not confirm a ready API and healthy database");
+                    }
+                  }
+                  if (route.path === "/api/health/ready") {
+                    if (payload.success !== true || payload.status !== "ready" || payload.database !== true || payload.storage !== true) {
+                      throw new Error("Readiness endpoint did not confirm database and storage readiness");
+                    }
+                  }
+                  if (route.expectedStatus === 401 && payload.success === true) {
+                    throw new Error("Protected endpoint reported success without authentication");
+                  }
+                }
                 console.log(`PASS ${route.path} -> ${response.status} (${contentType})`);
                 lastError = null;
                 break;
