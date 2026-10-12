@@ -184,7 +184,7 @@ export default function AccountSecurity() {
         <label>New password
           <input type="password" autoComplete="new-password" minLength={12} maxLength={72} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
         </label>
-        {newPassword && <div className="passwordMeter"><span>Strength: <strong>{meter.label}</strong></span><div><i style={{ width: Math.min(100, meter.score * 20) + "%" }} /></div><small>Use 12+ characters, mixed case, a number and a symbol.</small></div>}
+        {newPassword && <div className="passwordMeter"><span>Strength: <strong>{meter.label}</strong></span><div><i className={"meter-fill meter-fill-" + meter.score} /></div><small>Use 12+ characters, mixed case, a number and a symbol.</small></div>}
         <label>Confirm new password
           <input type="password" autoComplete="new-password" minLength={12} maxLength={72} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
         </label>
