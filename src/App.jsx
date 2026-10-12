@@ -23,6 +23,13 @@ function WelcomeSplash({ onClose }) {
       <div className="eyebrow">SECUREID</div>
       <h2>Welcome to SecureID! ✨</h2>
       <p>Well wishes for a safer digital identity journey — private, secure and always in your control.</p>
+      <section className="mfaChoices" aria-label="SecureID verification methods">
+        <h3>🔐 Verification options</h3>
+        <div className="mfaChoice active"><span className="mfaChoiceIcon">✉️</span><span><strong>Email OTP</strong><small>Available now · Gmail addresses work too</small></span><b>✓</b></div>
+        <div className="mfaChoice"><span className="mfaChoiceIcon">📱</span><span><strong>Phone / SMS OTP</strong><small>Requires SMS provider setup</small></span><small className="mfaUnavailable">Not enabled</small></div>
+        <div className="mfaChoice"><span className="mfaChoiceIcon"></span><span><strong>Apple / Google sign-in</strong><small>Separate identity-provider setup required</small></span><small className="mfaUnavailable">Not enabled</small></div>
+        <p className="mfaNote">After signing in, SecureID asks for an email verification code. The website can be opened on iPhone, iPad, Android and desktop; native app-store launch still needs an app build.</p>
+      </section>
       <button className="primary" onClick={onClose}>Continue securely</button>
     </div>
   </div>;
