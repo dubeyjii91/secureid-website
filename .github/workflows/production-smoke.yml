@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check public production routes
+      - name: Check public routes, security headers, and unauthenticated access
         env:
           BASE_URL: https://secureid-production-b732.up.railway.app
         run: |
@@ -36,6 +36,7 @@ jobs:
             { path: "/api/health/ready", type: "json" },
             { path: "/api/auth/session", type: "json", expectedStatus: 401 },
             { path: "/api/privacy", type: "json", expectedStatus: 401 },
+            { path: "/api/share/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", type: "json", expectedStatus: 404 },
           ];
 
           let failed = false;
@@ -49,18 +50,23 @@ jobs:
                   headers: { "User-Agent": "SecureID-production-smoke/1.0" },
                 });
                 const contentType = response.headers.get("content-type") || "";
-                if (route.path === "/") {
-                  const requiredHeaders = [
-                    ["content-security-policy", "default-src"],
-                    ["x-content-type-options", "nosniff"],
-                    ["x-frame-options", "DENY"],
-                    ["strict-transport-security", "max-age="],
-                  ];
-                  for (const [header, expected] of requiredHeaders) {
-                    const value = response.headers.get(header) || "";
-                    if (!value.toLowerCase().includes(expected.toLowerCase())) {
-                      throw new Error(`Missing or invalid security header: ${header}`);
-                    }
+                const securityHeaders = [
+                  ["x-content-type-options", "nosniff"],
+                  ["x-frame-options", "DENY"],
+                  ["referrer-policy", "strict-origin-when-cross-origin"],
+                  ["content-security-policy", "default-src"],
+                  ["strict-transport-security", "max-age="],
+                ];
+                for (const [header, expected] of securityHeaders) {
+                  const value = response.headers.get(header) || "";
+                  if (!value.toLowerCase().includes(expected.toLowerCase())) {
+                    throw new Error(`Missing or invalid security header: ${header}`);
+                  }
+                }
+                if (route.path.startsWith("/api/")) {
+                  const cacheControl = response.headers.get("cache-control") || "";
+                  if (!cacheControl.toLowerCase().includes("no-store")) {
+                    throw new Error("Sensitive API response is missing Cache-Control: no-store");
                   }
                 }
                 const body = await response.text();
@@ -93,6 +99,9 @@ jobs:
                   if (route.expectedStatus === 401 && payload.success === true) {
                     throw new Error("Protected endpoint reported success without authentication");
                   }
+                  if (route.path.startsWith("/api/share/") && payload.success === true) {
+                    throw new Error("An unknown share token must not return a successful payload");
+                  }
                 }
                 console.log(`PASS ${route.path} -> ${response.status} (${contentType})`);
                 lastError = null;
@@ -108,5 +117,5 @@ jobs:
             }
           }
           if (failed) process.exit(1);
-          console.log("Production public-route smoke test passed.");
+          console.log("Production route, security-header, and unauthenticated-access smoke tests passed.");
           NODE
