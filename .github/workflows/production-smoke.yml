@@ -33,6 +33,8 @@ jobs:
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
             { path: "/api/health", type: "json" },
+            { path: "/api/health/ready", type: "json" },
+            { path: "/api/auth/session", type: "json", expectedStatus: 401 },
             { path: "/api/privacy", type: "json", expectedStatus: 401 },
           ];
 
