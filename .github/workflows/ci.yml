@@ -22,9 +22,36 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Audit dependencies for known vulnerabilities
         run: npm audit --audit-level=low
+      - name: Scan repository for vulnerable dependencies and filesystem issues
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
       - name: Build production frontend
         run: npm run build
       - name: Lint source
         run: npm run lint
       - name: Run security unit tests
         run: npm test
+
+  codeql:
+    name: CodeQL static security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@v3
