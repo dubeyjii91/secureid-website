@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "SecureID",
+    "slug": "secureid-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.secureid.wallet",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "CAMERA"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#07172f"
+      }
+    },
+    "plugins": [
+      [
+        "react-native-webview",
+        {
+          "androidPackage": "com.secureid.wallet"
+        }
+      ]
+    ]
+  }
+}
