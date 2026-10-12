@@ -1,0 +1,72 @@
+name: SecureID production smoke test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: secureid-production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public production routes
+        env:
+          BASE_URL: https://secureid-production-b732.up.railway.app
+        run: |
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.BASE_URL);
+          if (base.protocol !== "https:") throw new Error("Production smoke tests must use HTTPS.");
+
+          const routes = [
+            { path: "/", type: "text/html" },
+            { path: "/manifest.webmanifest", type: "json" },
+            { path: "/service-worker.js", type: "javascript" },
+            { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
+            { path: "/api/health", type: "json" },
+            { path: "/api/privacy", type: "json" },
+          ];
+
+          let failed = false;
+          for (const route of routes) {
+            let lastError;
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+              try {
+                const response = await fetch(new URL(route.path, base), {
+                  redirect: "follow",
+                  signal: AbortSignal.timeout(15000),
+                  headers: { "User-Agent": "SecureID-production-smoke/1.0" },
+                });
+                const contentType = response.headers.get("content-type") || "";
+                const body = await response.text();
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (route.type === "json" && !contentType.includes("application/json")) {
+                  throw new Error(`Expected JSON content type, got ${contentType || "missing"}`);
+                }
+                if (route.type !== "json" && !contentType.toLowerCase().includes(route.type)) {
+                  throw new Error(`Expected ${route.type}, got ${contentType || "missing"}`);
+                }
+                if (!body.trim()) throw new Error("Empty response body");
+                console.log(`PASS ${route.path} -> ${response.status} (${contentType})`);
+                lastError = null;
+                break;
+              } catch (error) {
+                lastError = error;
+                if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+              }
+            }
+            if (lastError) {
+              failed = true;
+              console.error(`FAIL ${route.path}: ${lastError.message}`);
+            }
+          }
+          if (failed) process.exit(1);
+          console.log("Production public-route smoke test passed.");
+          NODE
