@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Audit dependencies for known vulnerabilities
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=low
       - name: Build production frontend
         run: npm run build
       - name: Lint source
