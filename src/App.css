@@ -55,3 +55,37 @@
     justify-content: flex-start;
   }
 }
+
+
+/* Privacy and terms links remain accessible before and after sign-in. */
+.footerLink,
+.authLegalLinks .textButton {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.footerLink:focus-visible,
+.authLegalLinks .textButton:focus-visible {
+  outline: 2px solid #477fe8;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.authLegalLinks {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 14px;
+}
+.authCard.legalPublic {
+  max-width: 680px;
+}
+.authCard.legalPublic p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 14px 0;
+}
