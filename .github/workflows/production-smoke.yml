@@ -49,6 +49,20 @@ jobs:
                   headers: { "User-Agent": "SecureID-production-smoke/1.0" },
                 });
                 const contentType = response.headers.get("content-type") || "";
+                if (route.path === "/") {
+                  const requiredHeaders = [
+                    ["content-security-policy", "default-src"],
+                    ["x-content-type-options", "nosniff"],
+                    ["x-frame-options", "DENY"],
+                    ["strict-transport-security", "max-age="],
+                  ];
+                  for (const [header, expected] of requiredHeaders) {
+                    const value = response.headers.get(header) || "";
+                    if (!value.toLowerCase().includes(expected.toLowerCase())) {
+                      throw new Error(`Missing or invalid security header: ${header}`);
+                    }
+                  }
+                }
                 const body = await response.text();
                 if (route.expectedStatus !== undefined ? response.status !== route.expectedStatus : !response.ok) {
                   throw new Error(`Expected HTTP ${route.expectedStatus ?? "2xx"}, got ${response.status}`);
