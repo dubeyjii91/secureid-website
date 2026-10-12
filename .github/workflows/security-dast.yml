@@ -1,0 +1,39 @@
+name: SecureID production passive DAST
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/security-dast.yml'
+      - 'server/**'
+      - 'src/**'
+      - 'index.html'
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP passive production scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Run passive baseline scan against production
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: 'https://secureid-production-b732.up.railway.app/'
+          fail_action: false
+          allow_issue_writing: false
+          cmd_options: '-m 3'
+      - name: Save scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secureid-zap-baseline-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: warn
+          retention-days: 14
