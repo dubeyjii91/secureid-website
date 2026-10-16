@@ -295,7 +295,21 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Add identity documents</h3>
+      <h3>PAN & Aadhaar documents</h3>
+      <p className="lead">Choose the identity document you want to add. Upload a clear photo or PDF; SecureID stores the file in your private vault. This does not verify the document with UIDAI or the Income Tax Department.</p>
+      <div className="identityDocumentChoices" role="group" aria-label="Choose identity document type">
+        <button type="button" className={uploadCategory === "aadhaar" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "aadhaar"} onClick={() => setUploadCategory("aadhaar")}>
+          <span className="identityDocumentIcon" aria-hidden="true">🪪</span>
+          <span><strong>AADHAAR CARD</strong><small>Identity and address document · masked Aadhaar recommended</small></span>
+          <span className="identityDocumentAction">{uploadCategory === "aadhaar" ? "Selected ✓" : "Choose"}</span>
+        </button>
+        <button type="button" className={uploadCategory === "pan" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "pan"} onClick={() => setUploadCategory("pan")}>
+          <span className="identityDocumentIcon" aria-hidden="true">📄</span>
+          <span><strong>PAN CARD</strong><small>Tax identity document · keep your PAN details private</small></span>
+          <span className="identityDocumentAction">{uploadCategory === "pan" ? "Selected ✓" : "Choose"}</span>
+        </button>
+      </div>
+      <h3>Add other identity documents</h3>
       <label className="documentCategoryField">Document category
         <select value={uploadCategory} onChange={event=>setUploadCategory(event.target.value)}>
           <option value="general">Other document</option>
