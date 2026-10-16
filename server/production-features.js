@@ -882,9 +882,12 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
                 ? "Proofs partially submitted — not verified"
                 : "No student verification proofs submitted";
           }else{
-            selected[field]=field==="governmentId"
+            const value=field==="governmentId"
               ? maskGovernmentId(profile[field])
               : profile[field] ?? "";
+            // Never include empty claims in a share payload. A selected field
+            // without a value should not render as a blank identity claim.
+            if(String(value).trim()) selected[field]=value;
           }
         }
       }
