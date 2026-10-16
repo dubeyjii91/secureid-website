@@ -494,6 +494,7 @@ function App() {
 
   const submitIdentityProof = async (event) => {
     event.preventDefault();
+    const formElement = event.currentTarget;
     if (!proofFile || !mfaVerified || wallet.locked) return;
     setProofBusy(true);
     setProofMessage("");
@@ -511,7 +512,7 @@ function App() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.message || "Proof upload failed.");
       setProofFile(null);
-      event.currentTarget.reset();
+      formElement.reset();
       setProofMessage("Proof uploaded securely. It is submitted for review, not independently verified.");
       const status = await api("/api/identity/verification-status");
       setProofStatus(status);
