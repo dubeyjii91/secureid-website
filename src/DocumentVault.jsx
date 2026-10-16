@@ -52,6 +52,7 @@ export default function DocumentVault(){
   const [proofFiles,setProofFiles]=useState({student_id:null,institution_proof:null});
   const [proofUploading,setProofUploading]=useState("");
   const [selected,setSelected]=useState([]);
+  const [uploadCategory,setUploadCategory]=useState("general");
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [uploading,setUploading]=useState(false);
@@ -145,6 +146,7 @@ export default function DocumentVault(){
     try{
       const form=new FormData();
 
+      form.append("category",uploadCategory);
       for(const file of selected){
         form.append("documents",file);
       }
@@ -293,7 +295,17 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Add other documents</h3>
+      <h3>Add identity documents</h3>
+      <label className="documentCategoryField">Document category
+        <select value={uploadCategory} onChange={event=>setUploadCategory(event.target.value)}>
+          <option value="general">Other document</option>
+          <option value="aadhaar">Aadhaar Card</option>
+          <option value="pan">PAN Card</option>
+          <option value="passport">Passport</option>
+          <option value="voter_id">Voter ID</option>
+          <option value="driving_licence">Driving Licence</option>
+        </select>
+      </label>
       <input id="secureid-document-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={event=>setSelected(Array.from(event.target.files || []))}/>
       <small>PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once</small>
       <button className="primary" onClick={upload} disabled={uploading || selected.length===0}>{uploading ? "Encrypting & uploading…" : "Secure upload"}</button>
@@ -310,9 +322,8 @@ export default function DocumentVault(){
             <article className="documentItem" key={doc.id}>
               <div>
                 <strong>{doc.name}</strong>
-                <small>
-                  {doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                </small>
+                <small>{({"aadhaar":"Aadhaar Card","pan":"PAN Card","passport":"Passport","voter_id":"Voter ID","driving_licence":"Driving Licence","student_id":"Student ID","institution_proof":"Institution Proof","general":"Other Document"}[doc.category] || "Other Document")}</small>
+                <small>{doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</small>
               </div>
 
               <div className="documentActions">
