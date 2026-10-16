@@ -133,6 +133,20 @@ test("document ownership isolation, share access, revocation, and expiry", async
     Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
   );
 
+  // A different account cannot revoke a document share owned by user-a.
+  const documentShareRow = database.prepare("SELECT id FROM secure_document_shares WHERE token_hash=?").get(
+    (await import("node:crypto")).createHash("sha256").update(share.shareToken).digest("hex")
+  );
+  assert.ok(documentShareRow?.id);
+  const crossAccountDocumentRevoke = await fetch(base + "/api/security/shares/revoke", {
+    method: "POST",
+    headers: { ...asUser("user-b"), "content-type": "application/json" },
+    body: JSON.stringify({ type: "document", id: String(documentShareRow.id) })
+  });
+  assert.equal(crossAccountDocumentRevoke.status, 404, await crossAccountDocumentRevoke.clone().text());
+  const stillAccessibleAfterCrossAccountAttempt = await fetch(base + `/api/document-share/${share.shareToken}`);
+  assert.equal(stillAccessibleAfterCrossAccountAttempt.status, 200, "failed cross-account revoke must leave owner's document share valid");
+
   const revoked = await fetch(base + "/api/document-share/revoke", {
     method: "POST",
     headers: { ...asUser("user-a"), "content-type": "application/json" },
