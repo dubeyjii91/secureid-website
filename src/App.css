@@ -89,3 +89,47 @@
   line-height: 1.7;
   margin: 14px 0;
 }
+
+
+/* Student-first selective sharing preset */
+.studentSharePreset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 0 10px;
+  padding: 16px;
+  border: 1px solid #c9d7f8;
+  border-radius: 12px;
+  background: #f5f8ff;
+}
+.studentSharePreset > div { min-width: 0; }
+.studentSharePreset strong { display: block; font-size: 12px; letter-spacing: .04em; }
+.studentSharePreset p { margin: 6px 0 0; color: #52617a; font-size: 12px; line-height: 1.55; }
+.studentSharePreset .secondary {
+  flex: 0 0 auto;
+  border: 1px solid #3157d5;
+  border-radius: 9px;
+  padding: 10px 13px;
+  background: #fff;
+  color: #2446b6;
+  font-weight: 750;
+  cursor: pointer;
+}
+.studentSharePreset .secondary:hover { background: #eaf0ff; }
+.studentSharePreset .secondary:focus-visible { outline: 2px solid #3157d5; outline-offset: 3px; }
+.studentSharePreset .secondary:disabled { opacity: .5; cursor: not-allowed; }
+.studentSharePrivacyNote {
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border-left: 3px solid #d5a23c;
+  border-radius: 4px 9px 9px 4px;
+  background: #fff9e9;
+  color: #6f531a;
+  font-size: 12px;
+  line-height: 1.65;
+}
+@media (max-width: 600px) {
+  .studentSharePreset { align-items: stretch; flex-direction: column; }
+  .studentSharePreset .secondary { width: 100%; }
+}
