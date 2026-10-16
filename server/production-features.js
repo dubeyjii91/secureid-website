@@ -7,6 +7,7 @@ import { enforceShareRateLimit } from "./share-rate-limit.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
+const ALLOWED_DOCUMENT_CATEGORIES = new Set(["general","aadhaar","pan","passport","voter_id","driving_licence"]);
 
 function createCryptoKey(isProduction){
   const raw = process.env.DOCUMENT_ENCRYPTION_KEY || "";
@@ -345,6 +346,11 @@ export function registerProductionFeatures({
     async (req,res,next)=>{
       try{
         const files=req.files || [];
+        const category=String(req.body?.category || "general").trim();
+
+        if(!ALLOWED_DOCUMENT_CATEGORIES.has(category)){
+          return res.status(400).json({success:false,message:"Choose a valid document category."});
+        }
 
         if(files.length===0){
           return res.status(400).json({
@@ -404,7 +410,7 @@ export function registerProductionFeatures({
               file.mimetype,
               file.size,
               absolute,
-              "general",
+              category,
               now
             );
 
@@ -413,7 +419,7 @@ export function registerProductionFeatures({
               name:safeFilename(file.originalname),
               mimeType:file.mimetype,
               sizeBytes:file.size,
-              category:"general",
+              category,
               createdAt:now
             });
           }
