@@ -165,8 +165,20 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
   const identityShare = await identityShareResponse.json();
+  // A different authenticated account must not be able to revoke the owner's identity share.
+  const identityShareRow = database.prepare("SELECT id FROM secure_shares WHERE token_hash=?").get(
+    (await import("node:crypto")).createHash("sha256").update(identityShare.shareToken).digest("hex")
+  );
+  assert.ok(identityShareRow?.id);
+  const crossAccountRevoke = await fetch(base + "/api/security/shares/revoke", {
+    method: "POST",
+    headers: { ...asUser("user-b"), "content-type": "application/json" },
+    body: JSON.stringify({ type: "identity", id: String(identityShareRow.id) })
+  });
+  assert.equal(crossAccountRevoke.status, 404, await crossAccountRevoke.clone().text());
+
   const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
-  assert.equal(sharedIdentityResponse.status, 200);
+  assert.equal(sharedIdentityResponse.status, 200, "failed cross-account revoke must leave owner's share valid");
   const sharedIdentity = await sharedIdentityResponse.json();
   assert.deepEqual(Object.keys(sharedIdentity.claims).sort(), ["age", "name"]);
   assert.equal(sharedIdentity.claims.name, "Test User");
