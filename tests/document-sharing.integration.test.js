@@ -160,7 +160,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const createIdentityShare = async () => fetch(base + "/api/wallet/share", {
     method: "POST",
     headers: { ...asUser("user-a"), "content-type": "application/json" },
-    body: JSON.stringify({ name: true, age: true })
+    body: JSON.stringify({ name: true, age: true, email: true })
   });
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
