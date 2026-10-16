@@ -12,7 +12,7 @@ import "./App.css";
 import "./secureid-redesign.css";
 import "./secureid-polish.css";
 import "./secureid-layout-fixes.css";
-const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
+const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: false, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
 const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
 
 function WelcomeSplash({ onClose }) {
@@ -524,6 +524,23 @@ function App() {
   };
 
   const generateSecureShare = async () => {
+    const sensitiveClaims = [
+      ["dateOfBirth", "Date of birth"],
+      ["address", "Address"],
+      ["email", "Email"],
+      ["phone", "Phone number"],
+      ["identityId", "Identity ID"],
+      ["governmentId", "Masked government ID"],
+    ].filter(([key]) => wallet.shareData[key]).map(([, label]) => label);
+    if (sensitiveClaims.length) {
+      const confirmed = window.confirm(
+        `Privacy check: you selected sensitive information: ${sensitiveClaims.join(", ")}.\n\nOnly continue if the recipient needs these details and you trust them. The share link can be forwarded until it expires or you revoke it. Create this share?`
+      );
+      if (!confirmed) {
+        setMfaMessage("Share cancelled. Review your selected claims before creating a link.");
+        return;
+      }
+    }
     setBusyAction("share");
     try {
       const result = await api("/api/wallet/share", { method: "POST", body: JSON.stringify({ ...wallet.shareData, contextLabel: shareContext, share_reason: shareContext }) });
