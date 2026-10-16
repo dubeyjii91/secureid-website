@@ -182,3 +182,7 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
+
+.documentVault .documentCategoryField{display:flex;flex-direction:column;gap:8px;max-width:100%;line-height:1.5}
+.documentVault .documentCategoryField select{box-sizing:border-box;width:100%;max-width:100%;min-height:44px;padding:10px 12px;border-radius:10px}
