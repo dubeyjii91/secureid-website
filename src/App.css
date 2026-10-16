@@ -133,3 +133,16 @@
   .studentSharePreset { align-items: stretch; flex-direction: column; }
   .studentSharePreset .secondary { width: 100%; }
 }
+
+
+/* Student proof submission: explicit status and accessible upload controls */
+.studentProofPanel { margin-bottom: 18px; }
+.studentProofForm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: end; gap: 14px; margin: 16px 0; }
+.studentProofForm label { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: #34445f; font-size: 13px; font-weight: 700; }
+.studentProofForm select, .studentProofForm input[type="file"] { width: 100%; min-height: 42px; padding: 9px; border: 1px solid #c8d2e2; border-radius: 8px; background: #fff; color: #19253b; font: inherit; }
+.studentProofForm input[type="file"] { font-size: 12px; }
+.studentProofForm :focus-visible { outline: 2px solid #3157d5; outline-offset: 2px; }
+.studentProofStatus { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; padding: 13px; border: 1px solid #cbd8ef; border-radius: 10px; background: #f5f8ff; color: #34445f; font-size: 13px; }
+.studentProofStatus strong { color: #183c83; }
+.studentProofMessage { margin: 10px 0 0; color: #2446b6; font-size: 13px; line-height: 1.5; }
+@media (max-width: 760px) { .studentProofForm { grid-template-columns: 1fr; } .studentProofForm .primary { width: 100%; } }
