@@ -670,7 +670,8 @@ export function registerProductionFeatures({
     "identityId",
     "college",
     "studentId",
-    "governmentId"
+    "governmentId",
+    "verificationStatus"
   ];
 
   try {
@@ -867,9 +868,24 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
       for(const field of shareFields){
         if(req.body?.[field] === true){
-          selected[field]=field==="governmentId"
-            ? maskGovernmentId(profile[field])
-            : profile[field] ?? "";
+          if(field === "verificationStatus"){
+            const proofRows=database.prepare(
+              "SELECT document_category FROM secure_documents WHERE user_id=? AND document_category IN ('student_id','institution_proof') AND deleted_at IS NULL"
+            ).all(req.user.id);
+            const hasStudentProof=proofRows.some((item)=>item.document_category==="student_id");
+            const hasInstitutionProof=proofRows.some((item)=>item.document_category==="institution_proof");
+            // This reports document-submission progress only. It must never imply
+            // that a college or government source has independently verified the person.
+            selected.verificationStatus=hasStudentProof && hasInstitutionProof
+              ? "Student and institution proofs submitted — pending independent review"
+              : hasStudentProof || hasInstitutionProof
+                ? "Proofs partially submitted — not verified"
+                : "No student verification proofs submitted";
+          }else{
+            selected[field]=field==="governmentId"
+              ? maskGovernmentId(profile[field])
+              : profile[field] ?? "";
+          }
         }
       }
 
