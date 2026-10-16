@@ -191,6 +191,14 @@ test("document ownership isolation, share access, revocation, and expiry", async
   });
   assert.equal(crossAccountRevoke.status, 404, await crossAccountRevoke.clone().text());
 
+  // A request without an authenticated session must not revoke any share.
+  const unauthenticatedRevoke = await fetch(base + "/api/security/shares/revoke", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "identity", id: String(identityShareRow.id) })
+  });
+  assert.equal(unauthenticatedRevoke.status, 401, await unauthenticatedRevoke.clone().text());
+
   const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
   assert.equal(sharedIdentityResponse.status, 200, "failed cross-account revoke must leave owner's share valid");
   const sharedIdentity = await sharedIdentityResponse.json();
