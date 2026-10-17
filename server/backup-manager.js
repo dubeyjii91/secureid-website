@@ -40,7 +40,7 @@ export function runEncryptedBackup(){
     const databaseBytes=readFileSync(tmp);
     const documents=existsSync(documentDir)
       ? readdirSync(documentDir,{withFileTypes:true})
-          .filter(entry=>entry.isFile() && entry.name.endsWith(".json"))
+          .filter(entry=>entry.isFile() && entry.name.endsWith(".json") && entry.name.slice(0,-5).split("-").map(part=>part.length).join("-")==="8-4-4-4-12" && /^[a-f0-9-]+$/i.test(entry.name.slice(0,-5)))
           .map(entry=>({name:entry.name,data:readFileSync(path.join(documentDir,entry.name)).toString("base64")}))
       : [];
     const plaintext=Buffer.from(JSON.stringify({
