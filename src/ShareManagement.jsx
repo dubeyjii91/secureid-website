@@ -15,12 +15,13 @@ function ShareCard({share,onRevoke,busy}) {
   const [time,setTime]=useState(remaining(share.expiresAt));
   useEffect(()=>{const id=setInterval(()=>setTime(remaining(share.expiresAt)),1000);return()=>clearInterval(id)},[share.expiresAt]);
   const inactive=Boolean(share.revokedAt)||time==="Expired";
-  const urgent=!inactive && /^Expires in 0:([0-5]\\d)$/.test(time);
+  const purpose=share.shareReason||share.contextLabel;
+  const urgent=!inactive && /^Expires in 0:([0-5]\d)$/.test(time);
   return <article className={`managedShare ${inactive?"inactive":""} ${urgent?"urgent":""}`}>
     <div className="shareTypeIcon">{share.type==="identity"?"ID":"DOC"}</div>
     <div className="managedShareBody">
       <div className="managedShareTitle"><strong>{share.type==="identity"?"Identity share":"Document share"}</strong>{share.type==="identity"&&share.verificationBadge?.verified&&<span className="miniVerifiedBadge">✓ Verified</span>}{share.type==="document"&&<span>{share.name}</span>}<em className={inactive?"statusOff":"statusLive"}>{share.revokedAt?"Revoked":time==="Expired"?"Expired":"Active"}</em></div>
-      {share.shareReason&&<div className="sharePurposeLine"><strong>Purpose:</strong> {share.shareReason}</div>}
+      {purpose&&<div className="sharePurposeLine"><strong>Purpose:</strong> {purpose}</div>}
       <div className="shareClaims">{share.type==="identity" ? `Shared: ${share.claims?.length ? share.claims.map(x=>x.replaceAll(/([A-Z])/g," $1").trim()).join(", ") : "Selected identity claims"}` : "Secure document access"}</div>
       <small>Created {new Date(share.createdAt).toLocaleString()} · {time}</small>
       <small>{share.accessCount ? `Opened ${share.accessCount} time${share.accessCount===1?"":"s"} · Last opened ${new Date(share.accessedAt).toLocaleString()}` : "Not opened yet"}</small>
