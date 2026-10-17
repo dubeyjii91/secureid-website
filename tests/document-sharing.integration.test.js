@@ -264,6 +264,8 @@ test("document ownership isolation, share access, revocation, and expiry", async
 
   const ownerShareListResponse = await fetch(base + "/api/security/shares", { headers: asUser("user-a") });
   assert.equal(ownerShareListResponse.status, 200, await ownerShareListResponse.clone().text());
+  assert.match(ownerShareListResponse.headers.get("cache-control") || "", /private, no-store/i);
+  assert.match(ownerShareListResponse.headers.get("pragma") || "", /no-cache/i);
   const ownerShareList = await ownerShareListResponse.json();
   assert.equal(ownerShareList.success, true);
   assert.ok(ownerShareList.shares.some((item) => item.type === "identity" && item.id));
@@ -288,6 +290,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
     body: JSON.stringify({ type: "identity", id: String(identityShareRow.id) })
   });
   assert.equal(crossAccountRevoke.status, 404, await crossAccountRevoke.clone().text());
+  assert.match(crossAccountRevoke.headers.get("cache-control") || "", /private, no-store/i);
 
   // A request without an authenticated session must not revoke any share.
   const unauthenticatedRevoke = await fetch(base + "/api/security/shares/revoke", {
