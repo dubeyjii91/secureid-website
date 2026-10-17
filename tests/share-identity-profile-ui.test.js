@@ -26,3 +26,12 @@ test("public share rendering uses readable claim labels and an explicit empty st
   assert.match(source, /shareClaimLabels/);
   assert.match(source, /No identity details were included in this share/);
 });
+
+test("identity shares omit empty claims and mask government ID values", () => {
+  const shareRoute = backend.slice(backend.indexOf('app.post("/api/wallet/share"'), backend.indexOf('app.post("/api/wallet/share/revoke"'));
+  assert.match(shareRoute, /if\(String\(value\)\.trim\(\)\) selected\[field\]=value/);
+  assert.match(shareRoute, /field==="governmentId"\s*\? maskGovernmentId\(profile\[field\]\)/);
+  assert.match(shareRoute, /verified:false/);
+  assert.match(shareRoute, /have not been independently verified/);
+  assert.match(backend, /function maskGovernmentId\(value\)/);
+});
