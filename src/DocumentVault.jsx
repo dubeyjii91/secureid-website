@@ -269,9 +269,9 @@ export default function DocumentVault(){
 
     <section className="verificationStatusCard">
       <div>
-        <div className="eyebrow dark">DOCUMENT VERIFICATION STATUS</div>
+        <div className="eyebrow dark">STUDENT / INSTITUTION PROOF STATUS</div>
         <h3>{verificationStatus?.status || "Not submitted"}</h3>
-        <p>{verificationStatus?.status === "Pending review" ? "Both required proof documents are present and ready for verification." : verificationStatus?.status === "Partially submitted" ? "Upload both Student ID and College / Institution proof to complete your proof set." : "Add your Student ID and College / Institution proof to start verification."}</p>
+        <p>{verificationStatus?.status === "Pending review" ? "Both proof files are uploaded. This is a submission status only, not an independent college or government verification." : verificationStatus?.status === "Partially submitted" ? "Upload both Student ID and College / Institution proof to complete your proof set. This does not confirm authenticity." : "Add your Student ID and College / Institution proof to start the proof-submission process. SecureID has not verified these files independently."}</p>
       </div>
       <div className="verificationChecks">
         <span className={verificationStatus?.proofs?.studentId ? "complete" : ""}>✓ Student ID</span>
@@ -317,6 +317,16 @@ export default function DocumentVault(){
     <section className="vaultBlock">
       <h3>PAN & Aadhaar documents</h3>
       <p className="lead">Choose the identity document you want to add. Upload a clear photo or PDF; SecureID stores the file in your private vault. This does not verify the document with UIDAI or the Income Tax Department.</p>
+      <div className="officialVerificationPanel">
+        <div className="eyebrow dark">OFFICIAL GOVERNMENT VERIFICATION</div>
+        <h4>Government verification is not connected yet</h4>
+        <p>Saving a PAN or Aadhaar file only stores it in your vault. SecureID must not label it government-verified until an authorized verification service returns a genuine result.</p>
+        <div className="officialVerificationActions">
+          <a href="https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/verify-your-pan" target="_blank" rel="noreferrer">Open official PAN verification ↗</a>
+          <a href="https://uidai.gov.in/hi/authentication-requesting-agency" target="_blank" rel="noreferrer">UIDAI agency / integration requirements ↗</a>
+        </div>
+        <small>PAN online verification is performed on the Income Tax Department portal. Direct API access for an organization requires the applicable registration/approval. Aadhaar authentication requires UIDAI authorization or an approved requesting-entity partner. SecureID has not yet been approved or connected to either service.</small>
+      </div>
       <div className="identityDocumentChoices" role="group" aria-label="Choose identity document type">
         <button type="button" className={uploadCategory === "aadhaar" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "aadhaar"} onClick={() => setUploadCategory("aadhaar")}>
           <span className="identityDocumentIcon" aria-hidden="true">🪪</span>
