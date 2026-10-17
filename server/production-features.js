@@ -187,8 +187,10 @@ export function registerProductionFeatures({
       process.env.AADHAAR_AUTH_CLIENT_ID &&
       process.env.AADHAAR_AUTH_CLIENT_SECRET
     );
-    const panApproved = process.env.PAN_VERIFICATION_APPROVED === "true";
-    const aadhaarApproved = process.env.AADHAAR_AUTH_APPROVED === "true";
+    // An approval flag alone is not evidence of a usable approved integration.
+    // Report approval only when the required provider configuration is also present.
+    const panApproved = panConfigured && process.env.PAN_VERIFICATION_APPROVED === "true";
+    const aadhaarApproved = aadhaarConfigured && process.env.AADHAAR_AUTH_APPROVED === "true";
     res.setHeader("Cache-Control","private, no-store");
     res.json({
       success:true,
