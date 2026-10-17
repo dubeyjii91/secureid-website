@@ -234,3 +234,58 @@
   .identityDocumentChoice { align-items: flex-start; }
   .identityDocumentAction { margin-left: auto; }
 }
+
+
+/* Expose active share links in the owner's vault even when clipboard permission is denied. */
+.documentShareLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(96, 165, 250, .35);
+  border-radius: 12px;
+  background: rgba(37, 99, 235, .08);
+}
+.documentShareLink label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.documentShareLink label span,
+.documentShareLink small {
+  color: #aebbd0;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.documentShareLink input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 163, 184, .35);
+  border-radius: 8px;
+  color: #e5edf9;
+  background: rgba(4, 12, 25, .65);
+  font-size: .82rem;
+}
+.documentShareLink small {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+.documentShareLink button {
+  min-height: 42px;
+  padding: 8px 12px;
+}
+@media (max-width: 560px) {
+  .documentShareLink {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .documentShareLink button {
+    width: 100%;
+  }
+}
