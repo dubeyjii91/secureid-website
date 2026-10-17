@@ -4,20 +4,62 @@ import { existsSync, mkdirSync, readFileSync, rmSync, readdirSync, statSync, wri
 import path from "node:path";
 
 function backupAlertConfiguration(){
-  return {recipientConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL?.trim()),apiKeyConfigured:Boolean(process.env.RESEND_API_KEY?.trim()),senderConfigured:Boolean(process.env.OTP_FROM_EMAIL?.trim())};
+  const resendConfigured=Boolean(process.env.RESEND_API_KEY?.trim());
+  const brevoConfigured=Boolean(process.env.BREVO_API_KEY?.trim());
+  const smtpConfigured=Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim() && Number(process.env.SMTP_PORT || 587)>0);
+  return {
+    recipientConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL?.trim()),
+    senderConfigured:Boolean(process.env.OTP_FROM_EMAIL?.trim()),
+    providerConfigured:resendConfigured || brevoConfigured || smtpConfigured,
+    provider:resendConfigured ? "resend" : brevoConfigured ? "brevo" : smtpConfigured ? "smtp" : null
+  };
 }
-function isBackupAlertingConfigured(){ const config=backupAlertConfiguration(); return config.recipientConfigured && config.apiKeyConfigured && config.senderConfigured; }
+function isBackupAlertingConfigured(){ const config=backupAlertConfiguration(); return config.recipientConfigured && config.senderConfigured && config.providerConfigured; }
 
 let status = { enabled:false, lastRunAt:null, lastSuccessAt:null, lastError:null, lastFile:null, alertingConfigured:isBackupAlertingConfigured() };
 
 async function sendBackupAlert(subject, text){
   const to=process.env.SECURITY_ALERT_EMAIL || "";
-  const apiKey=process.env.RESEND_API_KEY || "";
   const from=process.env.OTP_FROM_EMAIL || "";
-  if(!to || !apiKey || !from) return;
+  const fromName=(process.env.OTP_FROM_NAME || "SecureID").trim() || "SecureID";
+  if(!to || !from) return;
   try{
-    const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({from,to:[to],subject,text})});
-    if(!response.ok) console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",status:response.status}));
+    if(process.env.BREVO_API_KEY?.trim()){
+      const response=await fetch("https://api.brevo.com/v3/smtp/email",{
+        method:"POST",
+        headers:{"api-key":process.env.BREVO_API_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({sender:{name:fromName,email:from},to:[{email:to}],subject,textContent:text})
+      });
+      if(!response.ok) console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",provider:"brevo",status:response.status}));
+      return;
+    }
+    if(process.env.RESEND_API_KEY?.trim()){
+      const response=await fetch("https://api.resend.com/emails",{
+        method:"POST",
+        headers:{Authorization:"Bearer "+process.env.RESEND_API_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({from:fromName+" <"+from+">",to:[to],subject,text})
+      });
+      if(!response.ok) console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",provider:"resend",status:response.status}));
+      return;
+    }
+    if(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()){
+      const nodemailer=(await import("nodemailer")).default;
+      const configuredPort=Number(process.env.SMTP_PORT || 587);
+      const port=configuredPort===2525 ? 587 : configuredPort;
+      const transport=nodemailer.createTransport({
+        host:process.env.SMTP_HOST,
+        port,
+        secure:String(process.env.SMTP_SECURE || (port===465 ? "true" : "false")).toLowerCase()==="true",
+        auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS},
+        connectionTimeout:10000,
+        greetingTimeout:10000,
+        socketTimeout:15000
+      });
+      await transport.sendMail({from:fromName+" <"+from+">",to,subject,text});
+      transport.close();
+      return;
+    }
+    console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",reason:"no_provider_configured"}));
   }catch(error){
     console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",reason:error?.name||"NetworkError"}));
   }
