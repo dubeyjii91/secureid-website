@@ -26,7 +26,7 @@ if(payload.version===2){
   databaseBytes=Buffer.from(snapshot.database,"base64");
   documents=snapshot.documents;
   for(const item of documents){
-    if(!item || typeof item.name!=="string" || !/^[a-f0-9-]+\.json$/i.test(item.name) || typeof item.data!=="string"){
+    if(!item || typeof item.name!=="string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/i.test(item.name) || typeof item.data!=="string" || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(item.data)){
       throw new Error("Backup contains an invalid document entry.");
     }
   }
