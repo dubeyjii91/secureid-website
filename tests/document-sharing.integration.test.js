@@ -147,9 +147,35 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.deepEqual(verificationStatus.proofs, { studentId: true, institution: true });
   assert.notEqual(verificationStatus.status, "Verified", "proof upload alone must never imply official verification");
 
+  // PAN and Aadhaar category uploads must retain their category, remain private to the owner,
+  // and round-trip through authenticated decryption without exposing plaintext in storage.
+  for (const [category, filename, marker] of [
+    ["aadhaar", "dummy-aadhaar.pdf", "DUMMY AADHAAR TEST"],
+    ["pan", "dummy-pan.pdf", "DUMMY PAN TEST"]
+  ]) {
+    const bytes = Buffer.from(`%PDF-1.7\\n${marker}\\n%%EOF`);
+    const categorizedForm = new FormData();
+    categorizedForm.append("category", category);
+    categorizedForm.append("documents", new Blob([bytes], { type: "application/pdf" }), filename);
+    const categorizedUpload = await fetch(base + "/api/documents", {
+      method: "POST", headers: asUser("user-a"), body: categorizedForm
+    });
+    assert.equal(categorizedUpload.status, 201, await categorizedUpload.clone().text());
+    const categorizedResult = await categorizedUpload.json();
+    assert.equal(categorizedResult.documents.length, 1);
+    assert.equal(categorizedResult.documents[0].category, category);
+    assert.equal(categorizedResult.documents[0].name, filename);
+    const categorizedDownload = await fetch(base + `/api/documents/${categorizedResult.documents[0].id}`, { headers: asUser("user-a") });
+    assert.equal(categorizedDownload.status, 200, await categorizedDownload.clone().text());
+    assert.deepEqual(Buffer.from(await categorizedDownload.arrayBuffer()), bytes);
+    const encryptedPath = database.prepare("SELECT encrypted_path FROM secure_documents WHERE id=? AND user_id=?").get(categorizedResult.documents[0].id, "user-a").encrypted_path;
+    const storedEnvelope = (await import("node:fs")).readFileSync(encryptedPath, "utf8");
+    assert.equal(storedEnvelope.includes(marker), false, "PAN/Aadhaar document plaintext must not appear in the stored encrypted envelope");
+  }
+
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
   assert.equal(ownerList.status, 200);
-  assert.equal((await ownerList.json()).documents.length, 3);
+  assert.equal((await ownerList.json()).documents.length, 5);
   const otherList = await fetch(base + "/api/documents", { headers: asUser("user-b") });
   assert.equal(otherList.status, 200);
   assert.equal((await otherList.json()).documents.length, 0);
