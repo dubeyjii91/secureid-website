@@ -59,7 +59,11 @@ jobs:
                 ];
                 for (const [header, expected] of securityHeaders) {
                   const value = response.headers.get(header) || "";
-                  if (!value.toLowerCase().includes(expected.toLowerCase())) {
+                  // Public share-token endpoints deliberately suppress referrers to reduce bearer-token leakage.
+                  const validShareReferrerPolicy = header === "referrer-policy"
+                    && route.path.startsWith("/api/share/")
+                    && value.toLowerCase() === "no-referrer";
+                  if (!validShareReferrerPolicy && !value.toLowerCase().includes(expected.toLowerCase())) {
                     throw new Error(`Missing or invalid security header: ${header}`);
                   }
                 }
