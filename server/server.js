@@ -3,6 +3,7 @@ import path from "node:path";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 import {
   createHash,
@@ -42,6 +43,11 @@ const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
 const otpDelivery = process.env.OTP_DELIVERY || "console";
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const smtpHost = process.env.SMTP_HOST || "";
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpSecure = String(process.env.SMTP_SECURE || (smtpPort === 465 ? "true" : "false")).toLowerCase() === "true";
+const smtpUser = process.env.SMTP_USER || "";
+const smtpPass = process.env.SMTP_PASS || "";
 const securityAlertEmail = process.env.SECURITY_ALERT_EMAIL || "";
 const resendCooldownMs = Math.max(15, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60)) * 1000;
 const bcryptRounds = Math.min(15, Math.max(10, Number(process.env.BCRYPT_ROUNDS || (isProduction ? 12 : 10))));
@@ -54,10 +60,12 @@ let operationalErrorAlertState = { startedAt: Date.now(), count: 0, lastAlertAt:
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535.");
 if (sessionPepper.length < 32) throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
 if (otpPepper.length < 32) throw new Error("OTP_HASH_SECRET must be at least 32 characters.");
-if (!["console", "resend"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console or resend.");
-
+if (!["console", "resend", "smtp"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console, resend, or smtp.");
 if (otpDelivery === "resend" && (!resendApiKey || !otpFromEmail)) throw new Error("RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.");
-if (isProduction && otpDelivery !== "resend") throw new Error("Production OTP delivery must use Resend.");
+if (otpDelivery === "smtp" && (!smtpHost || !Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535 || !smtpUser || !smtpPass || !otpFromEmail)) {
+  throw new Error("SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and OTP_FROM_EMAIL are required for SMTP delivery.");
+}
+if (isProduction && !["resend", "smtp"].includes(otpDelivery)) throw new Error("Production OTP delivery must use a configured email provider.");
 if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIGIN must use HTTPS in production.");
 
 
@@ -537,17 +545,38 @@ function logEvent(userId, eventType, req = null, metadata = null) {
   database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at, user_agent, ip_hash, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now(), userAgent, ipHash, metadata ? JSON.stringify(metadata).slice(0, 4000) : null);
 }
 
+async function sendConfiguredEmail({ to, subject, text }) {
+  if (otpDelivery === "resend") {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: otpFromEmail, to: [to], subject, text }),
+    });
+    if (!response.ok) throw new Error(`Email delivery failed with status ${response.status}.`);
+    return;
+  }
+  if (otpDelivery === "smtp") {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost, port: smtpPort, secure: smtpSecure,
+      auth: { user: smtpUser, pass: smtpPass },
+      connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+    });
+    try { await transporter.sendMail({ from: otpFromEmail, to, subject, text }); }
+    finally { transporter.close(); }
+    return;
+  }
+  throw new Error("No production email provider is configured.");
+}
+
 async function deliverOtp(email, code) {
   if (otpDelivery === "console") {
     console.log(`[SecureID DEV OTP] ${email}: ${code}`);
     return;
   }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: otpFromEmail, to: [email], subject: "Your SecureID verification code", text: `Your SecureID verification code is ${code}. It expires in 5 minutes.` }),
+  await sendConfiguredEmail({
+    to: email, subject: "Your SecureID verification code",
+    text: `Your SecureID verification code is ${code}. It expires in 5 minutes.`
   });
-  if (!response.ok) throw new Error(`Resend request failed with status ${response.status}.`);
 }
 
 
@@ -674,23 +703,7 @@ async function sendSecurityEmail({ to, subject, text }) {
     return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      from: otpFromEmail,
-      to: [to],
-      subject,
-      text
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Security email delivery failed with status ${response.status}.`);
-  }
+  await sendConfiguredEmail({ to, subject, text });
 }
 
 async function issueEmailVerification(userId, email) {
