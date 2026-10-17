@@ -622,6 +622,8 @@ export function registerProductionFeatures({
   });
 
   app.post("/api/document-share/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","no-store");
+    res.setHeader("Pragma","no-cache");
     try{
       assertWalletUnlocked(req.user.id);
       const token=String(req.body?.shareToken || "").trim();
@@ -635,6 +637,11 @@ export function registerProductionFeatures({
   });
 
   app.get("/api/document-share/:token",(req,res,next)=>{
+    // Apply no-cache protections to both successful and failed bearer-token lookups.
+    res.setHeader("Cache-Control","no-store");
+    res.setHeader("Pragma","no-cache");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    res.setHeader("Referrer-Policy","no-referrer");
     try{
       const token=String(req.params.token || "");
       if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)) return res.status(404).json({success:false,message:"Document share not found."});
@@ -968,6 +975,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   app.post("/api/wallet/share/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","no-store");
+    res.setHeader("Pragma","no-cache");
     try{
       database.prepare(`
         UPDATE secure_shares
@@ -982,6 +991,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   app.get("/api/share/:token",(req,res,next)=>{
+    // Identity claims and bearer tokens must never be cached, including 404 responses.
+    res.setHeader("Cache-Control","no-store");
+    res.setHeader("Pragma","no-cache");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    res.setHeader("Referrer-Policy","no-referrer");
     try{
       const token=String(req.params.token || "");
 
