@@ -755,6 +755,8 @@ export function registerProductionFeatures({
   try { database.exec("ALTER TABLE secure_shares ADD COLUMN share_reason TEXT"); } catch {}
   try { database.exec("ALTER TABLE secure_document_shares ADD COLUMN share_reason TEXT"); } catch {}
   app.get("/api/security/shares",requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("Pragma","no-cache");
     try{
       const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS shareReason,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
         let claims=[];
@@ -768,6 +770,8 @@ export function registerProductionFeatures({
   });
 
   app.post("/api/security/shares/revoke",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("Pragma","no-cache");
     try{
       const type=String(req.body?.type||"");
       const id=String(req.body?.id||"");
