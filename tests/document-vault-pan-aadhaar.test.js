@@ -32,3 +32,16 @@ test("official verification panel distinguishes local storage from government ve
   assert.match(ui, /This is a submission status only, not an independent college or government verification/);
   assert.match(styles, /\.officialVerificationPanel/);
 });
+
+test("government integration readiness endpoint is authenticated and never reports live verification", () => {
+  assert.match(backend, /\/api\/identity\/government-verification\/readiness/);
+  assert.match(backend, /requireAuth,requireMfaProduction/);
+  assert.match(backend, /PAN_VERIFICATION_APPROVED === "true"/);
+  assert.match(backend, /AADHAAR_AUTH_APPROVED === "true"/);
+  assert.match(backend, /officialVerificationConnected:false/);
+  assert.match(backend, /live:false/);
+  assert.match(backend, /No government verification request has been performed/);
+  assert.match(ui, /governmentReadiness\?\.pan\?\.configured/);
+  assert.match(ui, /governmentReadiness\?\.aadhaar\?\.configured/);
+  assert.match(styles, /\.governmentReadinessList/);
+});
