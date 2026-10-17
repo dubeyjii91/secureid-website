@@ -163,6 +163,8 @@ test("document ownership isolation, share access, revocation, and expiry", async
   });
   const created = await createShare();
   assert.equal(created.status, 200, await created.clone().text());
+  assert.match(created.headers.get("cache-control") || "", /no-store/i);
+  assert.match(created.headers.get("pragma") || "", /no-cache/i);
   const share = await created.json();
   const accessible = await fetch(base + `/api/document-share/${share.shareToken}`);
   assert.equal(accessible.status, 200);
