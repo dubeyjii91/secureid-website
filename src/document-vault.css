@@ -289,3 +289,21 @@
     width: 100%;
   }
 }
+
+
+/* Show whether priority identity documents are already present in the vault. */
+.identityDocumentCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.identityDocumentCopy > small.identityDocumentStatus {
+  font-size: .78rem;
+  line-height: 1.4;
+  color: #aebbd0;
+  opacity: 1;
+}
+.identityDocumentCopy > small.identityDocumentStatus.stored {
+  color: #73e6ad;
+}
