@@ -5,6 +5,7 @@ import path from "node:path";
 
 const dbPath=process.env.DATABASE_PATH || "./data/secureid.sqlite";
 const backupDir=process.env.BACKUP_DIR || "./data/backups";
+const documentDir=process.env.DOCUMENT_STORAGE_PATH || "./data/secureid-documents";
 const key=Buffer.from(process.env.BACKUP_ENCRYPTION_KEY || "","base64");
 if(!existsSync(dbPath)) throw new Error("DATABASE_PATH does not exist.");
 if(key.length!==32) throw new Error("BACKUP_ENCRYPTION_KEY must be a base64 32-byte key.");
@@ -15,7 +16,18 @@ const out=path.resolve(backupDir,"secureid-"+stamp+".backup.json");
 const db=new DatabaseSync(dbPath);
 db.exec("VACUUM INTO '"+tmp.replaceAll("'","''")+"'");
 db.close();
-const plaintext=readFileSync(tmp);
+const databaseBytes=readFileSync(tmp);
+const documents=existsSync(documentDir)
+  ? (await import("node:fs")).readdirSync(documentDir,{withFileTypes:true})
+      .filter(entry=>entry.isFile() && entry.name.endsWith(".json"))
+      .map(entry=>({name:entry.name,data:readFileSync(path.join(documentDir,entry.name)).toString("base64")}))
+  : [];
+// Version 2 snapshots include encrypted vault blobs as well as SQLite metadata.
+const plaintext=Buffer.from(JSON.stringify({
+  version:2,
+  database:databaseBytes.toString("base64"),
+  documents
+}),"utf8");
 const iv=randomBytes(12);
 const cipher=createCipheriv("aes-256-gcm",key,iv);
 const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
