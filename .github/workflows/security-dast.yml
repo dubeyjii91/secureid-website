@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/security-dast.yml'
       - 'server/**'
+      - 'scripts/**'
+      - 'tests/**'
       - 'src/**'
       - 'index.html'
 
