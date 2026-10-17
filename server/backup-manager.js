@@ -11,7 +11,8 @@ async function sendBackupAlert(subject, text){
   const from=process.env.OTP_FROM_EMAIL || "";
   if(!to || !apiKey || !from) return;
   try{
-    await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({from,to:[to],subject,text})});
+    const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+apiKey,"Content-Type":"application/json"},body:JSON.stringify({from,to:[to],subject,text})});
+    if(!response.ok) console.error(JSON.stringify({level:"error",event:"backup_alert_email_failed",status:response.status}));
   }catch{}
 }
 
@@ -58,11 +59,11 @@ export function runEncryptedBackup(){
     const retention=Math.max(1,Number(process.env.BACKUP_RETENTION_COUNT||7));
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
     for(const file of files.slice(retention)) rmSync(path.join(backupDir,file.name),{force:true});
-    status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out};
+    status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out,alertingConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL && process.env.RESEND_API_KEY && process.env.OTP_FROM_EMAIL)};
     return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256};
   }catch(error){
     rmSync(tmp,{force:true});
-    status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error)};
+    status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error),alertingConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL && process.env.RESEND_API_KEY && process.env.OTP_FROM_EMAIL)};
     void sendBackupAlert("SecureID encrypted backup failed","An automatic SecureID encrypted backup failed at "+new Date().toISOString()+". Review the production logs and backup status immediately.");
     throw error;
   }
