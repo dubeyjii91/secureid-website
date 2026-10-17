@@ -80,6 +80,8 @@ export function startAutomaticBackup(){
   }
   const intervalHours=Math.max(1,Number(process.env.BACKUP_INTERVAL_HOURS||24));
   const run=()=>{ try{ runEncryptedBackup(); console.log(JSON.stringify({level:"info",event:"encrypted_backup_completed",file:status.lastFile})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
-  setTimeout(run,Math.min(5*60*1000,intervalHours*60*60*1000)).unref();
+  // Create a verified encrypted backup shortly after startup so a new deployment
+  // does not remain without a recovery point for the first five minutes.
+  setTimeout(run,10_000).unref();
   setInterval(run,intervalHours*60*60*1000).unref();
 }
