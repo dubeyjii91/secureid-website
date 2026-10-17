@@ -36,7 +36,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const requireAuth = (req, res, next) => {
     const id = req.get("x-test-user");
     if (!id) return res.status(401).json({ success: false });
-    req.user = { id, mfaVerified: true };
+    req.user = { id, mfaVerified: req.get("x-test-mfa") !== "false" };
     next();
   };
   registerProductionFeatures({
@@ -179,6 +179,31 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
   const identityShare = await identityShareResponse.json();
+
+  // Share Management must enforce login + MFA and return only the current account's shares.
+  const unauthenticatedShareList = await fetch(base + "/api/security/shares");
+  assert.equal(unauthenticatedShareList.status, 401);
+
+  const mfaPendingShareList = await fetch(base + "/api/security/shares", {
+    headers: { ...asUser("user-a"), "x-test-mfa": "false" }
+  });
+  assert.equal(mfaPendingShareList.status, 403);
+
+  const ownerShareListResponse = await fetch(base + "/api/security/shares", { headers: asUser("user-a") });
+  assert.equal(ownerShareListResponse.status, 200, await ownerShareListResponse.clone().text());
+  const ownerShareList = await ownerShareListResponse.json();
+  assert.equal(ownerShareList.success, true);
+  assert.ok(ownerShareList.shares.some((item) => item.type === "identity" && item.id));
+  assert.ok(ownerShareList.shares.some((item) => item.type === "document" && item.name === "sample.pdf"));
+  assert.ok(ownerShareList.shares.every((item) => ["identity", "document"].includes(item.type)));
+  assert.ok(ownerShareList.shares.every((item) => item.expiresAt), "each share should expose its expiry");
+  assert.ok(ownerShareList.shares.some((item) => item.type === "document" && item.revokedAt), "revoked shares should be visibly marked as revoked");
+
+  const otherAccountShareListResponse = await fetch(base + "/api/security/shares", { headers: asUser("user-b") });
+  assert.equal(otherAccountShareListResponse.status, 200, await otherAccountShareListResponse.clone().text());
+  const otherAccountShareList = await otherAccountShareListResponse.json();
+  assert.deepEqual(otherAccountShareList.shares, [], "one account must never see another account's shares");
+
   // A different authenticated account must not be able to revoke the owner's identity share.
   const identityShareRow = database.prepare("SELECT id FROM secure_shares WHERE token_hash=?").get(
     (await import("node:crypto")).createHash("sha256").update(identityShare.shareToken).digest("hex")
