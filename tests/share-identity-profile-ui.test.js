@@ -31,7 +31,8 @@ test("identity shares omit empty claims and mask government ID values", () => {
   const shareRoute = backend.slice(backend.indexOf('app.post("/api/wallet/share"'), backend.indexOf('app.post("/api/wallet/share/revoke"'));
   assert.match(shareRoute, /if\(String\(value\)\.trim\(\)\) selected\[field\]=value/);
   assert.match(shareRoute, /field==="governmentId"\s*\? maskGovernmentId\(profile\[field\]\)/);
-  assert.match(shareRoute, /verified:false/);
-  assert.match(shareRoute, /have not been independently verified/);
+  const publicShareRoute = backend.slice(backend.indexOf('app.get("/api/share/:token"'));
+  assert.match(publicShareRoute, /verified:false/);
+  assert.match(publicShareRoute, /have not been independently verified/);
   assert.match(backend, /function maskGovernmentId\(value\)/);
 });
