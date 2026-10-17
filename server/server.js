@@ -135,6 +135,18 @@ function ensureCsrfCookie(req,res){
   return token;
 }
 
+// Bootstrap the readable CSRF token before the first login/register request.
+// The token cookie is SameSite=Strict and is never an authentication credential.
+app.get("/api/auth/csrf", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  if (isProduction && req.get("origin") && req.get("origin") !== appOrigin) {
+    return res.status(403).json({ success: false, message: "Request origin is not allowed." });
+  }
+  ensureCsrfCookie(req, res);
+  return res.json({ success: true });
+});
+
 function hashSessionToken(token) { return createHmac("sha256", sessionPepper).update(token).digest("hex"); }
 function hashOtpCode(code, userId, challengeId) { return createHmac("sha256", otpPepper).update(`${userId}:${challengeId}:${code}`).digest("hex"); }
 function setSessionCookie(res, token, maxAgeMs = sessionTtlMs) {
