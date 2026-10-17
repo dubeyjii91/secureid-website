@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -27,6 +27,7 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     assert.equal(backup.status, 0, backup.stderr || backup.stdout);
     const backupResult = JSON.parse(backup.stdout.trim().split("\n").at(-1));
     assert.equal(backupResult.success, true);
+    assert.equal(statSync(backupResult.file).mode & 0o777, 0o600, "encrypted backup files must be owner-readable/writable only");
 
     const mutate = new DatabaseSync(dbPath);
     mutate.prepare("INSERT INTO probe(value) VALUES (?)").run("after-backup");
