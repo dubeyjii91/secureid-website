@@ -61,6 +61,7 @@ export default function DocumentVault(){
   const [docContext,setDocContext]=useState("");
   const [verificationStatus,setVerificationStatus]=useState(null);
   const [governmentReadiness,setGovernmentReadiness]=useState(null);
+  const [governmentActionMessage,setGovernmentActionMessage]=useState("");
 
   async function load(){
     setLoading(true);
@@ -329,10 +330,11 @@ export default function DocumentVault(){
           <div><strong>Aadhaar service</strong><span>{governmentReadiness?.aadhaar?.live ? "Live verification enabled" : governmentReadiness?.aadhaar?.approved && governmentReadiness?.aadhaar?.configured ? "Approved configuration detected; live verification not enabled" : governmentReadiness?.aadhaar?.configured ? "Configuration present; provider approval not confirmed" : "Authorized provider configuration required"}</span></div>
         </div>
         <div className="officialVerificationActions">
-          <a href="https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/verify-your-pan" target="_blank" rel="noreferrer">Open official PAN verification ↗</a>
-          <a href="https://uidai.gov.in/hi/authentication-requesting-agency" target="_blank" rel="noreferrer">UIDAI agency / integration requirements ↗</a>
+          <button type="button" onClick={() => setGovernmentActionMessage(governmentReadiness?.pan?.live ? "A live PAN provider is marked enabled, but the in-site verification endpoint is not available in this deployment. No verification was performed." : "Direct PAN verification is not available yet because SecureID has no approved, connected PAN verification provider. No data was sent and no verification was performed.")}>Verify PAN inside SecureID</button>
+          <button type="button" onClick={() => setGovernmentActionMessage(governmentReadiness?.aadhaar?.live ? "A live Aadhaar provider is marked enabled, but the in-site verification endpoint is not available in this deployment. No verification was performed." : "Direct Aadhaar verification is not available yet because SecureID has no UIDAI-authorized or approved partner connection. No Aadhaar data was sent and no verification was performed.")}>Verify Aadhaar inside SecureID</button>
         </div>
-        <small>PAN online verification is performed on the Income Tax Department portal. Direct API access for an organization requires the applicable registration/approval. Aadhaar authentication requires UIDAI authorization or an approved requesting-entity partner. SecureID has not yet been approved or connected to either service.</small>
+        {governmentActionMessage && <p className="vaultMessage" role="status">{governmentActionMessage}</p>}
+        <small>These controls stay inside SecureID and will not redirect you to government websites. Actual verification requires the necessary authorization and secure provider/API integration. Saving a document is not verification.</small>
       </div>
       <div className="identityDocumentChoices" role="group" aria-label="Choose identity document type">
         <button type="button" className={uploadCategory === "aadhaar" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "aadhaar"} onClick={() => setUploadCategory("aadhaar")}>
