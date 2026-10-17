@@ -40,7 +40,17 @@ const sessionIdleTtlMs = 2 * 60 * 60 * 1000;
 const mfaVerifiedTtlMs = 30 * 60 * 1000;
 const otpTtlMs = (isProduction ? 300 : Number(process.env.DEV_OTP_TTL_SECONDS || 300)) * 1000;
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
-const otpDelivery = process.env.OTP_DELIVERY || "console";
+const configuredOtpDelivery = process.env.OTP_DELIVERY || "console";
+const smtpConfigured = Boolean(
+  process.env.SMTP_HOST &&
+  Number.isInteger(Number(process.env.SMTP_PORT || 587)) &&
+  Number(process.env.SMTP_PORT || 587) > 0 &&
+  process.env.SMTP_USER &&
+  process.env.SMTP_PASS &&
+  process.env.OTP_FROM_EMAIL
+);
+// SecureID's configured SMTP transport takes precedence over a stale Resend setting.
+const otpDelivery = smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery;
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
 const smtpHost = process.env.SMTP_HOST || "";
