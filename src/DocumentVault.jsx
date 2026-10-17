@@ -70,7 +70,7 @@ export default function DocumentVault(){
         api("/api/documents"),
         api("/api/identity/profile"),
         api("/api/identity/verification-status"),
-        api("/api/identity/government-verification/readiness")
+        api("/api/identity/government-verification/readiness").catch(()=>null)
       ]);
 
       setDocuments(docs.documents || []);
