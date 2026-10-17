@@ -60,20 +60,23 @@ export default function DocumentVault(){
   const [documentShares,setDocumentShares]=useState({});
   const [docContext,setDocContext]=useState("");
   const [verificationStatus,setVerificationStatus]=useState(null);
+  const [governmentReadiness,setGovernmentReadiness]=useState(null);
 
   async function load(){
     setLoading(true);
 
     try{
-      const [docs,identity,verification]=await Promise.all([
+      const [docs,identity,verification,government]=await Promise.all([
         api("/api/documents"),
         api("/api/identity/profile"),
-        api("/api/identity/verification-status")
+        api("/api/identity/verification-status"),
+        api("/api/identity/government-verification/readiness")
       ]);
 
       setDocuments(docs.documents || []);
       setProfile(identity.profile || {});
       setVerificationStatus(verification || null);
+      setGovernmentReadiness(government || null);
     }catch(error){
       setMessage(error.message);
     }finally{
@@ -319,8 +322,12 @@ export default function DocumentVault(){
       <p className="lead">Choose the identity document you want to add. Upload a clear photo or PDF; SecureID stores the file in your private vault. This does not verify the document with UIDAI or the Income Tax Department.</p>
       <div className="officialVerificationPanel">
         <div className="eyebrow dark">OFFICIAL GOVERNMENT VERIFICATION</div>
-        <h4>Government verification is not connected yet</h4>
+        <h4>{governmentReadiness?.officialVerificationConnected ? "Official verification connection enabled" : "Government verification is not connected yet"}</h4>
         <p>Saving a PAN or Aadhaar file only stores it in your vault. SecureID must not label it government-verified until an authorized verification service returns a genuine result.</p>
+        <div className="governmentReadinessList" aria-label="Government integration readiness">
+          <div><strong>PAN service</strong><span>{governmentReadiness?.pan?.live ? "Live verification enabled" : governmentReadiness?.pan?.approved && governmentReadiness?.pan?.configured ? "Approved configuration detected; live verification not enabled" : governmentReadiness?.pan?.configured ? "Configuration present; provider approval not confirmed" : "Provider configuration required"}</span></div>
+          <div><strong>Aadhaar service</strong><span>{governmentReadiness?.aadhaar?.live ? "Live verification enabled" : governmentReadiness?.aadhaar?.approved && governmentReadiness?.aadhaar?.configured ? "Approved configuration detected; live verification not enabled" : governmentReadiness?.aadhaar?.configured ? "Configuration present; provider approval not confirmed" : "Authorized provider configuration required"}</span></div>
+        </div>
         <div className="officialVerificationActions">
           <a href="https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/verify-your-pan" target="_blank" rel="noreferrer">Open official PAN verification ↗</a>
           <a href="https://uidai.gov.in/hi/authentication-requesting-agency" target="_blank" rel="noreferrer">UIDAI agency / integration requirements ↗</a>
