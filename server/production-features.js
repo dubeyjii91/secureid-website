@@ -614,6 +614,9 @@ export function registerProductionFeatures({
       database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,share_reason) VALUES (?,?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString(),share_reason || null);
       logEvent(req.user.id,"DOCUMENT_SHARED",req);
       if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"DOCUMENT_SHARE_CREATED","Document shared","A secure document share was created. Review Share management to check its purpose and expiry.");
+      // Share tokens are bearer credentials: never allow browsers or intermediaries to cache responses containing them.
+      res.setHeader("Cache-Control","no-store");
+      res.setHeader("Pragma","no-cache");
       res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),share_reason:share_reason || "",document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
     }catch(error){ next(error); }
   });
@@ -952,6 +955,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       logEvent(req.user.id,"IDENTITY_SHARED",req);
       if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"SHARE_CREATED","Identity share created","A new secure identity share was created. Check its purpose and expiry in Share management.");
 
+      // Share tokens are bearer credentials; keep the creation response out of browser and proxy caches.
+      res.setHeader("Cache-Control","no-store");
+      res.setHeader("Pragma","no-cache");
       res.json({
         success:true,
         shareToken:token,
