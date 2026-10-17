@@ -53,7 +53,7 @@ export function runEncryptedBackup(){
     const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
     const tag=cipher.getAuthTag();
     const payload={version:2,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
-    writeFileSync(out,JSON.stringify(payload),"utf8");
+    writeFileSync(out,JSON.stringify(payload),{encoding:"utf8",mode:0o600,flag:"wx"});
     rmSync(tmp,{force:true});
     const retention=Math.max(1,Number(process.env.BACKUP_RETENTION_COUNT||7));
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
