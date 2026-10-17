@@ -23,12 +23,14 @@ test("PAN/Aadhaar upload guidance does not falsely claim government verification
   assert.match(ui, /masked Aadhaar recommended/);
 });
 
-test("official verification panel distinguishes local storage from government verification", () => {
+test("government verification stays inside SecureID and does not redirect to external portals", () => {
   assert.match(ui, /OFFICIAL GOVERNMENT VERIFICATION/);
   assert.match(ui, /Government verification is not connected yet/);
-  assert.match(ui, /has not yet been approved or connected to either service/);
-  assert.match(ui, /incometax\.gov\.in\/iec\/foportal\/help\/all-topics\/e-filing-services\/verify-your-pan/);
-  assert.match(ui, /uidai\.gov\.in\/hi\/authentication-requesting-agency/);
+  assert.match(ui, /Verify PAN inside SecureID/);
+  assert.match(ui, /Verify Aadhaar inside SecureID/);
+  assert.match(ui, /These controls stay inside SecureID and will not redirect you to government websites/);
+  assert.doesNotMatch(ui, /href="https:\/\/www\.incometax\.gov\.in/);
+  assert.doesNotMatch(ui, /href="https:\/\/uidai\.gov\.in/);
   assert.match(ui, /This is a submission status only, not an independent college or government verification/);
   assert.match(styles, /\.officialVerificationPanel/);
 });
