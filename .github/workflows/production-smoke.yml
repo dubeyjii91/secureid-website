@@ -1,7 +1,9 @@
 name: SecureID production smoke test
 
 on:
-  push:
+  workflow_run:
+    workflows: ["SecureID CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
   schedule:
@@ -16,8 +18,9 @@ concurrency:
 
 jobs:
   smoke-test:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check public routes, security headers, and unauthenticated access
         env:
@@ -42,7 +45,8 @@ jobs:
           let failed = false;
           for (const route of routes) {
             let lastError;
-            for (let attempt = 1; attempt <= 3; attempt += 1) {
+            const maxAttempts = route.path === "/api/health" ? 16 : 3;
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
               try {
                 const response = await fetch(new URL(route.path, base), {
                   redirect: "follow",
@@ -94,6 +98,12 @@ jobs:
                     if (payload.success !== true || payload.status !== "ready" || payload.database !== "ok") {
                       throw new Error("Health endpoint did not confirm a ready API and healthy database");
                     }
+                    if (payload.backup?.enabled !== true || !Number.isFinite(Number(payload.backup?.lastSuccessAt)) || Number(payload.backup.lastSuccessAt) <= 0) {
+                      throw new Error("Encrypted backup has not yet completed successfully in this server process");
+                    }
+                    if (payload.backup?.alertingConfigured !== true) {
+                      throw new Error("Backup failure alerting is not fully configured");
+                    }
                   }
                   if (route.path === "/api/health/ready") {
                     if (payload.success !== true || payload.status !== "ready" || payload.database !== true || payload.storage !== true) {
@@ -112,7 +122,10 @@ jobs:
                 break;
               } catch (error) {
                 lastError = error;
-                if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+                if (attempt < maxAttempts) {
+                  const delayMs = route.path === "/api/health" ? 8000 : attempt * 1500;
+                  await new Promise(resolve => setTimeout(resolve, delayMs));
+                }
               }
             }
             if (lastError) {
