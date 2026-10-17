@@ -54,7 +54,9 @@ const otpDelivery = smtpConfigured && configuredOtpDelivery === "resend" ? "smtp
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
 const smtpHost = process.env.SMTP_HOST || "";
-const smtpPort = Number(process.env.SMTP_PORT || 587);
+const configuredSmtpPort = Number(process.env.SMTP_PORT || 587);
+// Brevo SMTP on port 2525 is timing out from the current Railway runtime; prefer STARTTLS port 587.
+const smtpPort = configuredSmtpPort === 2525 ? 587 : configuredSmtpPort;
 const smtpSecure = String(process.env.SMTP_SECURE || (smtpPort === 465 ? "true" : "false")).toLowerCase() === "true";
 const smtpUser = process.env.SMTP_USER || "";
 const smtpPass = process.env.SMTP_PASS || "";
