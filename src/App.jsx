@@ -98,11 +98,18 @@ function csrfToken(){
 }
 async function api(path, options = {}) {
   const method=String(options.method || "GET").toUpperCase();
-  const csrf=csrfToken();
+  const mutating=["POST","PUT","PATCH","DELETE"].includes(method);
+  let csrf=csrfToken();
+  if(mutating && !csrf){
+    const bootstrap=await fetch("/api/auth/csrf",{credentials:"include",cache:"no-store"});
+    if(!bootstrap.ok) throw new Error("Could not initialize secure request protection. Please refresh and try again.");
+    csrf=csrfToken();
+    if(!csrf) throw new Error("Secure request token was not received. Please refresh and try again.");
+  }
   const response = await fetch(path, {
     credentials: "include",
     ...options,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(["POST","PUT","PATCH","DELETE"].includes(method)&&csrf ? {"X-CSRF-Token":csrf} : {}), ...(options.headers || {}) },
+    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(mutating&&csrf ? {"X-CSRF-Token":csrf} : {}), ...(options.headers || {}) },
   });
   const contentType = response.headers.get("content-type") || "";
   const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : null;
