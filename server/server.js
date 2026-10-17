@@ -54,6 +54,7 @@ const smtpConfigured = Boolean(
 const otpDelivery = brevoApiKey ? "brevo" : (smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery);
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const otpFromName = (process.env.OTP_FROM_NAME || "SecureID").trim() || "SecureID";
 const smtpHost = process.env.SMTP_HOST || "";
 const configuredSmtpPort = Number(process.env.SMTP_PORT || 587);
 // Brevo SMTP on port 2525 is timing out from the current Railway runtime; prefer STARTTLS port 587.
@@ -564,7 +565,7 @@ async function sendConfiguredEmail({ to, subject, text }) {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "api-key": brevoApiKey, "Content-Type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ sender: { email: otpFromEmail }, to: [{ email: to }], subject, textContent: text }),
+      body: JSON.stringify({ sender: { name: otpFromName, email: otpFromEmail }, to: [{ email: to }], subject, textContent: text }),
       signal: AbortSignal.timeout(12000),
     });
     if (!response.ok) {
@@ -577,7 +578,7 @@ async function sendConfiguredEmail({ to, subject, text }) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: otpFromEmail, to: [to], subject, text }),
+      body: JSON.stringify({ from: `${otpFromName} <${otpFromEmail}>`, to: [to], subject, text }),
     });
     if (!response.ok) throw new Error(`Email delivery failed with status ${response.status}.`);
     return;
@@ -588,7 +589,7 @@ async function sendConfiguredEmail({ to, subject, text }) {
       auth: { user: smtpUser, pass: smtpPass },
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
     });
-    try { await transporter.sendMail({ from: otpFromEmail, to, subject, text }); }
+    try { await transporter.sendMail({ from: `${otpFromName} <${otpFromEmail}>`, to, subject, text }); }
     finally { transporter.close(); }
     return;
   }
