@@ -170,6 +170,35 @@ export function registerProductionFeatures({
    * All 11 fields are stored server-side.
    * Sensitive values are encrypted before entering SQLite.
    */
+  /*
+   * Government verification integration readiness.
+   * This endpoint reports configuration only; it never claims a document was
+   * checked by a government source. Approval flags must be explicitly enabled
+   * only after the relevant provider has authorized SecureID.
+   */
+  app.get("/api/identity/government-verification/readiness",requireAuth,requireMfaProduction,(req,res)=>{
+    const panConfigured = Boolean(
+      process.env.PAN_VERIFICATION_ENDPOINT &&
+      process.env.PAN_VERIFICATION_CLIENT_ID &&
+      process.env.PAN_VERIFICATION_CLIENT_SECRET
+    );
+    const aadhaarConfigured = Boolean(
+      process.env.AADHAAR_AUTH_ENDPOINT &&
+      process.env.AADHAAR_AUTH_CLIENT_ID &&
+      process.env.AADHAAR_AUTH_CLIENT_SECRET
+    );
+    const panApproved = process.env.PAN_VERIFICATION_APPROVED === "true";
+    const aadhaarApproved = process.env.AADHAAR_AUTH_APPROVED === "true";
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({
+      success:true,
+      officialVerificationConnected:false,
+      pan:{configured:panConfigured,approved:panApproved,live:false},
+      aadhaar:{configured:aadhaarConfigured,approved:aadhaarApproved,live:false},
+      message:"Readiness only. No government verification request has been performed."
+    });
+  });
+
   app.get("/api/identity/verification-status",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
       const profileRow=database.prepare("SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id=?").get(req.user.id);
