@@ -21,6 +21,7 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
 
   mkdirSync(documentDir, { recursive: true });
   writeFileSync(path.join(documentDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"), "encrypted-vault-file-fixture", { mode: 0o600 });
+  writeFileSync(path.join(documentDir, "unexpected.json"), "not-a-vault-blob", { mode: 0o600 });
   const env = { ...process.env, DATABASE_PATH: dbPath, BACKUP_DIR: backupDir, DOCUMENT_STORAGE_PATH: documentDir, BACKUP_ENCRYPTION_KEY: key };
   try {
     const backup = spawnSync(process.execPath, ["scripts/secure-backup.mjs"], { cwd: process.cwd(), env, encoding: "utf8" });
@@ -43,6 +44,7 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     assert.deepEqual(restored.prepare("SELECT value FROM probe ORDER BY rowid").all().map((row) => row.value), ["before-backup"]);
     restored.close();
     assert.equal(readFileSync(path.join(restoredDocumentDir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.json"), "utf8"), "encrypted-vault-file-fixture", "restore must recover encrypted vault blobs alongside the database");
+    assert.equal(existsSync(path.join(restoredDocumentDir, "unexpected.json")), false, "backup must exclude files that do not match vault blob naming");
 
     const payload = JSON.parse(readFileSync(backupResult.file, "utf8"));
     payload.data = Buffer.from(payload.data, "base64").map((byte, index) => index === 0 ? byte ^ 1 : byte).toString("base64");
