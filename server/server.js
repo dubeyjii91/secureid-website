@@ -41,6 +41,7 @@ const mfaVerifiedTtlMs = 30 * 60 * 1000;
 const otpTtlMs = (isProduction ? 300 : Number(process.env.DEV_OTP_TTL_SECONDS || 300)) * 1000;
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
 const configuredOtpDelivery = process.env.OTP_DELIVERY || "console";
+const brevoApiKey = process.env.BREVO_API_KEY || "";
 const smtpConfigured = Boolean(
   process.env.SMTP_HOST &&
   Number.isInteger(Number(process.env.SMTP_PORT || 587)) &&
@@ -50,7 +51,7 @@ const smtpConfigured = Boolean(
   process.env.OTP_FROM_EMAIL
 );
 // SecureID's configured SMTP transport takes precedence over a stale Resend setting.
-const otpDelivery = smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery;
+const otpDelivery = brevoApiKey ? "brevo" : (smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery);
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
 const smtpHost = process.env.SMTP_HOST || "";
@@ -72,12 +73,13 @@ let operationalErrorAlertState = { startedAt: Date.now(), count: 0, lastAlertAt:
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535.");
 if (sessionPepper.length < 32) throw new Error("SESSION_HASH_SECRET must be at least 32 characters.");
 if (otpPepper.length < 32) throw new Error("OTP_HASH_SECRET must be at least 32 characters.");
-if (!["console", "resend", "smtp"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console, resend, or smtp.");
+if (!["console", "resend", "smtp", "brevo"].includes(otpDelivery)) throw new Error("OTP_DELIVERY must be console, resend, smtp, or brevo.");
 if (otpDelivery === "resend" && (!resendApiKey || !otpFromEmail)) throw new Error("RESEND_API_KEY and OTP_FROM_EMAIL are required for Resend delivery.");
+if (otpDelivery === "brevo" && (!brevoApiKey || !otpFromEmail)) throw new Error("BREVO_API_KEY and OTP_FROM_EMAIL are required for Brevo API delivery.");
 if (otpDelivery === "smtp" && (!smtpHost || !Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535 || !smtpUser || !smtpPass || !otpFromEmail)) {
   throw new Error("SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and OTP_FROM_EMAIL are required for SMTP delivery.");
 }
-if (isProduction && !["resend", "smtp"].includes(otpDelivery)) throw new Error("Production OTP delivery must use a configured email provider.");
+if (isProduction && !["resend", "smtp", "brevo"].includes(otpDelivery)) throw new Error("Production OTP delivery must use a configured email provider.");
 if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIGIN must use HTTPS in production.");
 
 
@@ -558,6 +560,19 @@ function logEvent(userId, eventType, req = null, metadata = null) {
 }
 
 async function sendConfiguredEmail({ to, subject, text }) {
+  if (otpDelivery === "brevo") {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": brevoApiKey, "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ sender: { email: otpFromEmail }, to: [{ email: to }], subject, textContent: text }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Brevo email delivery failed with status ${response.status}${body ? `: ${body.slice(0, 240)}` : ""}.`);
+    }
+    return;
+  }
   if (otpDelivery === "resend") {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -630,7 +645,7 @@ startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp"].includes(otpDelivery)),timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
