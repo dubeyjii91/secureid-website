@@ -1098,7 +1098,7 @@ app.post("/api/mfa/cancel", enforceSameOrigin, requireAuth, perIpWalletLimit, pe
 app.use((error, req, res, next) => {
   const statusCode = Number(error?.statusCode) || 500;
   const errorType=error?.name || "Error";
-  console.error(JSON.stringify({ level:"error", event:"request_error", requestId:res.getHeader("X-Request-Id"), method:req.method, path:req.path, statusCode, errorType, errorCode: String(error?.code || "").slice(0, 80) || undefined, errorMessage: String(error?.message || "Unknown error").replace(/(?:password|pass|authorization|token|secret)\s*[:=]\s*\S+/ig, "$1=[redacted]").slice(0, 240) }));
+  console.error(JSON.stringify({ level:"error", event:"request_error", requestId:res.getHeader("X-Request-Id"), method:req.method, path:req.path, statusCode, errorType, errorCode: String(error?.code || "").slice(0, 80) || undefined, errorMessage: String(error?.message || "Unknown error").replace(/(?:password|pass|authorization|token|secret)\s*[:=]\s*\S+/ig, "[redacted]").slice(0, 240) }));
   try{
     database.prepare("INSERT INTO application_errors (id,request_id,method,path,status_code,error_type,created_at) VALUES (?,?,?,?,?,?,?)").run(randomUUID(),String(res.getHeader("X-Request-Id")||""),req.method,req.path,statusCode,errorType,Date.now());
   }catch{}
