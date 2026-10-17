@@ -136,3 +136,50 @@ jobs:
           if (failed) process.exit(1);
           console.log("Production route, security-header, and unauthenticated-access smoke tests passed.");
           NODE
+
+      - name: Verify public login endpoint accepts the production origin and CSRF protection
+        env:
+          BASE_URL: https://secureid-production-b732.up.railway.app
+        run: |
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.BASE_URL);
+          const origin = base.origin;
+          const endpoint = new URL("/api/auth/login", base);
+          const userAgent = "SecureID-production-auth-smoke/1.0";
+          const first = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Origin": origin,
+              "Content-Type": "application/json",
+              "User-Agent": userAgent
+            },
+            body: JSON.stringify({ email: "smoke-" + crypto.randomUUID() + "@example.invalid", password: "invalid-smoke-password" }),
+            signal: AbortSignal.timeout(15000)
+          });
+          const firstBody = await first.json().catch(() => ({}));
+          if (first.status !== 403 || firstBody.message !== "CSRF validation failed.") {
+            throw new Error("Login endpoint rejected the production origin or did not enforce CSRF correctly (HTTP " + first.status + ", " + String(firstBody.message || "no message") + ").");
+          }
+          const setCookies = first.headers.getSetCookie();
+          const csrfCookie = setCookies.find(value => value.startsWith("__Host-secureid.csrf="));
+          if (!csrfCookie) throw new Error("Login endpoint did not issue its secure CSRF cookie.");
+          const cookiePair = csrfCookie.split(";", 1)[0];
+          const csrfToken = decodeURIComponent(cookiePair.slice(cookiePair.indexOf("=") + 1));
+          const second = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Origin": origin,
+              "Content-Type": "application/json",
+              "Cookie": cookiePair,
+              "X-CSRF-Token": csrfToken,
+              "User-Agent": userAgent
+            },
+            body: JSON.stringify({ email: "smoke-" + crypto.randomUUID() + "@example.invalid", password: "invalid-smoke-password" }),
+            signal: AbortSignal.timeout(15000)
+          });
+          const secondBody = await second.json().catch(() => ({}));
+          if (second.status !== 401 || secondBody.message !== "Email or password is incorrect.") {
+            throw new Error("Login POST did not reach credential validation after valid origin/CSRF checks (HTTP " + second.status + ", " + String(secondBody.message || "no message") + ").");
+          }
+          console.log("PASS login endpoint: production origin accepted, CSRF enforced, invalid credentials rejected safely.");
+          NODE
