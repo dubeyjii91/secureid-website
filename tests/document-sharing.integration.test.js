@@ -174,6 +174,16 @@ test("document ownership isolation, share access, revocation, and expiry", async
     Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
   );
 
+  // MFA-pending sessions must not revoke a document share.
+  const mfaPendingDocumentRevoke = await fetch(base + "/api/document-share/revoke", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "x-test-mfa": "false", "content-type": "application/json" },
+    body: JSON.stringify({ shareToken: share.shareToken })
+  });
+  assert.equal(mfaPendingDocumentRevoke.status, 403);
+  assert.equal((await fetch(base + `/api/document-share/${share.shareToken}`)).status, 200,
+    "MFA-pending revoke attempt must not change share access");
+
   // A different account cannot revoke a document share owned by user-a.
   const documentShareRow = database.prepare("SELECT id FROM secure_document_shares WHERE token_hash=?").get(
     (await import("node:crypto")).createHash("sha256").update(share.shareToken).digest("hex")
@@ -297,6 +307,14 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.equal(sharedIdentity.claims.age, "20");
   assert.equal(sharedIdentity.claims.email, undefined);
   assert.equal(sharedIdentity.claims.college, undefined);
+
+  const mfaPendingIdentityRevoke = await fetch(base + "/api/wallet/share/revoke", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "x-test-mfa": "false" }
+  });
+  assert.equal(mfaPendingIdentityRevoke.status, 403);
+  assert.equal((await fetch(base + `/api/share/${identityShare.shareToken}`)).status, 200,
+    "MFA-pending revoke attempt must not change identity share access");
 
   const revokeIdentity = await fetch(base + "/api/wallet/share/revoke", {
     method: "POST",
