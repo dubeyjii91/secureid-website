@@ -13,7 +13,7 @@ permissions:
 # Passive, non-destructive scan is intended to check the currently live production release.
 jobs:
   zap-baseline:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
     name: OWASP ZAP passive production scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
