@@ -108,6 +108,36 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.equal(readdirSync(process.env.DOCUMENT_STORAGE_PATH).filter((name) => name.endsWith(".json")).length, 2);
   database.exec("DROP TRIGGER fail_student_proof_insert");
 
+  // Vault listing and upload must require both an authenticated session and MFA.
+  const unauthenticatedVaultList = await fetch(base + "/api/documents");
+  assert.equal(unauthenticatedVaultList.status, 401);
+
+  const mfaPendingVaultList = await fetch(base + "/api/documents", {
+    headers: { ...asUser("user-a"), "x-test-mfa": "false" }
+  });
+  assert.equal(mfaPendingVaultList.status, 403);
+
+  const mfaPendingUploadForm = new FormData();
+  mfaPendingUploadForm.append("documents", new Blob([Buffer.from("%PDF-1.7\\nMFA test\\n%%EOF")], { type: "application/pdf" }), "mfa-test.pdf");
+  const mfaPendingUpload = await fetch(base + "/api/documents", {
+    method: "POST",
+    headers: { ...asUser("user-a"), "x-test-mfa": "false" },
+    body: mfaPendingUploadForm
+  });
+  assert.equal(mfaPendingUpload.status, 403);
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM secure_documents WHERE user_id='user-a' AND original_name='mfa-test.pdf'").get().count, 0);
+
+  // A file whose bytes do not match its declared PDF MIME type must be rejected.
+  const spoofedForm = new FormData();
+  spoofedForm.append("documents", new Blob([Buffer.from("this is not a PDF")], { type: "application/pdf" }), "spoofed.pdf");
+  const spoofedUpload = await fetch(base + "/api/documents", {
+    method: "POST",
+    headers: asUser("user-a"),
+    body: spoofedForm
+  });
+  assert.equal(spoofedUpload.status, 400, await spoofedUpload.clone().text());
+  assert.equal(database.prepare("SELECT COUNT(*) AS count FROM secure_documents WHERE user_id='user-a' AND original_name='spoofed.pdf'").get().count, 0);
+
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
   assert.equal(ownerList.status, 200);
   assert.equal((await ownerList.json()).documents.length, 2);
