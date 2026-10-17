@@ -26,6 +26,7 @@ function backupKey(){
 export function runEncryptedBackup(){
   const dbPath=process.env.DATABASE_PATH || "./data/secureid.sqlite";
   const backupDir=process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups");
+  const documentDir=process.env.DOCUMENT_STORAGE_PATH || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-documents") : "./data/secureid-documents");
   const key=backupKey();
   if(!existsSync(dbPath)) throw new Error("DATABASE_PATH does not exist.");
   mkdirSync(backupDir,{recursive:true});
@@ -36,12 +37,22 @@ export function runEncryptedBackup(){
   try{ db.exec("PRAGMA wal_checkpoint(PASSIVE); VACUUM INTO '"+tmp.replaceAll("'","''")+"'"); }
   finally{ db.close(); }
   try{
-    const plaintext=readFileSync(tmp);
+    const databaseBytes=readFileSync(tmp);
+    const documents=existsSync(documentDir)
+      ? readdirSync(documentDir,{withFileTypes:true})
+          .filter(entry=>entry.isFile() && entry.name.endsWith(".json"))
+          .map(entry=>({name:entry.name,data:readFileSync(path.join(documentDir,entry.name)).toString("base64")}))
+      : [];
+    const plaintext=Buffer.from(JSON.stringify({
+      version:2,
+      database:databaseBytes.toString("base64"),
+      documents
+    }),"utf8");
     const iv=randomBytes(12);
     const cipher=createCipheriv("aes-256-gcm",key,iv);
     const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
     const tag=cipher.getAuthTag();
-    const payload={version:1,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
+    const payload={version:2,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
     writeFileSync(out,JSON.stringify(payload),"utf8");
     rmSync(tmp,{force:true});
     const retention=Math.max(1,Number(process.env.BACKUP_RETENTION_COUNT||7));
