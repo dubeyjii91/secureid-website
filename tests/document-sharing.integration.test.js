@@ -83,9 +83,9 @@ test("document ownership isolation, share access, revocation, and expiry", async
     Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
   );
 
-  const proofUpload = async (label) => {
+  const proofUpload = async (label, category = "student_id") => {
     const proofForm = new FormData();
-    proofForm.append("category", "student_id");
+    proofForm.append("category", category);
     proofForm.append("document", new Blob([Buffer.from(`%PDF-1.7\nSecureID proof ${label}\n%%EOF`)], { type: "application/pdf" }), `${label}.pdf`);
     return fetch(base + "/api/identity/proof", { method: "POST", headers: asUser("user-a"), body: proofForm });
   };
@@ -138,9 +138,18 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.equal(spoofedUpload.status, 400, await spoofedUpload.clone().text());
   assert.equal(database.prepare("SELECT COUNT(*) AS count FROM secure_documents WHERE user_id='user-a' AND original_name='spoofed.pdf'").get().count, 0);
 
+  const institutionProofResponse = await proofUpload("institution", "institution_proof");
+  assert.equal(institutionProofResponse.status, 201, await institutionProofResponse.clone().text());
+  const verificationStatusResponse = await fetch(base + "/api/identity/verification-status", { headers: asUser("user-a") });
+  assert.equal(verificationStatusResponse.status, 200, await verificationStatusResponse.clone().text());
+  const verificationStatus = await verificationStatusResponse.json();
+  assert.equal(verificationStatus.status, "Pending review");
+  assert.deepEqual(verificationStatus.proofs, { studentId: true, institution: true });
+  assert.notEqual(verificationStatus.status, "Verified", "proof upload alone must never imply official verification");
+
   const ownerList = await fetch(base + "/api/documents", { headers: asUser("user-a") });
   assert.equal(ownerList.status, 200);
-  assert.equal((await ownerList.json()).documents.length, 2);
+  assert.equal((await ownerList.json()).documents.length, 3);
   const otherList = await fetch(base + "/api/documents", { headers: asUser("user-b") });
   assert.equal(otherList.status, 200);
   assert.equal((await otherList.json()).documents.length, 0);
