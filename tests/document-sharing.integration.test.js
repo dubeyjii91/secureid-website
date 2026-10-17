@@ -210,14 +210,33 @@ test("document ownership isolation, share access, revocation, and expiry", async
   });
   assert.equal(profileUpdate.status, 200, await profileUpdate.clone().text());
 
-  const createIdentityShare = async () => fetch(base + "/api/wallet/share", {
+  const createIdentityShare = async (payload = { name: true, age: true, email: true }, headers = asUser("user-a")) => fetch(base + "/api/wallet/share", {
     method: "POST",
-    headers: { ...asUser("user-a"), "content-type": "application/json" },
-    body: JSON.stringify({ name: true, age: true, email: true })
+    headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify(payload)
   });
+
+  // Fail closed: identity sharing must reject MFA-pending sessions and empty selections.
+  const mfaPendingIdentityShare = await createIdentityShare(
+    { name: true },
+    { ...asUser("user-a"), "x-test-mfa": "false" }
+  );
+  assert.equal(mfaPendingIdentityShare.status, 403, await mfaPendingIdentityShare.clone().text());
+
+  const emptyIdentityShare = await createIdentityShare({ name: false, age: false, email: false });
+  assert.equal(emptyIdentityShare.status, 400, await emptyIdentityShare.clone().text());
+
+  const excessivePurposeShare = await createIdentityShare({
+    name: true,
+    share_reason: "x".repeat(161)
+  });
+  assert.equal(excessivePurposeShare.status, 400, await excessivePurposeShare.clone().text());
+
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
+  assert.match(identityShareResponse.headers.get("cache-control") || "", /no-store/i);
   const identityShare = await identityShareResponse.json();
+  assert.match(identityShare.shareToken, /^[A-Za-z0-9_-]{40,50}$/);
 
   // Share Management must enforce login + MFA and return only the current account's shares.
   const unauthenticatedShareList = await fetch(base + "/api/security/shares");
@@ -265,6 +284,8 @@ test("document ownership isolation, share access, revocation, and expiry", async
 
   const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
   assert.equal(sharedIdentityResponse.status, 200, "failed cross-account revoke must leave owner's share valid");
+  assert.match(sharedIdentityResponse.headers.get("cache-control") || "", /no-store/i);
+  assert.equal(sharedIdentityResponse.headers.get("x-content-type-options"), "nosniff");
   const sharedIdentity = await sharedIdentityResponse.json();
   assert.deepEqual(Object.keys(sharedIdentity.claims).sort(), ["age", "name"]);
   assert.equal(sharedIdentity.claims.name, "Test User");
