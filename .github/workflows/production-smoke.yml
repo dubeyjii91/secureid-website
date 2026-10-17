@@ -39,6 +39,7 @@ jobs:
             { path: "/api/health/ready", type: "json" },
             { path: "/api/auth/session", type: "json", expectedStatus: 401 },
             { path: "/api/privacy", type: "json", expectedStatus: 401 },
+            { path: "/api/identity/government-verification/readiness", type: "json", expectedStatus: 401 },
             { path: "/api/share/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", type: "json", expectedStatus: 404 },
           ];
 
