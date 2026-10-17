@@ -244,6 +244,9 @@ export default function DocumentVault(){
     }
   }
 
+  const aadhaarCount = documents.filter(doc => doc.category === "aadhaar").length;
+  const panCount = documents.filter(doc => doc.category === "pan").length;
+
   if(loading){
     return <section className="documentVault panel">
       <div className="eyebrow dark">SECURE DOCUMENT VAULT</div>
@@ -317,16 +320,16 @@ export default function DocumentVault(){
       <div className="identityDocumentChoices" role="group" aria-label="Choose identity document type">
         <button type="button" className={uploadCategory === "aadhaar" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "aadhaar"} onClick={() => setUploadCategory("aadhaar")}>
           <span className="identityDocumentIcon" aria-hidden="true">🪪</span>
-          <span><strong>AADHAAR CARD</strong><small>Identity and address document · masked Aadhaar recommended</small></span>
+          <span className="identityDocumentCopy"><strong>AADHAAR CARD</strong><small>Identity and address document · masked Aadhaar recommended</small><small className={aadhaarCount ? "identityDocumentStatus stored" : "identityDocumentStatus"}>{aadhaarCount ? `Saved in vault · ${aadhaarCount} file${aadhaarCount === 1 ? "" : "s"}` : "No Aadhaar file saved yet"}</small></span>
           <span className="identityDocumentAction">{uploadCategory === "aadhaar" ? "Selected ✓" : "Choose"}</span>
         </button>
         <button type="button" className={uploadCategory === "pan" ? "identityDocumentChoice selected" : "identityDocumentChoice"} aria-pressed={uploadCategory === "pan"} onClick={() => setUploadCategory("pan")}>
           <span className="identityDocumentIcon" aria-hidden="true">📄</span>
-          <span><strong>PAN CARD</strong><small>Tax identity document · keep your PAN details private</small></span>
+          <span className="identityDocumentCopy"><strong>PAN CARD</strong><small>Tax identity document · keep your PAN details private</small><small className={panCount ? "identityDocumentStatus stored" : "identityDocumentStatus"}>{panCount ? `Saved in vault · ${panCount} file${panCount === 1 ? "" : "s"}` : "No PAN file saved yet"}</small></span>
           <span className="identityDocumentAction">{uploadCategory === "pan" ? "Selected ✓" : "Choose"}</span>
         </button>
       </div>
-      <h3>Add other identity documents</h3>
+      <h3>{uploadCategory === "aadhaar" ? "Upload Aadhaar document" : uploadCategory === "pan" ? "Upload PAN document" : "Add other identity documents"}</h3>
       <label className="documentCategoryField">Document category
         <select value={uploadCategory} onChange={event=>setUploadCategory(event.target.value)}>
           <option value="general">Other document</option>
@@ -339,7 +342,7 @@ export default function DocumentVault(){
       </label>
       <input id="secureid-document-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={event=>setSelected(Array.from(event.target.files || []))}/>
       <small>PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once</small>
-      <button className="primary" onClick={upload} disabled={uploading || selected.length===0}>{uploading ? "Encrypting & uploading…" : "Secure upload"}</button>
+      <button className="primary" onClick={upload} disabled={uploading || selected.length===0}>{uploading ? "Encrypting & uploading…" : uploadCategory === "aadhaar" ? "Securely save Aadhaar" : uploadCategory === "pan" ? "Securely save PAN" : "Secure upload"}</button>
     </section>
 
     <section className="vaultBlock">
