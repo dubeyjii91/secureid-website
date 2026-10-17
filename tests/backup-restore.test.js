@@ -83,6 +83,42 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     assert.equal(readFileSync(protectedDbPath, "utf8"), "destination-sentinel",
       "invalid snapshot must be rejected before replacing the destination database");
     assert.equal(existsSync(path.join(root, "escape.json")), false, "restore must not write outside the vault directory");
+
+    const wrongKeyRestore = spawnSync(process.execPath, ["scripts/secure-restore.mjs", backupResult.file], {
+      cwd: process.cwd(),
+      env: { ...restoreEnv, DATABASE_PATH: protectedDbPath, BACKUP_ENCRYPTION_KEY: randomBytes(32).toString("base64") },
+      encoding: "utf8"
+    });
+    assert.notEqual(wrongKeyRestore.status, 0, "a backup encrypted with a different key must be rejected");
+    assert.equal(readFileSync(protectedDbPath, "utf8"), "destination-sentinel",
+      "wrong-key restore must not modify the destination");
+
+    // A correctly authenticated envelope containing invalid SQLite bytes must also fail safely.
+    const malformedSnapshot = Buffer.from(JSON.stringify({
+      version: 2,
+      database: Buffer.from("not a SQLite database").toString("base64"),
+      documents: []
+    }), "utf8");
+    const malformedIv = randomBytes(12);
+    const malformedCipher = createCipheriv("aes-256-gcm", Buffer.from(key, "base64"), malformedIv);
+    const malformedCiphertext = Buffer.concat([malformedCipher.update(malformedSnapshot), malformedCipher.final()]);
+    const malformedBackup = path.join(backupDir, "malformed-database.backup.json");
+    writeFileSync(malformedBackup, JSON.stringify({
+      version: 2,
+      iv: malformedIv.toString("base64"),
+      tag: malformedCipher.getAuthTag().toString("base64"),
+      data: malformedCiphertext.toString("base64"),
+      sha256: createHash("sha256").update(malformedSnapshot).digest("hex")
+    }));
+    const malformedRestore = spawnSync(process.execPath, ["scripts/secure-restore.mjs", malformedBackup], {
+      cwd: process.cwd(),
+      env: { ...restoreEnv, DATABASE_PATH: protectedDbPath },
+      encoding: "utf8"
+    });
+    assert.notEqual(malformedRestore.status, 0, "invalid SQLite bytes must be rejected");
+    assert.equal(readFileSync(protectedDbPath, "utf8"), "destination-sentinel",
+      "malformed database restore must not replace the destination");
+    assert.equal(existsSync(path.join(root, "must-remain-unchanged.sqlite.pre-restore-" + "never")), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
