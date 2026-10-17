@@ -196,9 +196,26 @@ export default function DocumentVault(){
       const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id,share_reason:docContext})});
       const link=new URL("/document-share/"+result.shareToken,window.location.origin).toString();
       setDocumentShares(current=>({...current,[doc.id]:{token:result.shareToken,link,expiresAt:result.shareExpiresAt}}));
-      await navigator.clipboard?.writeText(link);
-      setMessage("Secure document link created and copied. It expires in 15 minutes.");
+      try{
+        if(!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+        await navigator.clipboard.writeText(link);
+        setMessage("Secure document link created and copied. It expires in 15 minutes.");
+      }catch{
+        setMessage("Secure document link created. Copy it from the document card below; it expires in 15 minutes.");
+      }
     }catch(error){setMessage(error.message);}
+  }
+
+  async function copyDocumentShare(docId){
+    const share=documentShares[docId];
+    if(!share?.link) return;
+    try{
+      if(!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(share.link);
+      setMessage("Secure document link copied.");
+    }catch{
+      setMessage("Clipboard access is unavailable. Select and copy the link shown on the document card.");
+    }
   }
 
   async function revokeDocumentShare(docId){
@@ -347,6 +364,14 @@ export default function DocumentVault(){
                   Delete
                 </button>
               </div>
+              {documentShares[doc.id] && <div className="documentShareLink">
+                <label>
+                  <span>Active share link</span>
+                  <input aria-label={`Share link for ${doc.name}`} readOnly value={documentShares[doc.id].link} onFocus={event=>event.currentTarget.select()} />
+                </label>
+                <small>Expires {documentShares[doc.id].expiresAt ? new Date(documentShares[doc.id].expiresAt).toLocaleString() : "soon"}.</small>
+                <button type="button" onClick={()=>copyDocumentShare(doc.id)}>Copy link</button>
+              </div>}
             </article>
           )}
         </div>
