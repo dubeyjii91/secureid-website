@@ -40,6 +40,8 @@ test("government integration readiness endpoint is authenticated and never repor
   assert.match(backend, /requireAuth,requireMfaProduction/);
   assert.match(backend, /PAN_VERIFICATION_APPROVED === "true"/);
   assert.match(backend, /AADHAAR_AUTH_APPROVED === "true"/);
+  assert.match(backend, /panConfigured && process\.env\.PAN_VERIFICATION_APPROVED === "true"/);
+  assert.match(backend, /aadhaarConfigured && process\.env\.AADHAAR_AUTH_APPROVED === "true"/);
   assert.match(backend, /officialVerificationConnected:false/);
   assert.match(backend, /live:false/);
   assert.match(backend, /No government verification request has been performed/);
