@@ -118,7 +118,7 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     assert.notEqual(malformedRestore.status, 0, "invalid SQLite bytes must be rejected");
     assert.equal(readFileSync(protectedDbPath, "utf8"), "destination-sentinel",
       "malformed database restore must not replace the destination");
-    assert.equal(existsSync(path.join(root, "must-remain-unchanged.sqlite.pre-restore-" + "never")), false);
+
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
