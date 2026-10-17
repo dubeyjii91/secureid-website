@@ -32,7 +32,7 @@ const iv=randomBytes(12);
 const cipher=createCipheriv("aes-256-gcm",key,iv);
 const ciphertext=Buffer.concat([cipher.update(plaintext),cipher.final()]);
 const tag=cipher.getAuthTag();
-const payload={version:1,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
+const payload={version:2,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
 writeFileSync(out,JSON.stringify(payload),"utf8");
 rmSync(tmp,{force:true});
 console.log(JSON.stringify({success:true,file:out,bytes:plaintext.length,sha256:payload.sha256}));
