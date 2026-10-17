@@ -22,3 +22,13 @@ test("PAN/Aadhaar upload guidance does not falsely claim government verification
   assert.match(ui, /This does not verify the document with UIDAI or the Income Tax Department/);
   assert.match(ui, /masked Aadhaar recommended/);
 });
+
+test("official verification panel distinguishes local storage from government verification", () => {
+  assert.match(ui, /OFFICIAL GOVERNMENT VERIFICATION/);
+  assert.match(ui, /Government verification is not connected yet/);
+  assert.match(ui, /has not yet been approved or connected to either service/);
+  assert.match(ui, /incometax\.gov\.in\/iec\/foportal\/help\/all-topics\/e-filing-services\/verify-your-pan/);
+  assert.match(ui, /uidai\.gov\.in\/hi\/authentication-requesting-agency/);
+  assert.match(ui, /This is a submission status only, not an independent college or government verification/);
+  assert.match(styles, /\.officialVerificationPanel/);
+});
