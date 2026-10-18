@@ -3,6 +3,7 @@ import DocumentVault from "./DocumentVault.jsx";
 import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
 import ShareManagement, { IdentityProfileEditor } from "./ShareManagement.jsx";
+import CollegeWorkspace from "./CollegeWorkspace.jsx";
 import AccountSecurity from "./AccountSecurity.jsx";
 import SecurityDashboard from "./SecurityDashboard.jsx";
 import SecureShareQR from "./SecureShareQR.jsx";
@@ -134,6 +135,7 @@ const navItems = [
   ["activity", "Security activity", "📊"],
   ["sessions", "Active sessions", "💻"],
   ["shares", "Share management", "🔐"],
+  ["college", "College pilot", "🏫"],
   ["account", "Account security", "⚙️"],
   ["privacy", "Privacy center", "🕵️"],
   ["terms", "Terms & use", "📜"],
@@ -866,6 +868,8 @@ function App() {
       {page === "sessions" && <SecuritySessions />}
 
       {page === "shares" && <ShareManagement />}
+
+      {page === "college" && <CollegeWorkspace />}
 
       {page === "account" && <AccountSecurity />}
 
