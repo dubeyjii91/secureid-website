@@ -47,6 +47,14 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     logEvent: () => {},
     ensureSecurityNotification: () => {}
   });
+
+  // Provision a test institution membership as a trusted operator would.
+  // There is deliberately no public API for users to grant themselves roles.
+  database.prepare("INSERT INTO institutions (id, name, created_at) VALUES (?, ?, ?)").run("college-a", "Example College", new Date().toISOString());
+  database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    "membership-a", "college-a", "user-a", "reviewer", "active", new Date().toISOString(), new Date().toISOString()
+  );
+
   app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ success: false, message: "Request failed." }));
 
   const server = app.listen(0, "127.0.0.1");
@@ -108,6 +116,25 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const otherList = await fetch(base + "/api/college-pilot/requests", { headers: headers("user-b") });
   assert.equal(otherList.status, 200);
   assert.deepEqual((await otherList.json()).requests, []);
+
+  const membershipResponse = await fetch(base + "/api/institutions/memberships", { headers: headers("user-a") });
+  assert.equal(membershipResponse.status, 200);
+  const memberships = await membershipResponse.json();
+  assert.equal(memberships.memberships.length, 1);
+  assert.equal(memberships.memberships[0].institutionId, "college-a");
+  assert.equal(memberships.memberships[0].role, "reviewer");
+
+  const otherMembershipResponse = await fetch(base + "/api/institutions/memberships", { headers: headers("user-b") });
+  assert.equal(otherMembershipResponse.status, 200);
+  assert.deepEqual((await otherMembershipResponse.json()).memberships, []);
+
+  const noMfaMembershipResponse = await fetch(base + "/api/institutions/memberships", { headers: headers("user-a", false) });
+  assert.equal(noMfaMembershipResponse.status, 403);
+
+  const noSelfGrantRoute = await fetch(base + "/api/institutions/memberships", {
+    method: "POST", headers: headers("user-b"), body: JSON.stringify({ institutionId: "college-a", role: "institution_admin" })
+  });
+  assert.equal(noSelfGrantRoute.status, 404);
 
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
