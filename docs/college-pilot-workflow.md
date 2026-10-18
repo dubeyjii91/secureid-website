@@ -24,3 +24,12 @@ The current pilot request is not a paid subscription and does not automatically 
 5. Keep student access free initially; charge institutions only for validated administrative workflow and support value.
 
 Never sell student identity data or describe saved documents as government-verified. Government verification requires a separate authorized provider integration and explicit, appropriate consent.
+
+
+## Institution membership foundation
+
+The backend now has an institution table and a separate membership table with constrained roles: `student`, `reviewer`, `institution_admin`, and `read_only`. The authenticated `GET /api/institutions/memberships` endpoint returns only the current user's memberships and requires MFA. Responses use private, no-store caching.
+
+Memberships must be provisioned by a trusted operator. No public endpoint allows users to create institutions, enroll themselves, invite staff, or change roles. This is only a tenant-membership foundation: it does not yet grant staff access to student records, documents, or pilot requests, and it is not a completed college review portal.
+
+Before real student data is introduced, the project still needs trusted membership provisioning, institution-scoped review records and actions, audit history, consent/retention and deletion controls, operational support, and a reviewed data-processing agreement. Do not describe documents as government-verified unless an authorized provider integration actually performs that verification.
