@@ -49,3 +49,15 @@ test("government integration readiness endpoint is authenticated and never repor
   assert.match(ui, /governmentReadiness\?\.aadhaar\?\.configured/);
   assert.match(styles, /\.governmentReadinessList/);
 });
+
+
+test("PAN/Aadhaar file-check action is transparent and its results are persisted", () => {
+  assert.match(ui, /Run file checks/);
+  assert.match(ui, /Authenticity: NOT VERIFIED/);
+  assert.match(backend, /Document authenticity is NOT verified/);
+  assert.ok(backend.includes('app.post("/api/documents/:id/verify",enforceSameOrigin,requireAuth,requireMfaProduction'));
+  assert.match(backend, /WHERE id=\? AND user_id=\? AND deleted_at IS NULL/);
+  assert.match(backend, /authenticityStatus:"not_verified"/);
+  assert.match(backend, /CREATE TABLE IF NOT EXISTS identity_document_checks/);
+  assert.match(backend, /verificationCheck: document\.verificationCheck \? JSON\.parse/);
+});
