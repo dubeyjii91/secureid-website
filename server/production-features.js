@@ -395,7 +395,10 @@ export function registerProductionFeatures({
         WHERE user_id = ?
           AND deleted_at IS NULL
         ORDER BY created_at DESC
-      `).all(req.user.id);
+      `).all(req.user.id).map(document=>({
+        ...document,
+        verificationCheck: document.verificationCheck ? JSON.parse(document.verificationCheck) : null
+      }));
 
       res.json({
         success:true,
