@@ -392,10 +392,10 @@ export default function DocumentVault(){
                 <strong>{doc.name}</strong>
                 <small>{({"aadhaar":"Aadhaar Card","pan":"PAN Card","passport":"Passport","voter_id":"Voter ID","driving_licence":"Driving Licence","student_id":"Student ID","institution_proof":"Institution Proof","general":"Other Document"}[doc.category] || "Other Document")}</small>
                 <small>{doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</small>
-                {verificationResults[doc.id] && <div className="documentVerificationResult" role="status">
-                  <strong>{verificationResults[doc.id].fileIntegrityStatus === "passed" ? "File checks passed" : "File checks failed"}</strong>
+                {(verificationResults[doc.id] || doc.verificationCheck) && <div className="documentVerificationResult" role="status">
+                  <strong>{(verificationResults[doc.id] || doc.verificationCheck).fileIntegrityStatus === "passed" ? "File checks passed" : "File checks failed"}</strong>
                   <small>Authenticity: NOT VERIFIED</small>
-                  <small>{verificationResults[doc.id].message}</small>
+                  <small>{(verificationResults[doc.id] || doc.verificationCheck).message}</small>
                 </div>}
               </div>
 
