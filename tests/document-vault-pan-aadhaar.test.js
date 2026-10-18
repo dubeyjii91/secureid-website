@@ -55,7 +55,7 @@ test("PAN/Aadhaar file-check action is transparent and its results are persisted
   assert.match(ui, /Run file checks/);
   assert.match(ui, /Authenticity: NOT VERIFIED/);
   assert.match(ui, /Document authenticity is NOT verified/);
-  assert.match(backend, /app\.post\("\\/api\\/documents\\/:id\\/verify",enforceSameOrigin,requireAuth,requireMfaProduction/);
+  assert.ok(backend.includes('app.post("/api/documents/:id/verify",enforceSameOrigin,requireAuth,requireMfaProduction'));
   assert.match(backend, /WHERE id=\? AND user_id=\? AND deleted_at IS NULL/);
   assert.match(backend, /authenticityStatus:"not_verified"/);
   assert.match(backend, /CREATE TABLE IF NOT EXISTS identity_document_checks/);
