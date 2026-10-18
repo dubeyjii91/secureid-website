@@ -111,6 +111,19 @@ export function registerProductionFeatures({
     CREATE INDEX IF NOT EXISTS idx_secure_documents_user
       ON secure_documents(user_id, deleted_at);
 
+    CREATE TABLE IF NOT EXISTS identity_document_checks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      document_id TEXT NOT NULL,
+      document_category TEXT NOT NULL CHECK (document_category IN ('pan','aadhaar')),
+      file_integrity_status TEXT NOT NULL CHECK (file_integrity_status IN ('passed','failed')),
+      authenticity_status TEXT NOT NULL DEFAULT 'not_verified' CHECK (authenticity_status IN ('not_verified','verified','rejected')),
+      checked_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_identity_document_checks_user
+      ON identity_document_checks(user_id, document_id, checked_at);
+
     CREATE TABLE IF NOT EXISTS college_pilot_requests (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -375,6 +388,58 @@ export function registerProductionFeatures({
     }catch(error){
       next(error);
     }
+  });
+
+  /*
+   * PAN / AADHAAR DOCUMENT CHECK
+   * This re-checks encrypted-file integrity only. It deliberately cannot
+   * determine whether a PAN/Aadhaar was issued by a government authority.
+   */
+  app.post("/api/documents/:id/verify",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    try{
+      assertWalletUnlocked(req.user.id);
+      const id=String(req.params.id || "");
+      const row=database.prepare(`
+        SELECT id, original_name, mime_type, size_bytes, encrypted_path, document_category
+        FROM secure_documents
+        WHERE id=? AND user_id=? AND deleted_at IS NULL
+      `).get(id,req.user.id);
+      if(!row) return res.status(404).json({success:false,message:"Document not found."});
+      if(!["pan","aadhaar"].includes(row.document_category)){
+        return res.status(400).json({success:false,message:"Only PAN and Aadhaar documents can use this check."});
+      }
+
+      let fileIntegrityStatus="failed";
+      let checkMessage="The stored file could not pass integrity checks. Upload a clear, supported PDF or image again.";
+      try{
+        const payload=JSON.parse(fs.readFileSync(row.encrypted_path,"utf8"));
+        const buffer=decryptBuffer(payload,key);
+        if(buffer.length===Number(row.size_bytes) && ALLOWED_MIME.has(row.mime_type)){
+          // Verify the file signature against the stored MIME, not the filename.
+          fileTypeFromBuffer(buffer).then((actual)=>{
+            const passed=Boolean(actual && actual.mime===row.mime_type && ALLOWED_MIME.has(actual.mime));
+            const status=passed?"passed":"failed";
+            const message=passed
+              ?"File integrity and file-type checks passed. Document authenticity is NOT verified."
+              :"The file content does not match its stored file type. Document authenticity is NOT verified.";
+            const checkId=crypto.randomUUID();
+            const now=Date.now();
+            database.prepare("INSERT INTO identity_document_checks (id,user_id,document_id,document_category,file_integrity_status,authenticity_status,checked_at) VALUES (?,?,?,?,?,'not_verified',?)")
+              .run(checkId,req.user.id,row.id,row.document_category,status,now);
+            logEvent(req.user.id,"IDENTITY_DOCUMENT_CHECKED",req,{documentCategory:row.document_category,fileIntegrityStatus:status,authenticityVerified:false});
+            res.json({success:true,check:{id:checkId,documentId:row.id,category:row.document_category,fileIntegrityStatus:status,authenticityStatus:"not_verified",checkedAt:now,message}});
+          }).catch(next);
+          return;
+        }
+      }catch{}
+      const checkId=crypto.randomUUID();
+      const now=Date.now();
+      database.prepare("INSERT INTO identity_document_checks (id,user_id,document_id,document_category,file_integrity_status,authenticity_status,checked_at) VALUES (?,?,?,?,?,'not_verified',?)")
+        .run(checkId,req.user.id,row.id,row.document_category,fileIntegrityStatus,now);
+      logEvent(req.user.id,"IDENTITY_DOCUMENT_CHECKED",req,{documentCategory:row.document_category,fileIntegrityStatus,authenticityVerified:false});
+      res.json({success:true,check:{id:checkId,documentId:row.id,category:row.document_category,fileIntegrityStatus,authenticityStatus:"not_verified",checkedAt:now,message:checkMessage}});
+    }catch(error){next(error);}
   });
 
   /*
