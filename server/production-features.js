@@ -374,7 +374,23 @@ export function registerProductionFeatures({
           mime_type AS mimeType,
           size_bytes AS sizeBytes,
           document_category AS category,
-          created_at AS createdAt
+          created_at AS createdAt,
+          (
+            SELECT json_object(
+              'id', c.id,
+              'fileIntegrityStatus', c.file_integrity_status,
+              'authenticityStatus', c.authenticity_status,
+              'checkedAt', c.checked_at,
+              'message', CASE
+                WHEN c.file_integrity_status='passed'
+                  THEN 'File integrity and file-type checks passed. Document authenticity is NOT verified.'
+                ELSE 'File integrity checks failed. Document authenticity is NOT verified.'
+              END
+            )
+            FROM identity_document_checks c
+            WHERE c.document_id=secure_documents.id AND c.user_id=secure_documents.user_id
+            ORDER BY c.checked_at DESC LIMIT 1
+          ) AS verificationCheck
         FROM secure_documents
         WHERE user_id = ?
           AND deleted_at IS NULL
