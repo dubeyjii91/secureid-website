@@ -28,6 +28,7 @@ const initialForm = { institutionName: "", role: "Student", studentCount: "Under
 export default function CollegeWorkspace() {
   const [form, setForm] = useState(initialForm);
   const [requests, setRequests] = useState([]);
+  const [memberships, setMemberships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -36,12 +37,17 @@ export default function CollegeWorkspace() {
   async function loadRequests() {
     setLoading(true);
     try {
-      const response = await fetch("/api/college-pilot/requests", { credentials: "include", cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Could not load pilot requests.");
-      setRequests(data.requests || []);
+      const [requestResponse, membershipResponse] = await Promise.all([
+        fetch("/api/college-pilot/requests", { credentials: "include", cache: "no-store" }),
+        fetch("/api/institutions/memberships", { credentials: "include", cache: "no-store" })
+      ]);
+      const [requestData, membershipData] = await Promise.all([requestResponse.json(), membershipResponse.json()]);
+      if (!requestResponse.ok || !requestData.success) throw new Error(requestData.message || "Could not load pilot requests.");
+      if (!membershipResponse.ok || !membershipData.success) throw new Error(membershipData.message || "Could not load institution access.");
+      setRequests(requestData.requests || []);
+      setMemberships(membershipData.memberships || []);
     } catch (err) {
-      setError(err.message || "Could not load requests. Please sign in again and retry.");
+      setError(err.message || "Could not load workspace data. Please sign in again and retry.");
     } finally {
       setLoading(false);
     }
@@ -83,6 +89,14 @@ export default function CollegeWorkspace() {
       <article className="panel"><span className="collegeStep">02</span><h3>Submission tracking</h3><p>Build a clear workflow for what has been submitted, what needs review, and what needs follow-up.</p><small>Designed for accountable review</small></article>
       <article className="panel"><span className="collegeStep">03</span><h3>Institution controls</h3><p>Planned institutional roles, access boundaries and audit history must be tested before real college data is onboarded.</p><small>Not yet represented as live features</small></article>
     </div>
+    <section className="panel collegeMembershipPanel" aria-labelledby="college-membership-heading">
+      <div className="eyebrow dark">INSTITUTION ACCESS</div>
+      <h2 id="college-membership-heading">Your college memberships</h2>
+      {loading ? <p>Checking your institution access…</p> : memberships.length === 0
+        ? <p className="lead">No institution membership is assigned to this account yet. Access is provisioned by a trusted SecureID operator; you cannot grant yourself staff or administrator permissions.</p>
+        : <div className="collegeRequestList">{memberships.map(item => <article className="collegeRequest" key={item.institutionId}><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "active" ? "Active membership" : "Membership suspended"}</span><small>Role: {item.role.replaceAll("_", " ")} · Joined {new Date(item.joinedAt).toLocaleDateString()}</small></article>)}</div>}
+      <p className="lead">Membership visibility only. Staff review queues and access to student documents are not enabled in this release.</p>
+    </section>
     <div className="collegeColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
         <div className="eyebrow dark">PILOT INTEREST</div><h2>Register institutional interest</h2>
