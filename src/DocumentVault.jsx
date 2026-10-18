@@ -62,6 +62,8 @@ export default function DocumentVault(){
   const [verificationStatus,setVerificationStatus]=useState(null);
   const [governmentReadiness,setGovernmentReadiness]=useState(null);
   const [governmentActionMessage,setGovernmentActionMessage]=useState("");
+  const [verificationResults,setVerificationResults]=useState({});
+  const [verifyingDocumentId,setVerifyingDocumentId]=useState("");
 
   async function load(){
     setLoading(true);
@@ -173,6 +175,19 @@ export default function DocumentVault(){
     }finally{
       setUploading(false);
     }
+  }
+
+  async function verifyDocument(doc){
+    setVerifyingDocumentId(doc.id);
+    setMessage("");
+    try{
+      const result=await api(`/api/documents/${encodeURIComponent(doc.id)}/verify`,{method:"POST"});
+      setVerificationResults(current=>({...current,[doc.id]:result.check}));
+      setMessage(result.check?.fileIntegrityStatus==="passed"
+        ? "File checks passed. SecureID has NOT confirmed that this PAN/Aadhaar is genuine."
+        : "File integrity checks failed. SecureID has NOT confirmed document authenticity.");
+    }catch(error){setMessage(error.message);}
+    finally{setVerifyingDocumentId("");}
   }
 
   async function download(id,name){
@@ -377,9 +392,15 @@ export default function DocumentVault(){
                 <strong>{doc.name}</strong>
                 <small>{({"aadhaar":"Aadhaar Card","pan":"PAN Card","passport":"Passport","voter_id":"Voter ID","driving_licence":"Driving Licence","student_id":"Student ID","institution_proof":"Institution Proof","general":"Other Document"}[doc.category] || "Other Document")}</small>
                 <small>{doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</small>
+                {(verificationResults[doc.id] || doc.verificationCheck) && <div className="documentVerificationResult" role="status">
+                  <strong>{(verificationResults[doc.id] || doc.verificationCheck).fileIntegrityStatus === "passed" ? "File checks passed" : "File checks failed"}</strong>
+                  <small>Authenticity: NOT VERIFIED</small>
+                  <small>{(verificationResults[doc.id] || doc.verificationCheck).message}</small>
+                </div>}
               </div>
 
               <div className="documentActions">
+                {["pan","aadhaar"].includes(doc.category) && <button type="button" onClick={()=>verifyDocument(doc)} disabled={verifyingDocumentId===doc.id}>{verifyingDocumentId===doc.id ? "Checking…" : "Verify document"}</button>}
                 <button onClick={()=>download(doc.id,doc.name)}>Download</button>
                 {!documentShares[doc.id] ? <button onClick={()=>shareDocument(doc)}>Share</button> : <button onClick={()=>revokeDocumentShare(doc.id)}>Revoke share</button>}
                 <button onClick={()=>remove(doc.id)}>
