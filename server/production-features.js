@@ -110,6 +110,18 @@ export function registerProductionFeatures({
 
     CREATE INDEX IF NOT EXISTS idx_secure_documents_user
       ON secure_documents(user_id, deleted_at);
+
+    CREATE TABLE IF NOT EXISTS college_pilot_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      encrypted_data TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'received',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_college_pilot_requests_user
+      ON college_pilot_requests(user_id, created_at);
   `);
 
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
@@ -1077,6 +1089,78 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         expiresAt:row.expires_at
       });
     }catch(error){ next(error); }
+  });
+
+  /*
+   * College pilot interest capture. This stores only institution/workflow
+   * metadata, never identity documents or student identity numbers. Each
+   * account can read only its own requests; this is not yet a college review
+   * portal or a confirmed paid partnership.
+   */
+  const allowedPilotWorkflows = new Set([
+    "Student onboarding",
+    "Document submission tracking",
+    "Staff review queue",
+    "Shareable student credentials",
+    "Audit history and reports"
+  ]);
+  const allowedPilotRoles = new Set([
+    "Student", "Faculty", "College administrator", "IT / security team", "Other"
+  ]);
+  const allowedStudentCounts = new Set([
+    "Under 500", "500–2,000", "2,001–10,000", "Over 10,000", "Not sure"
+  ]);
+  function pilotRequestView(row) {
+    const data = jsonDecrypt(JSON.parse(row.encrypted_data), key);
+    return {
+      id: row.id,
+      institutionName: data.institutionName,
+      role: data.role,
+      studentCount: data.studentCount,
+      workflows: data.workflows,
+      notes: data.notes,
+      status: row.status,
+      createdAt: row.created_at
+    };
+  }
+  app.get("/api/college-pilot/requests", requireAuth, requireMfaProduction, (req, res, next) => {
+    try {
+      res.setHeader("Cache-Control", "private, no-store");
+      const rows = database.prepare(
+        "SELECT id, encrypted_data, status, created_at FROM college_pilot_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 25"
+      ).all(req.user.id);
+      res.json({ success: true, requests: rows.map(pilotRequestView) });
+    } catch (error) { next(error); }
+  });
+  app.post("/api/college-pilot/requests", enforceSameOrigin, requireAuth, requireMfaProduction, (req, res, next) => {
+    try {
+      const body = req.body || {};
+      const institutionName = String(body.institutionName || "").trim();
+      const role = String(body.role || "");
+      const studentCount = String(body.studentCount || "");
+      const workflows = Array.isArray(body.workflows) ? [...new Set(body.workflows.map(String))] : [];
+      const notes = String(body.notes || "").trim();
+      if (!institutionName || institutionName.length > 120) {
+        return res.status(400).json({ success: false, message: "Enter an institution name up to 120 characters." });
+      }
+      if (!allowedPilotRoles.has(role) || !allowedStudentCounts.has(studentCount) ||
+          workflows.length < 1 || workflows.length > allowedPilotWorkflows.size ||
+          workflows.some(item => !allowedPilotWorkflows.has(item)) || notes.length > 500) {
+        return res.status(400).json({ success: false, message: "Review the pilot form fields and try again." });
+      }
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const payload = { institutionName, role, studentCount, workflows, notes };
+      database.prepare(
+        "INSERT INTO college_pilot_requests (id, user_id, encrypted_data, status, created_at, updated_at) VALUES (?, ?, ?, 'received', ?, ?)"
+      ).run(id, req.user.id, JSON.stringify(jsonEncrypt(payload, key)), now, now);
+      if (typeof logEvent === "function") logEvent(req.user.id, "COLLEGE_PILOT_INTEREST_CREATED", req);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.status(201).json({
+        success: true,
+        request: { id, ...payload, status: "received", createdAt: now }
+      });
+    } catch (error) { next(error); }
   });
 
   console.log(JSON.stringify({
