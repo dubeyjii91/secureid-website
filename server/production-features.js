@@ -122,6 +122,32 @@ export function registerProductionFeatures({
 
     CREATE INDEX IF NOT EXISTS idx_college_pilot_requests_user
       ON college_pilot_requests(user_id, created_at);
+
+    -- Memberships are provisioned only by a trusted operator; no public
+    -- endpoint may grant institution roles or create memberships.
+    CREATE TABLE IF NOT EXISTS institutions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS institution_memberships (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('student','reviewer','institution_admin','read_only')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(institution_id, user_id),
+      FOREIGN KEY(institution_id) REFERENCES institutions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_institution_memberships_user
+      ON institution_memberships(user_id, status);
+
+    CREATE INDEX IF NOT EXISTS idx_institution_memberships_institution
+      ON institution_memberships(institution_id, status);
   `);
 
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
@@ -1123,6 +1149,31 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       createdAt: row.created_at
     };
   }
+  /*
+   * INSTITUTION MEMBERSHIP SELF-VIEW
+   * Roles are provisioned out-of-band by a trusted operator. The public API
+   * intentionally exposes no invite, role-change, or membership-creation route.
+   */
+  app.get("/api/institutions/memberships", requireAuth, requireMfaProduction, (req, res, next) => {
+    try {
+      res.setHeader("Cache-Control", "private, no-store");
+      const memberships = database.prepare(`
+        SELECT
+          m.institution_id AS institutionId,
+          i.name AS institutionName,
+          m.role AS role,
+          m.status AS status,
+          m.created_at AS joinedAt
+        FROM institution_memberships m
+        INNER JOIN institutions i ON i.id = m.institution_id
+        WHERE m.user_id = ?
+        ORDER BY i.name COLLATE NOCASE
+        LIMIT 50
+      `).all(req.user.id);
+      res.json({ success: true, memberships });
+    } catch (error) { next(error); }
+  });
+
   app.get("/api/college-pilot/requests", requireAuth, requireMfaProduction, (req, res, next) => {
     try {
       res.setHeader("Cache-Control", "private, no-store");
