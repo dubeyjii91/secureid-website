@@ -6,7 +6,8 @@ const app = readFileSync(new URL("../src/ShareManagement.jsx", import.meta.url),
 const backend = readFileSync(new URL("../server/production-features.js", import.meta.url), "utf8");
 
 test("share management lets the authenticated owner load and save the encrypted identity profile", () => {
-  assert.match(app, /fetch\("\/api\/identity\/profile"/);
+  assert.match(app, /api\("\/api\/identity\/profile"/);
+  assert.match(app, /api\("\/api\/identity\/profile",\{method:"PUT"/);
   assert.match(app, /method:"PUT"/);
   assert.match(app, /Save identity profile/);
   assert.match(backend, /app\.get\("\/api\/identity\/profile",requireAuth,requireMfaProduction/);
