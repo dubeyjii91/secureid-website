@@ -40,7 +40,7 @@ const sessionIdleTtlMs = 2 * 60 * 60 * 1000;
 const mfaVerifiedTtlMs = 30 * 60 * 1000;
 const otpTtlMs = (isProduction ? 300 : Number(process.env.DEV_OTP_TTL_SECONDS || 300)) * 1000;
 const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
-const configuredOtpDelivery = process.env.OTP_DELIVERY || "console";
+const configuredOtpDelivery = (process.env.OTP_DELIVERY || "console").trim().toLowerCase();
 const brevoApiKey = process.env.BREVO_API_KEY || "";
 const smtpConfigured = Boolean(
   process.env.SMTP_HOST &&
@@ -50,13 +50,19 @@ const smtpConfigured = Boolean(
   process.env.SMTP_PASS &&
   process.env.OTP_FROM_EMAIL
 );
-// SecureID's configured SMTP transport takes precedence over a stale Resend setting.
-const otpDelivery = brevoApiKey ? "brevo" : (smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery);
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+// Provider selection is explicit so a saved key cannot silently route OTPs
+// through a different provider than the one configured by the operator.
+const otpDelivery = configuredOtpDelivery;
 const otpSenderDomain = otpFromEmail.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || "";
 const otpTestSender = otpDelivery === "resend" && otpSenderDomain === "resend.dev";
 const emailDeliveryConfigured = otpDelivery === "resend" ? Boolean(resendApiKey&&otpFromEmail) : otpDelivery === "brevo" ? Boolean(brevoApiKey&&otpFromEmail) : otpDelivery === "smtp" ? smtpConfigured : false;
+const emailDeliveryOptions = {
+  smtpConfigured,
+  resendConfigured: Boolean(resendApiKey && otpFromEmail),
+  brevoConfigured: Boolean(brevoApiKey && otpFromEmail),
+};
 const otpFromName = (process.env.OTP_FROM_NAME || "SecureID").trim() || "SecureID";
 const smtpHost = process.env.SMTP_HOST || "";
 const configuredSmtpPort = Number(process.env.SMTP_PORT || 587);
@@ -702,7 +708,7 @@ startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender},backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions},backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
@@ -1213,7 +1219,7 @@ setInterval(() => {
 }, 60 * 60 * 1000).unref();
 
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
-app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender} })));
+app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions} })));
 
 
 
