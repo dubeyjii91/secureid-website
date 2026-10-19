@@ -1,5 +1,5 @@
-const SHELL_CACHE = "secureid-shell-v1";
-const ASSET_CACHE = "secureid-assets-v1";
+const SHELL_CACHE = "secureid-shell-v2";
+const ASSET_CACHE = "secureid-assets-v2";
 const PRIVATE_PATHS = ["/api/", "/share/", "/document-share/"];
 const STATIC_PATHS = ["/secureid-app-icon.svg", "/secureid-welcome.svg", "/manifest.webmanifest"];
 
