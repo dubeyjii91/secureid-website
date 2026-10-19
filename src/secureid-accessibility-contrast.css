@@ -316,3 +316,58 @@ a { text-underline-offset: .18em; }
 #root .note { background: #14233b !important; border-color: #38547a !important; color: #e2eaf7 !important; }
 #root .note strong { color: #ffffff !important; }
 #root .sectionTitle h2 { color: #f8fafc !important; }
+
+/* Final production contrast pass: target the actual rendered class names. */
+#root .scanResultAdvanced {
+  background: linear-gradient(145deg,#101f3a,#11172d) !important;
+  border: 1px solid #4b78d1 !important;
+  color: #f8fbff !important;
+  box-shadow: 0 12px 34px #02061766 !important;
+}
+#root .scanResultAdvanced p,
+#root .scanResultAdvanced small,
+#root .scanResultAdvanced li,
+#root .scanResultAdvanced .scanLimitations,
+#root .scanResultAdvanced .scanRecommendation p,
+#root .scanResultAdvanced .scanCheckRow p { color: #dce8fb !important; opacity: 1 !important; }
+#root .scanResultAdvanced .scanSummaryTop strong,
+#root .scanResultAdvanced .scanChecks h3,
+#root .scanResultAdvanced .scanCheckRow strong,
+#root .scanResultAdvanced .scanRecommendation strong { color: #ffffff !important; }
+#root .scanResultAdvanced .riskScore { color: #f8fbff !important; background: #203b68 !important; border-color: #7ba7f7 !important; }
+#root .scanResultAdvanced .scanCheckRow { border-color: #344967 !important; }
+#root .scanResultAdvanced .scanRecommendation { background: #172a4a !important; border: 1px solid #3d5f96 !important; }
+#root .scanResultAdvanced .scanLimitations { color: #c7d6ee !important; }
+#root .studentSharePrivacyNote {
+  background: #fff5d6 !important; border: 1px solid #f4c45d !important; border-left: 4px solid #d97706 !important;
+  border-radius: 10px !important; padding: 13px 15px !important;
+  color: #713f12 !important; opacity: 1 !important;
+}
+#root .studentSharePrivacyNote * { color: #713f12 !important; opacity: 1 !important; }
+#root .studentProofStatus {
+  background: linear-gradient(135deg,#e0f2fe,#eef2ff) !important;
+  border: 1px solid #60a5fa !important; color: #172554 !important;
+}
+#root .studentProofStatus * { color: #172554 !important; opacity: 1 !important; }
+#root .studentProofStatus strong { color: #1d4ed8 !important; }
+#root .studentProofMessage { color: #7dd3fc !important; opacity: 1 !important; }
+#root .studentProofPanel .lead,
+#root .studentProofPanel > p { color: #dbeafe !important; opacity: 1 !important; }
+#root .verificationStatusCard { background: #122543 !important; border-color: #3b82f6 !important; }
+#root .verificationStatusCard p { color: #dbeafe !important; }
+#root .verificationChecks span { color: #e2e8f0 !important; background: #1b2b46 !important; }
+#root .verificationChecks span.complete { color: #a7f3d0 !important; background: #064e3b !important; }
+#root .vaultSecurityNotice { background: #10382f !important; border-color: #2dd4bf !important; }
+#root .vaultSecurityNotice, #root .vaultSecurityNotice * { color: #d1fae5 !important; opacity: 1 !important; }
+#root .documentItem, #root .proofUpload, #root .identityDocumentChoice {
+  background: #101e36 !important; border-color: #3a5279 !important; color: #f8fafc !important;
+}
+#root .documentItem small, #root .proofUpload small, #root .identityDocumentChoice small { color: #d5e2f5 !important; opacity: 1 !important; }
+#root .functionHero h2, #root .functionHero h3 { color: #ffffff !important; }
+#root .functionHero p { color: #dbeafe !important; opacity: 1 !important; }
+#root .eyebrow.dark { color: #7dd3fc !important; }
+#root .secondary, #root button.secondary { color: #ffffff !important; background: #263c68 !important; border-color: #7898e8 !important; }
+#root .textButton { color: #7dd3fc !important; }
+#root .functionVisual { border-color: #4568a3 !important; background: linear-gradient(135deg,#153c68,#382d78) !important; }
+#root .functionEmoji { filter: saturate(1.1); }
+#root .sideBottom .privacy { background: #e6fffb !important; color: #134e4a !important; }
