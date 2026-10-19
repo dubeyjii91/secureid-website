@@ -54,6 +54,9 @@ const smtpConfigured = Boolean(
 const otpDelivery = brevoApiKey ? "brevo" : (smtpConfigured && configuredOtpDelivery === "resend" ? "smtp" : configuredOtpDelivery);
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const otpSenderDomain = otpFromEmail.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || "";
+const otpTestSender = otpDelivery === "resend" && otpSenderDomain === "resend.dev";
+const emailDeliveryConfigured = otpDelivery === "resend" ? Boolean(resendApiKey&&otpFromEmail) : otpDelivery === "brevo" ? Boolean(brevoApiKey&&otpFromEmail) : otpDelivery === "smtp" ? smtpConfigured : false;
 const otpFromName = (process.env.OTP_FROM_NAME || "SecureID").trim() || "SecureID";
 const smtpHost = process.env.SMTP_HOST || "";
 const configuredSmtpPort = Number(process.env.SMTP_PORT || 587);
@@ -131,7 +134,7 @@ function enforceSameOrigin(req, res, next) {
     const cookieToken=getCookie(req,csrfCookieName);
     const headerToken=String(req.get("X-CSRF-Token") || "");
     if(!cookieToken || !headerToken || cookieToken !== headerToken){
-      return res.status(403).json({ success:false,message:"CSRF validation failed." });
+      return res.status(403).json({ success:false,code:"CSRF_VALIDATION_FAILED",message:"CSRF validation failed." });
     }
   }
   next();
@@ -147,9 +150,9 @@ function getCookie(req, name) {
 }
 
 const csrfCookieName = isProduction ? "__Host-secureid.csrf" : "secureid.csrf";
-function ensureCsrfCookie(req,res){
+function ensureCsrfCookie(req,res,force=false){
   let token=getCookie(req,csrfCookieName);
-  if(!/^[A-Za-z0-9_-]{32,}$/.test(token)){
+  if(force || !/^[A-Za-z0-9_-]{32,}$/.test(token)){
     token=randomBytes(32).toString("base64url");
     const parts=[`${csrfCookieName}=${encodeURIComponent(token)}`,"Path=/","Max-Age=28800","SameSite=Strict"];
     if(isProduction) parts.push("Secure");
@@ -166,7 +169,7 @@ app.get("/api/auth/csrf", (req, res) => {
   if (isProduction && req.get("origin") && req.get("origin") !== appOrigin) {
     return res.status(403).json({ success: false, message: "Request origin is not allowed." });
   }
-  ensureCsrfCookie(req, res);
+  ensureCsrfCookie(req, res, req.query.rotate === "1");
   return res.json({ success: true });
 });
 
@@ -560,28 +563,73 @@ function logEvent(userId, eventType, req = null, metadata = null) {
   database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at, user_agent, ip_hash, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now(), userAgent, ipHash, metadata ? JSON.stringify(metadata).slice(0, 4000) : null);
 }
 
-async function sendConfiguredEmail({ to, subject, text }) {
-  if (otpDelivery === "brevo") {
-    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: { "api-key": brevoApiKey, "Content-Type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ sender: { name: otpFromName, email: otpFromEmail }, to: [{ email: to }], subject, textContent: text }),
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Brevo email delivery failed with status ${response.status}${body ? `: ${body.slice(0, 240)}` : ""}.`);
+function safeProviderCode(value) {
+  const code=String(value || "").toLowerCase();
+  return /^[a-z0-9_.-]{1,80}$/.test(code) ? code : "provider_rejected";
+}
+
+function createEmailDeliveryError(providerStatus=null,providerCode="provider_rejected") {
+  const error=new Error("The email provider did not accept the message.");
+  error.statusCode=503;
+  error.code="EMAIL_DELIVERY_FAILED";
+  error.providerStatus=Number(providerStatus) || null;
+  error.providerCode=safeProviderCode(providerCode);
+  return error;
+}
+
+async function sendApiEmail({ to, subject, text, requestId, purpose="transactional" }) {
+  const isResend=otpDelivery === "resend";
+  const provider=isResend ? "resend" : "brevo";
+  const url=isResend ? "https://api.resend.com/emails" : "https://api.brevo.com/v3/smtp/email";
+  const headers=isResend
+    ? { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json", ...(requestId ? { "Idempotency-Key": requestId } : {}) }
+    : { "api-key": brevoApiKey, "Content-Type": "application/json", accept: "application/json" };
+  const body=isResend
+    ? { from: `${otpFromName} <${otpFromEmail}>`, to: [to], subject, text }
+    : { sender: { name: otpFromName, email: otpFromEmail }, to: [{ email: to }], subject, textContent: text };
+  let providerStatus=null;
+  let providerCode="provider_rejected";
+
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      const response=await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});
+      providerStatus=response.status;
+      const result=await response.json().catch(()=>({}));
+      if(response.ok){
+        console.info(JSON.stringify({level:"info",event:"email_delivery_accepted",requestId,provider,purpose,attempt,providerStatus,providerMessageId:result?.id||result?.messageId||null}));
+        return;
+      }
+      const providerMessage=String(result?.message||result?.error?.message||"").toLowerCase();
+      providerCode=isResend && providerMessage.includes("domain") && /(not verified|unverified|verify your domain|verified domain)/.test(providerMessage)
+        ? "sender_domain_unverified"
+        : safeProviderCode(result?.name||result?.code||result?.error?.code||result?.error?.name);
+      console.warn(JSON.stringify({level:"warn",event:"email_delivery_attempt_failed",requestId,provider,purpose,attempt,providerStatus,providerCode}));
+      if(attempt<3 && (providerStatus===429 || providerStatus>=500)){
+        await new Promise(resolve=>setTimeout(resolve,attempt*400));
+        continue;
+      }
+      break;
+    }catch(error){
+      providerStatus=null;
+      providerCode=safeProviderCode(error?.name||error?.code||"network_error");
+      console.warn(JSON.stringify({level:"warn",event:"email_delivery_attempt_failed",requestId,provider,purpose,attempt,errorType:providerCode}));
+      if(attempt<3){
+        await new Promise(resolve=>setTimeout(resolve,attempt*400));
+        continue;
+      }
     }
-    return;
   }
-  if (otpDelivery === "resend") {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: `${otpFromName} <${otpFromEmail}>`, to: [to], subject, text }),
-    });
-    if (!response.ok) throw new Error(`Email delivery failed with status ${response.status}.`);
-    return;
+  console.error(JSON.stringify({level:"error",event:"email_delivery_rejected",requestId,provider,purpose,providerStatus,providerCode}));
+  throw createEmailDeliveryError(providerStatus,providerCode);
+}
+
+async function sendConfiguredEmail({ to, subject, text, requestId, purpose="transactional" }) {
+  if(isProduction && otpTestSender){
+    console.error(JSON.stringify({level:"error",event:"email_delivery_rejected",requestId,provider:"resend",purpose,providerCode:"test_sender_restricted"}));
+    throw createEmailDeliveryError(null,"test_sender_restricted");
+  }
+  if (otpDelivery === "brevo" || otpDelivery === "resend") {
+    return sendApiEmail({to,subject,text,requestId,purpose});
   }
   if (otpDelivery === "smtp") {
     const transporter = nodemailer.createTransport({
@@ -589,21 +637,29 @@ async function sendConfiguredEmail({ to, subject, text }) {
       auth: { user: smtpUser, pass: smtpPass },
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
     });
-    try { await transporter.sendMail({ from: `${otpFromName} <${otpFromEmail}>`, to, subject, text }); }
-    finally { transporter.close(); }
-    return;
+    try {
+      const result=await transporter.sendMail({ from: `${otpFromName} <${otpFromEmail}>`, to, subject, text });
+      console.info(JSON.stringify({level:"info",event:"email_delivery_accepted",requestId,provider:"smtp",purpose,providerMessageId:result?.messageId||null}));
+      return;
+    } catch(error) {
+      const providerCode=safeProviderCode(error?.code||error?.name||"smtp_error");
+      console.error(JSON.stringify({level:"error",event:"email_delivery_rejected",requestId,provider:"smtp",purpose,providerStatus:Number(error?.responseCode)||null,providerCode}));
+      throw createEmailDeliveryError(error?.responseCode,providerCode);
+    } finally { transporter.close(); }
   }
-  throw new Error("No production email provider is configured.");
+  throw createEmailDeliveryError(null,"provider_not_configured");
 }
 
-async function deliverOtp(email, code) {
+async function deliverOtp(email, code, requestId="") {
   if (otpDelivery === "console") {
     console.log(`[SecureID DEV OTP] ${email}: ${code}`);
     return;
   }
   await sendConfiguredEmail({
     to: email, subject: "Your SecureID verification code",
-    text: `Your SecureID verification code is ${code}. It expires in 5 minutes.`
+    text: `Your SecureID verification code is ${code}. It expires in 5 minutes.`,
+    requestId,
+    purpose:"mfa"
   });
 }
 
@@ -646,7 +702,7 @@ startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender},backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
@@ -1064,12 +1120,12 @@ app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, pe
     const now = Date.now();
     database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)").run(id, user.id, hashOtpCode(code, user.id, id), now + otpTtlMs, now);
     database.prepare("UPDATE users SET otp_last_sent_at = ? WHERE id = ?").run(now, user.id);
-    try { await deliverOtp(user.email, code); } catch (deliveryError) {
+    try { await deliverOtp(user.email, code, String(res.getHeader("X-Request-Id") || "")); } catch (deliveryError) {
       database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(id);
       database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
       throw deliveryError;
     }
-    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Verification code generated.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
+    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Your email provider accepted the verification request.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
   } catch (error) { next(error); }
 });
 
@@ -1138,6 +1194,14 @@ app.use((error, req, res, next) => {
     void sendSecurityEmail({to:securityAlertEmail,subject:"SecureID operational error alert",text:"SecureID recorded "+operationalErrorAlertState.count+" server errors within a five-minute window. Check the production logs and health endpoint."}).catch(()=>{});
   }
   if (res.headersSent) return next(error);
+  if(error?.code==="EMAIL_DELIVERY_FAILED"){
+    const message=otpTestSender
+      ? "SecureID is using Resend's test sender. To send codes to account holders, verify a sending domain and configure OTP_FROM_EMAIL with that domain. No active code was created."
+      : error.providerCode==="sender_domain_unverified"
+        ? "Resend has not verified the OTP sender domain. Finish the DNS verification in Resend, then request a new code. No active code was created."
+      : "The email service could not accept your verification message. No active code was created. Check the sender configuration or try again shortly.";
+    return res.status(statusCode).json({success:false,code:error.code,requestId:res.getHeader("X-Request-Id"),message});
+  }
   res.status(statusCode).json({ success: false, message: statusCode === 423 ? "Wallet is locked." : "Something went wrong. Please try again shortly." });
 });
 
@@ -1149,7 +1213,7 @@ setInterval(() => {
 }, 60 * 60 * 1000).unref();
 
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
-app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", otpDelivery })));
+app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender} })));
 
 
 

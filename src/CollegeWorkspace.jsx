@@ -1,27 +1,6 @@
 import { useEffect, useState } from "react";
 import "./college-workspace.css";
-
-function csrfToken() {
-  const match = document.cookie.match(/(?:^|; )(?:__Host-secureid\\.csrf|secureid\\.csrf)=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
-
-async function securePost(url, body) {
-  let token = csrfToken();
-  if (!token) {
-    const response = await fetch("/api/auth/csrf", { credentials: "include", cache: "no-store" });
-    if (!response.ok) throw new Error("Secure request protection could not be initialized. Refresh and try again.");
-    token = csrfToken();
-  }
-  if (!token) throw new Error("Security token was not received. Refresh and try again.");
-  return fetch(url, {
-    method: "POST",
-    credentials: "include",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
-    body: JSON.stringify(body)
-  });
-}
+import api from "./api.js";
 
 const initialForm = { institutionName: "", role: "Student", studentCount: "Under 500", workflows: ["Student onboarding", "Document submission tracking"], notes: "" };
 
@@ -37,13 +16,10 @@ export default function CollegeWorkspace() {
   async function loadRequests() {
     setLoading(true);
     try {
-      const [requestResponse, membershipResponse] = await Promise.all([
-        fetch("/api/college-pilot/requests", { credentials: "include", cache: "no-store" }),
-        fetch("/api/institutions/memberships", { credentials: "include", cache: "no-store" })
+      const [requestData, membershipData] = await Promise.all([
+        api("/api/college-pilot/requests", { cache: "no-store" }),
+        api("/api/institutions/memberships", { cache: "no-store" })
       ]);
-      const [requestData, membershipData] = await Promise.all([requestResponse.json(), membershipResponse.json()]);
-      if (!requestResponse.ok || !requestData.success) throw new Error(requestData.message || "Could not load pilot requests.");
-      if (!membershipResponse.ok || !membershipData.success) throw new Error(membershipData.message || "Could not load institution access.");
       setRequests(requestData.requests || []);
       setMemberships(membershipData.memberships || []);
     } catch (err) {
@@ -66,9 +42,7 @@ export default function CollegeWorkspace() {
     setError("");
     setSaving(true);
     try {
-      const response = await securePost("/api/college-pilot/requests", form);
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Could not submit the pilot request.");
+      const data = await api("/api/college-pilot/requests", { method: "POST", body: JSON.stringify(form) });
       setRequests(current => [data.request, ...current]);
       setForm(initialForm);
       setMessage("Pilot interest saved securely. This is a request for follow-up, not a paid subscription or confirmed college partnership.");

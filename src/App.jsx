@@ -7,6 +7,7 @@ import CollegeWorkspace from "./CollegeWorkspace.jsx";
 import AccountSecurity from "./AccountSecurity.jsx";
 import SecurityDashboard from "./SecurityDashboard.jsx";
 import SecureShareQR from "./SecureShareQR.jsx";
+import api from "./api.js";
 import "./secureid-font-clean.css";
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -92,37 +93,6 @@ function InstallSecureIDButton() {
 function FunctionVisual({ label }) {
   const visual = /identity/i.test(label) ? "🪪" : /sharing/i.test(label) ? "🔗" : /safety|phishing/i.test(label) ? "🛡️" : /privacy/i.test(label) ? "🔐" : /responsible use/i.test(label) ? "📋" : /emergency/i.test(label) ? "🚨" : /document/i.test(label) ? "📁" : "🔒";
   return <div className="functionVisual" aria-label={label}><span className="functionEmoji" aria-hidden="true">{visual}</span><img src="/secureid-welcome.svg" alt="" /></div>;
-}
-
-function csrfToken(){
-  const match=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
-async function api(path, options = {}) {
-  const method=String(options.method || "GET").toUpperCase();
-  const mutating=["POST","PUT","PATCH","DELETE"].includes(method);
-  let csrf=csrfToken();
-  if(mutating && !csrf){
-    const bootstrap=await fetch("/api/auth/csrf",{credentials:"include",cache:"no-store"});
-    if(!bootstrap.ok) throw new Error("Could not initialize secure request protection. Please refresh and try again.");
-    csrf=csrfToken();
-    if(!csrf) throw new Error("Secure request token was not received. Please refresh and try again.");
-  }
-  const response = await fetch(path, {
-    credentials: "include",
-    ...options,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(mutating&&csrf ? {"X-CSRF-Token":csrf} : {}), ...(options.headers || {}) },
-  });
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : null;
-  if (!response.ok) {
-    const error = new Error(data?.message || "Request failed.");
-    error.status = response.status;
-    error.retryAfter = Number(data?.retryAfter || response.headers.get("Retry-After") || 0);
-    throw error;
-  }
-  if (contentType.includes("application/json")) return data;
-  return response;
 }
 
 const navItems = [
@@ -226,16 +196,19 @@ function App() {
 
   const requestOtp = useCallback(async () => {
     setMfaLoading(true);
+    setChallengeId("");
+    setOtp("");
     setMfaMessage("Sending a verification code…");
     try {
       const result = await api("/api/mfa/challenge", { method: "POST" });
       setChallengeId(result.challengeId);
-      setOtp("");
       setResendCooldown(result.resendAvailableIn || 60);
-      setMfaMessage("Verification code sent to your registered email.");
+      setMfaMessage("The email provider accepted the request. Check Inbox, Spam, and Promotions; delivery can take a short time.");
     } catch (error) {
       if (error.retryAfter) setResendCooldown(error.retryAfter);
-      setMfaMessage(error.message);
+      setMfaMessage(error.code === "EMAIL_DELIVERY_FAILED"
+        ? `${error.message}${error.requestId ? ` Support reference: ${error.requestId}.` : ""}`
+        : error.message);
     } finally {
       setMfaLoading(false);
     }
@@ -512,15 +485,7 @@ function App() {
       const form = new FormData();
       form.append("category", proofCategory);
       form.append("document", proofFile);
-      const csrf = csrfToken();
-      const response = await fetch("/api/identity/proof", {
-        method: "POST",
-        credentials: "include",
-        headers: csrf ? { "X-CSRF-Token": csrf } : {},
-        body: form,
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.message || "Proof upload failed.");
+      const result = await api("/api/identity/proof", { method: "POST", body: form });
       setProofFile(null);
       formElement.reset();
       setProofMessage("Proof uploaded securely. It is submitted for review, not independently verified.");
@@ -882,7 +847,7 @@ function App() {
       <footer>SecureID · Privacy-first identity wallet <span><button type="button" className="footerLink" onClick={() => setPage("privacy")}>Privacy center</button> · <button type="button" className="footerLink" onClick={() => setPage("terms")}>Terms & use</button> · Security · Privacy · Trust</span></footer>
     </main>
     {showWelcome && !publicShare && !publicDocumentShare && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
-    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : <>Enter the six-digit code sent to <strong>{sessionUser}</strong>.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <label className="trustDeviceRow"><input type="checkbox" checked={trustDevice} onChange={e=>setTrustDevice(e.target.checked)} /> <span><strong>Trust this device for 30 days</strong><small>Only use this on a personal device you control.</small></span></label>}{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage">{mfaMessage}</div></section></div>}
+    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : mfaLoading ? <>Sending a six-digit code to <strong>{sessionUser}</strong>…</> : challengeId ? <>The email provider accepted a code request for <strong>{sessionUser}</strong>. Check Inbox, Spam, and Promotions.</> : <>No active email code exists yet. Send a code to <strong>{sessionUser}</strong> before entering one.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <label className="trustDeviceRow"><input type="checkbox" checked={trustDevice} onChange={e=>setTrustDevice(e.target.checked)} /> <span><strong>Trust this device for 30 days</strong><small>Only use this on a personal device you control.</small></span></label>}{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : challengeId ? "Resend code" : "Send code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage" role="status" aria-live="polite">{mfaMessage}</div></section></div>}
   </div>;
 }
 

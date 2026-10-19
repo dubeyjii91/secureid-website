@@ -1,36 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import "./document-vault.css";
-
-function csrfToken(){
-  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-async function api(path, options={}){
-  const response=await fetch(path,{
-    credentials:"include",
-    ...options,
-    headers: { ...(options.headers || {}), ...(["POST","PUT","PATCH","DELETE"].includes(String(options.method||"GET").toUpperCase()) && csrfToken() ? {"X-CSRF-Token":csrfToken()} : {}) }
-  });
-
-  const contentType=response.headers.get("content-type") || "";
-
-  if(contentType.includes("application/json")){
-    const data=await response.json();
-
-    if(!response.ok || data.success===false){
-      throw new Error(data.message || "Request failed.");
-    }
-
-    return data;
-  }
-
-  if(!response.ok){
-    throw new Error("Request failed.");
-  }
-
-  return response;
-}
+import api from "./api.js";
 
 const fields=[
   ["name","Name"],

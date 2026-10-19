@@ -13,7 +13,7 @@ npm run dev
 
 Open `http://127.0.0.1:5173`. The API persists accounts, sessions, OTP challenges, and rate-limit counters in `data/secureid.sqlite`. Passwords are hashed with bcrypt. The example `.env` keeps the API runnable in local `OTP_DELIVERY=console` mode, but OTP delivery fails closed until Resend is configured. Codes are never written to logs or returned by the API.
 
-To use MFA locally or in production, set `OTP_DELIVERY=resend`, `RESEND_API_KEY`, and `OTP_FROM_EMAIL` in `.env` or the deployment secret manager. The API refuses to start in email mode until both provider values are configured. For a provider smoke test, Resend's `onboarding@resend.dev` sender is suitable only with its test recipient `delivered@resend.dev`; it is not a way to send OTPs to real users. Real users require an `OTP_FROM_EMAIL` on a domain verified in your Resend account. Production startup rejects `resend.dev` senders. `OTP_RESEND_COOLDOWN_SECONDS` controls the per-account resend cooldown (default 60 seconds).
+To use MFA locally or in production, set `OTP_DELIVERY=resend`, `RESEND_API_KEY`, and `OTP_FROM_EMAIL` in `.env` or the deployment secret manager. The API refuses to start in email mode until both provider values are configured. For a provider smoke test, Resend's `onboarding@resend.dev` sender is suitable only with its test recipient `delivered@resend.dev`; it is not a way to send OTPs to real users. Real users require an `OTP_FROM_EMAIL` on a domain verified in your Resend account. A `resend.dev` sender is reported as test-only and cannot be used for production OTP delivery. `OTP_RESEND_COOLDOWN_SECONDS` controls the per-account resend cooldown (default 60 seconds).
 
 ## Production configuration
 

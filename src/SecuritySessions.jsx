@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import "./security-sessions.css";
-
-function csrfToken() {
-  const match = document.cookie.match(/(?:^|; )(?:__Host-secureid\\.csrf|secureid\\.csrf)=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
+import api from "./api.js";
 
 function browserName(ua = "") {
   if (/Edg\//.test(ua)) return "Microsoft Edge";
@@ -40,9 +36,7 @@ export default function SecuritySessions() {
     setLoading(true);
     setMessage("");
     try {
-      const response = await fetch("/api/security/sessions", { credentials: "include" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "Unable to load active sessions.");
+      const data = await api("/api/security/sessions");
       setSessions(data.sessions || []);
     } catch (error) {
       setMessage(error.message);
@@ -55,14 +49,7 @@ export default function SecuritySessions() {
     setBusy(sessionId);
     setMessage("");
     try {
-      const response = await fetch("/api/security/sessions/revoke", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...(csrfToken() ? { "X-CSRF-Token": csrfToken() } : {}) },
-        body: JSON.stringify({ sessionId })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "Unable to sign out this device.");
+      await api("/api/security/sessions/revoke", { method: "POST", body: JSON.stringify({ sessionId }) });
       await load();
     } catch (error) {
       setMessage(error.message);
@@ -76,13 +63,7 @@ export default function SecuritySessions() {
     setBusy("all");
     setMessage("");
     try {
-      const response = await fetch("/api/security/sessions/revoke-others", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...(csrfToken() ? { "X-CSRF-Token": csrfToken() } : {}) }
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "Unable to sign out other devices.");
+      const data = await api("/api/security/sessions/revoke-others", { method: "POST" });
       setMessage(data.revoked ? `Signed out ${data.revoked} other session${data.revoked === 1 ? "" : "s"}.` : "No other active devices were signed in.");
       await load();
     } catch (error) {
