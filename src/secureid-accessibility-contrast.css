@@ -22,15 +22,17 @@
 
 /* Semantic success/warning/error surfaces are light, so their text must be dark. */
 .scanResult.safe, .vaultMessage, .vaultSecurityNotice,
-[role="status"], [role="alert"], .successNotice, .successMessage,
-.alert-success, .alert-warning, .alert-danger, .statusMessage,
-.formMessage, .toast, .notice {
+[role="alert"].success, [role="alert"].warning, [role="alert"].error,
+.successNotice, .successMessage, .alert-success, .alert-warning,
+.alert-danger, .statusMessage.success, .statusMessage.warning,
+.statusMessage.error, .formMessage.success, .formMessage.error {
   color: #172033 !important;
 }
 .scanResult.safe *, .vaultMessage *, .vaultSecurityNotice *,
-[role="status"] *, [role="alert"] *, .successNotice *,
-.successMessage *, .alert-success *, .alert-warning *,
-.alert-danger *, .statusMessage *, .formMessage *, .toast *, .notice * {
+[role="alert"].success *, [role="alert"].warning *, [role="alert"].error *,
+.successNotice *, .successMessage *, .alert-success *, .alert-warning *,
+.alert-danger *, .statusMessage.success *, .statusMessage.warning *,
+.statusMessage.error *, .formMessage.success *, .formMessage.error * {
   color: inherit !important;
   opacity: 1 !important;
 }
