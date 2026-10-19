@@ -1,0 +1,61 @@
+/* SecureID global contrast and readability guardrails.
+   Loaded after all existing styles so every route receives the same fixes. */
+:root {
+  --sid-readable-text: #f8fafc;
+  --sid-readable-muted: #cbd5e1;
+  --sid-readable-border: rgba(203, 213, 225, .42);
+}
+
+/* Dark-glass surfaces: do not allow low-opacity copy to disappear. */
+.sidebar, .topbar, header, .main, .content, .panel, .card,
+.functionHero, .securityCard, .identityCard, .shareCard,
+.documentVault, .documentItem, .tips, .lockPanel {
+  color: #f8fafc;
+}
+.sidebar small, .topbar small, .account, .breadcrumb,
+.panel p, .card p, .functionHero p, .documentItem small,
+.details span, .securityRow span, .tips span, .lead,
+.shareHint, .shareExpiry, .vaultBlock small, .vaultSecurityNotice span {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Semantic success/warning/error surfaces are light, so their text must be dark. */
+.scanResult.safe, .vaultMessage, .vaultSecurityNotice,
+[role="status"], [role="alert"], .successNotice, .successMessage,
+.alert-success, .alert-warning, .alert-danger, .statusMessage,
+.formMessage, .toast, .notice {
+  color: #172033 !important;
+}
+.scanResult.safe *, .vaultMessage *, .vaultSecurityNotice *,
+[role="status"] *, [role="alert"] *, .successNotice *,
+.successMessage *, .alert-success *, .alert-warning *,
+.alert-danger *, .statusMessage *, .formMessage *, .toast *, .notice * {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+.scanResult.safe { background: #d9fbe8 !important; border-color: #4ade80 !important; }
+.scanResult.warning, .alert-warning { background: #fff1c2 !important; border-color: #eab308 !important; }
+.alert-danger, .dangerNotice { background: #ffe4e6 !important; border-color: #fb7185 !important; }
+.vaultSecurityNotice, .vaultMessage { background: #dcfce7 !important; border-color: #86efac !important; }
+
+/* Keep small text, placeholders and controls legible on dark UI. */
+input, textarea, select {
+  color: #f8fafc;
+  background-color: #0b1425;
+  border-color: #64748b;
+}
+input::placeholder, textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+button:disabled, [aria-disabled="true"] { opacity: .78 !important; }
+a { text-underline-offset: .18em; }
+:focus-visible { outline: 3px solid #67e8f9 !important; outline-offset: 3px; }
+
+/* Common subdued text should still meet a readable contrast on dark cards. */
+.muted, .text-muted, .subtle, .helperText, .fieldHint, .emptyState,
+.empty-state, .secondaryText, .secondary-text {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
