@@ -255,6 +255,7 @@ const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 20, window15m, 
 const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKey);
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
 const perIpApiLimit = createRateLimit("api-ip", 180, 60 * 1000, getClientKey);
+const perIpUrlReputationLimit = createRateLimit("url-reputation-ip", 20, 15 * 60 * 1000, getClientKey);
 app.use("/api", perIpApiLimit);
 
 
@@ -709,7 +710,7 @@ startAutomaticBackup();
 const googleSafeBrowsingApiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY || "";
 const safeBrowsingTimeoutMs = Math.min(8000, Math.max(1500, Number(process.env.SAFE_BROWSING_TIMEOUT_MS || 5000)));
 
-app.get("/api/security/url-reputation", (req, res) => {
+app.get("/api/security/url-reputation", perIpUrlReputationLimit, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   let target;
   try {
