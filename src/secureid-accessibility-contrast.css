@@ -102,3 +102,155 @@ a { text-underline-offset: .18em; }
 .liveReputation-checking { background: #f1f5f9; border-color: #475569; color: #1e293b; }
 .liveReputation-not_configured { background: #fffbeb; border-color: #b45309; color: #78350f; }
 .liveReputation-provider_error, .liveReputation-invalid_url { background: #fff7ed; border-color: #c2410c; color: #7c2d12; }
+
+/* Site-wide contrast correction v2.
+   These selectors intentionally outrank older .panel p !important rules that
+   made pale text appear on light alert / notice surfaces. */
+:root {
+  --sid-readable-text: #f8fafc;
+  --sid-readable-muted: #dbe7f5;
+  --sid-readable-border: #64748b;
+}
+
+/* Ensure secondary text remains readable on dark surfaces throughout the app. */
+#root .panel p,
+#root .panel small,
+#root .panel label,
+#root .panel .lead,
+#root .panel .description,
+#root .panel .subtitle,
+#root .card p,
+#root .card small,
+#root .functionHero p,
+#root .documentVault p,
+#root .documentVault small,
+#root .documentVault label,
+#root .shareCard p,
+#root .shareCard small,
+#root .securityCard p,
+#root .securityCard small,
+#root .tips p,
+#root .tips span,
+#root .fieldHint,
+#root .helperText,
+#root .emptyState,
+#root .empty-state,
+#root .secondaryText,
+#root .secondary-text {
+  color: #dbe7f5 !important;
+  opacity: 1 !important;
+}
+
+/* Light cards and notices must use dark text, including nested copy and icons. */
+#root .scanResultAdvanced,
+#root .scanResultAdvanced p,
+#root .scanResultAdvanced small,
+#root .scanResultAdvanced span,
+#root .scanResultAdvanced strong,
+#root .scanResultAdvanced code,
+#root .scanResultAdvanced li,
+#root .scanResultAdvanced h3,
+#root .scanResultAdvanced .riskScore,
+#root .scanResultAdvanced .scanRecommendation,
+#root .scanResultAdvanced .scanRecommendation *,
+#root .scanResultAdvanced .scanLimitations,
+#root .liveReputation,
+#root .liveReputation p,
+#root .liveReputation small,
+#root .liveReputation strong,
+#root .liveReputation li,
+#root .studentSharePreset,
+#root .studentSharePreset strong,
+#root .studentSharePreset p,
+#root .studentSharePrivacyNote,
+#root .studentProofStatus,
+#root .studentProofStatus *,
+#root .studentProofMessage,
+#root .studentProofPrivacyNote,
+#root .privacy,
+#root .privacy *,
+#root .vaultMessage,
+#root .vaultMessage *,
+#root .vaultSecurityNotice,
+#root .vaultSecurityNotice *,
+#root .successNotice,
+#root .successNotice *,
+#root .successMessage,
+#root .successMessage *,
+#root .alert-success,
+#root .alert-success *,
+#root .alert-warning,
+#root .alert-warning *,
+#root .alert-danger,
+#root .alert-danger *,
+#root [role="alert"].success,
+#root [role="alert"].success *,
+#root [role="alert"].warning,
+#root [role="alert"].warning *,
+#root [role="alert"].error,
+#root [role="alert"].error * {
+  color: #172033 !important;
+  opacity: 1 !important;
+}
+
+/* Keep status colors distinct without sacrificing readable contrast. */
+#root .scanResultAdvanced.high,
+#root .scanResultAdvanced.high p,
+#root .scanResultAdvanced.high strong,
+#root .scanResultAdvanced.high li { color: #881337 !important; }
+#root .scanResultAdvanced.medium,
+#root .scanResultAdvanced.medium p,
+#root .scanResultAdvanced.medium strong,
+#root .scanResultAdvanced.medium li { color: #78350f !important; }
+#root .scanResultAdvanced.low,
+#root .scanResultAdvanced.low p,
+#root .scanResultAdvanced.low strong,
+#root .scanResultAdvanced.low li { color: #1e3a8a !important; }
+#root .liveReputation-threat_found,
+#root .liveReputation-threat_found * { color: #881337 !important; }
+#root .liveReputation-no_match,
+#root .liveReputation-no_match * { color: #1e3a8a !important; }
+#root .liveReputation-checking,
+#root .liveReputation-checking * { color: #1e293b !important; }
+#root .liveReputation-not_configured,
+#root .liveReputation-not_configured * { color: #78350f !important; }
+#root .liveReputation-provider_error,
+#root .liveReputation-provider_error *,
+#root .liveReputation-invalid_url,
+#root .liveReputation-invalid_url * { color: #7c2d12 !important; }
+
+#root .studentSharePreset { background: #f5f8ff !important; border-color: #c9d7f8 !important; }
+#root .studentSharePreset .secondary { color: #2446b6 !important; background: #fff !important; }
+#root .studentSharePrivacyNote { background: #fff9e9 !important; border-left-color: #b7791f !important; }
+#root .studentProofStatus { background: #f5f8ff !important; border-color: #cbd8ef !important; }
+#root .studentProofStatus strong { color: #183c83 !important; }
+#root .studentProofMessage { color: #2446b6 !important; }
+#root .privacy { background: #f7faf9 !important; border-color: #d2e7db !important; }
+#root .privacy > span { color: #166534 !important; }
+
+/* Dark forms: labels, selected values, helper copy and disabled controls remain legible. */
+#root .studentProofForm label,
+#root .identityForm label,
+#root .urlForm label,
+#root .claim,
+#root .claim label {
+  color: #f1f5f9 !important;
+  opacity: 1 !important;
+}
+#root input,
+#root textarea,
+#root select {
+  color: #f8fafc !important;
+  background-color: #0b1425 !important;
+  border-color: #71839b !important;
+}
+#root input::placeholder,
+#root textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+#root button:disabled,
+#root [aria-disabled="true"] {
+  opacity: .82 !important;
+}
+#root .studentSharePreset .secondary:disabled { opacity: .72 !important; }
