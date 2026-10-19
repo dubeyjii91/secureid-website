@@ -587,7 +587,7 @@ function App() {
       const shorteners = /^(bit\.ly|tinyurl\.com|t\.co|is\.gd|cutt\.ly|rb\.gy|ow\.ly|shorturl\.at)$/i;
       const baitWords = /(^|[-.])(login|log-in|verify|verification|secure|security|wallet|password|account|update|support|bonus|claim|kyc|otp|signin|sign-in)([-.]|$)/i;
       const brandWords = /(^|[-.])(secureid|google|microsoft|apple|amazon|paypal|instagram|facebook|whatsapp|aadhaar|uidai|incometax)([-.]|$)/i;
-      const officialDomains = /(^|\.)(google\.com|microsoft\.com|apple\.com|amazon\.com|paypal\.com|instagram\.com|facebook\.com|whatsapp\.com|uidai\.gov\.in|incometax\.gov\.in)$/i;
+      const officialDomains = /(?:^|\.)(?:google\.com|microsoft\.com|apple\.com|amazon\.com|paypal\.com|instagram\.com|facebook\.com|whatsapp\.com|uidai\.gov\.in|incometax\.gov\.in)$/i;
       if (url.protocol !== "https:") add("Connection is not HTTPS", "The address uses HTTP, so traffic may not be protected in transit.", "high", 30);
       else add("HTTPS is enabled", "HTTPS protects the connection but does not prove the site is trustworthy.", "good");
       if (url.username || url.password) add("Embedded credentials", "Text before the host can disguise the real destination.", "high", 30);
