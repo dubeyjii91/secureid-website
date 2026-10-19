@@ -254,3 +254,65 @@ a { text-underline-offset: .18em; }
   opacity: .82 !important;
 }
 #root .studentSharePreset .secondary:disabled { opacity: .72 !important; }
+
+/* SecureID vibrant visual refresh: vivid blue, violet and teal with readable contrast. */
+:root {
+  --sid-electric: #38bdf8;
+  --sid-blue: #2563eb;
+  --sid-violet: #8b5cf6;
+  --sid-teal: #2dd4bf;
+  --sid-ink: #f8fafc;
+  --sid-muted: #d8e5f5;
+}
+#root .sidebar { background: linear-gradient(180deg,#071326 0%,#0b1630 58%,#111331 100%) !important; border-right: 1px solid #263d63 !important; }
+#root .brand strong, #root .sidebar .navItem, #root .signOut { color: #eaf2ff !important; }
+#root .brand small, #root .navLabel { color: #9fc4ef !important; }
+#root .navItem:hover { background: #162a4b !important; color: #ffffff !important; }
+#root .navItem.active { color: #ffffff !important; background: linear-gradient(100deg,#155eaa,#4f46e5) !important; box-shadow: 0 5px 20px #2563eb44 !important; }
+#root .shield, #root .modalShield { color: #ffffff !important; background: linear-gradient(135deg,#38bdf8,#6366f1) !important; }
+#root .topbar { background: linear-gradient(100deg,#0b1730,#111a37) !important; border-bottom-color: #29466f !important; }
+#root .topbar h1, #root .breadcrumb, #root .account { color: #f1f5ff !important; }
+#root .content { color: #f8fafc; }
+#root .panel, #root .actionCard, #root .card, #root .securityCard, #root .shareCard {
+  background: linear-gradient(145deg,#111d35 0%,#0c172b 100%) !important;
+  border-color: #2b4772 !important;
+  box-shadow: 0 12px 32px #02061755 !important;
+}
+#root .panel h1, #root .panel h2, #root .panel h3, #root .actionCard strong,
+#root .card h1, #root .card h2, #root .card h3 { color: #f8fbff !important; }
+#root .eyebrow { color: #67e8f9 !important; }
+#root .primary, #root button.primary, #root .actionButton, #root .generateButton {
+  background: linear-gradient(110deg,#0ea5e9 0%,#4f46e5 55%,#8b5cf6 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #7dd3fc !important;
+  box-shadow: 0 5px 18px #2563eb44 !important;
+}
+#root .primary:hover, #root button.primary:hover, #root .actionButton:hover, #root .generateButton:hover {
+  filter: brightness(1.12) !important;
+}
+#root .verifiedBadge { background: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #10b981 !important; }
+#root .online { background: #2dd4bf !important; box-shadow: 0 0 10px #2dd4bf99; }
+#root .privacy { background: #e6fffb !important; border: 1px solid #5eead4 !important; }
+#root .privacy, #root .privacy * { color: #134e4a !important; opacity: 1 !important; }
+#root .studentSharePreset { background: linear-gradient(135deg,#eff6ff,#ede9fe) !important; border: 1px solid #818cf8 !important; }
+#root .studentSharePreset, #root .studentSharePreset * { color: #172554 !important; opacity: 1 !important; }
+#root .studentSharePreset button { background: #ffffff !important; color: #3730a3 !important; border-color: #6366f1 !important; }
+#root .studentSharePrivacyNote { background: #fff7d6 !important; border: 1px solid #f59e0b !important; border-left: 4px solid #f59e0b !important; }
+#root .studentSharePrivacyNote, #root .studentSharePrivacyNote * { color: #713f12 !important; opacity: 1 !important; }
+#root .studentProofStatus { background: linear-gradient(135deg,#e0f2fe,#eef2ff) !important; border: 1px solid #60a5fa !important; }
+#root .studentProofStatus, #root .studentProofStatus * { color: #172554 !important; opacity: 1 !important; }
+#root .studentProofStatus strong { color: #1d4ed8 !important; }
+#root .studentProofMessage { color: #1d4ed8 !important; }
+#root .liveReputation { border-width: 2px !important; box-shadow: 0 0 0 3px #38bdf822 !important; }
+#root .liveReputation-no_match { background: #eff6ff !important; color: #1e3a8a !important; border-color: #3b82f6 !important; }
+#root .liveReputation-threat_found { background: #fff1f2 !important; color: #881337 !important; border-color: #f43f5e !important; }
+#root .liveReputation-checking { background: #ecfeff !important; color: #164e63 !important; border-color: #06b6d4 !important; }
+#root .liveReputation-not_configured, #root .liveReputation-provider_error, #root .liveReputation-invalid_url { background: #fff7ed !important; color: #7c2d12 !important; border-color: #f97316 !important; }
+#root input, #root textarea, #root select { border-color: #57749e !important; }
+#root input:focus, #root textarea:focus, #root select:focus { outline: 2px solid #38bdf8 !important; outline-offset: 1px !important; border-color: #38bdf8 !important; }
+#root .claim { background: #101e36 !important; border-color: #3a5279 !important; color: #f1f5f9 !important; }
+#root .claim.selected { background: #1e3a8a !important; border-color: #60a5fa !important; color: #ffffff !important; }
+#root .claim input { accent-color: #38bdf8 !important; }
+#root .note { background: #14233b !important; border-color: #38547a !important; color: #e2eaf7 !important; }
+#root .note strong { color: #ffffff !important; }
+#root .sectionTitle h2 { color: #f8fafc !important; }
