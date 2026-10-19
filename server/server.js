@@ -759,7 +759,7 @@ app.get("/api/security/url-reputation", perIpUrlReputationLimit, (req, res) => {
         const normalized = new URL(target.href);
         normalized.hash = "";
         const canonical = normalized.href.toLowerCase();
-        const canonicalNoSlash = canonical.replace(/\\/$/, "");
+        const canonicalNoSlash = canonical.endsWith("/") ? canonical.slice(0, -1) : canonical;
         const found = globalThis.__secureIdOpenPhishCache.urls.has(canonical) ||
           globalThis.__secureIdOpenPhishCache.urls.has(canonicalNoSlash) ||
           globalThis.__secureIdOpenPhishCache.urls.has(canonicalNoSlash + "/");
