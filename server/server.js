@@ -705,6 +705,84 @@ registerProductionFeatures({
   ensureSecurityNotification
 });
 startAutomaticBackup();
+// Optional live URL reputation lookup. Keep the API key server-side only.
+const googleSafeBrowsingApiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY || "";
+const safeBrowsingTimeoutMs = Math.min(8000, Math.max(1500, Number(process.env.SAFE_BROWSING_TIMEOUT_MS || 5000)));
+
+app.get("/api/security/url-reputation", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  let target;
+  try {
+    const raw = String(req.query.url || "");
+    if (!raw || raw.length > 2048) return res.status(400).json({ success: false, status: "invalid_url", message: "Provide a valid website address." });
+    target = new URL(raw);
+    if (!["http:", "https:"].includes(target.protocol) || !target.hostname || target.username || target.password) {
+      return res.status(400).json({ success: false, status: "invalid_url", message: "Only normal HTTP or HTTPS website addresses are supported." });
+    }
+    if (target.hostname.length > 253 || !target.hostname.includes(".")) return res.status(400).json({ success: false, status: "invalid_url", message: "Provide a public domain name." });
+  } catch {
+    return res.status(400).json({ success: false, status: "invalid_url", message: "The website address is not valid." });
+  }
+
+  if (!googleSafeBrowsingApiKey) {
+    return res.status(200).json({
+      success: true,
+      status: "not_configured",
+      provider: "Google Safe Browsing",
+      message: "Live threat-intelligence is not configured yet. This result uses URL pattern checks only."
+    });
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), safeBrowsingTimeoutMs);
+  void fetch("https://safebrowsing.googleapis.com/v4/threatMatches:find?key=" + encodeURIComponent(googleSafeBrowsingApiKey), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: controller.signal,
+    body: JSON.stringify({
+      client: { clientId: "secureid-wallet", clientVersion: "1.0.0" },
+      threatInfo: {
+        threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
+        platformTypes: ["ANY_PLATFORM"],
+        threatEntryTypes: ["URL"],
+        threatEntries: [{ url: target.href }]
+      }
+    })
+  }).then(async (response) => {
+    if (!response.ok) {
+      return res.status(502).json({
+        success: false,
+        status: "provider_error",
+        provider: "Google Safe Browsing",
+        message: "The live reputation provider could not complete this check. Do not treat the URL as safe."
+      });
+    }
+    const data = await response.json();
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    const threats = matches.map((item) => ({
+      type: String(item.threatType || "UNKNOWN").slice(0, 80),
+      platform: String(item.platformType || "ANY_PLATFORM").slice(0, 80)
+    }));
+    return res.json({
+      success: true,
+      status: threats.length ? "threat_found" : "no_match",
+      provider: "Google Safe Browsing",
+      checkedAt: new Date().toISOString(),
+      threats,
+      message: threats.length
+        ? "The live threat-intelligence provider flagged this URL. Do not open it or enter any information."
+        : "The provider returned no known threat match for this URL. This is not a guarantee that the site is safe."
+    });
+  }).catch(() => {
+    if (!res.headersSent) res.status(502).json({
+      success: false,
+      status: "provider_error",
+      provider: "Google Safe Browsing",
+      message: "The live reputation check timed out or was unavailable. Do not treat the URL as safe."
+    });
+  }).finally(() => clearTimeout(timeout));
+});
+
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
