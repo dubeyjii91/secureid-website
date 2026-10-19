@@ -88,3 +88,17 @@ a { text-underline-offset: .18em; }
 .scanRecommendation p { margin: 5px 0 0; line-height: 1.5; }
 .scanLimitations { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #cbd5e1; font-size: .82rem; line-height: 1.5; }
 @media (max-width: 620px) { .scanResultAdvanced { padding: 13px !important; } .scanSummaryTop { align-items: flex-start; flex-direction: column; } }
+
+
+/* Live threat-intelligence status panel: high-contrast text in every state. */
+.liveReputation { margin: 14px 0; padding: 13px 15px; border: 1px solid #64748b; border-radius: 10px; background: #f8fafc; color: #172033; }
+.liveReputation, .liveReputation * { color: inherit; opacity: 1; }
+.liveReputation strong { display: block; font-size: .9rem; letter-spacing: .025em; }
+.liveReputation p { margin: 5px 0 0; line-height: 1.5; font-size: .9rem; }
+.liveReputation small { display: block; margin-top: 8px; font-size: .78rem; }
+.liveReputation ul { margin: 8px 0 0; padding-left: 20px; }
+.liveReputation-threat_found { background: #fff1f2; border-color: #be123c; color: #881337; }
+.liveReputation-no_match { background: #eff6ff; border-color: #1d4ed8; color: #1e3a8a; }
+.liveReputation-checking { background: #f1f5f9; border-color: #475569; color: #1e293b; }
+.liveReputation-not_configured { background: #fffbeb; border-color: #b45309; color: #78350f; }
+.liveReputation-provider_error, .liveReputation-invalid_url { background: #fff7ed; border-color: #c2410c; color: #7c2d12; }
