@@ -61,3 +61,30 @@ a { text-underline-offset: .18em; }
   color: #cbd5e1 !important;
   opacity: 1 !important;
 }
+
+
+/* Explainable website-risk report */
+.scanResultAdvanced { margin-top: 18px; padding: 18px !important; border: 1px solid #64748b !important; border-radius: 14px; background: #f8fafc !important; color: #172033 !important; }
+.scanResultAdvanced * { color: inherit; opacity: 1 !important; }
+.scanResultAdvanced.high { background: #fff1f2 !important; border-color: #e11d48 !important; }
+.scanResultAdvanced.medium { background: #fffbeb !important; border-color: #d97706 !important; }
+.scanResultAdvanced.low { background: #eff6ff !important; border-color: #2563eb !important; }
+.scanResultAdvanced.invalid { background: #f1f5f9 !important; border-color: #64748b !important; }
+.scanSummaryTop { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.scanSummaryTop > strong { font-size: .95rem; letter-spacing: .035em; }
+.riskScore { display: inline-flex; padding: 5px 9px; border: 1px solid #94a3b8; border-radius: 999px; font-size: .82rem; font-weight: 700; }
+.scanChecks { margin-top: 18px; }
+.scanChecks h3 { margin: 0 0 8px; font-size: 1rem; }
+.scanCheckRow { display: flex; gap: 10px; padding: 12px 0; border-top: 1px solid #cbd5e1; }
+.scanCheckRow > div { min-width: 0; }
+.scanCheckRow strong { display: block; font-size: .92rem; }
+.scanCheckRow p { margin: 4px 0 0; line-height: 1.5; font-size: .88rem; }
+.checkDot { display: inline-flex; flex: 0 0 24px; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; font-weight: 800; background: #e2e8f0; }
+.checkDot.good { color: #166534 !important; background: #dcfce7; }
+.checkDot.medium { color: #92400e !important; background: #fef3c7; }
+.checkDot.high { color: #9f1239 !important; background: #ffe4e6; }
+.scanRecommendation { margin-top: 16px; padding: 13px; border-radius: 10px; background: #e2e8f0; }
+.scanRecommendation strong { display: block; }
+.scanRecommendation p { margin: 5px 0 0; line-height: 1.5; }
+.scanLimitations { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #cbd5e1; font-size: .82rem; line-height: 1.5; }
+@media (max-width: 620px) { .scanResultAdvanced { padding: 13px !important; } .scanSummaryTop { align-items: flex-start; flex-direction: column; } }
