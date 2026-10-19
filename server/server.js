@@ -743,7 +743,7 @@ app.get("/api/security/url-reputation", perIpUrlReputationLimit, (req, res) => {
             const feedText = await feedResponse.text();
             if (feedText.length > 5_000_000) throw new Error("Threat feed too large");
             const urls = new Set();
-            for (const line of feedText.split(/\\r?\\n/)) {
+            for (const line of feedText.split(/\r?\n/)) {
               const item = line.trim();
               if (!item || item.length > 2048) continue;
               try {
