@@ -725,12 +725,63 @@ app.get("/api/security/url-reputation", (req, res) => {
   }
 
   if (!googleSafeBrowsingApiKey) {
-    return res.status(200).json({
-      success: true,
-      status: "not_configured",
-      provider: "Google Safe Browsing",
-      message: "Live threat-intelligence is not configured yet. This result uses URL pattern checks only."
-    });
+    // Keyless fallback: download OpenPhish's community feed and compare locally.
+    // Cache the feed briefly to avoid requesting it for every scan; the submitted URL is not sent to OpenPhish.
+    void (async () => {
+      try {
+        const now = Date.now();
+        if (!globalThis.__secureIdOpenPhishCache || now - globalThis.__secureIdOpenPhishCache.fetchedAt > 10 * 60 * 1000) {
+          const feedController = new AbortController();
+          const feedTimeout = setTimeout(() => feedController.abort(), safeBrowsingTimeoutMs);
+          try {
+            const feedResponse = await fetch("https://openphish.com/feed.txt", {
+              headers: { Accept: "text/plain" },
+              signal: feedController.signal
+            });
+            if (!feedResponse.ok) throw new Error("Threat feed unavailable");
+            const feedText = await feedResponse.text();
+            if (feedText.length > 5_000_000) throw new Error("Threat feed too large");
+            const urls = new Set();
+            for (const line of feedText.split(/\\r?\\n/)) {
+              const item = line.trim();
+              if (!item || item.length > 2048) continue;
+              try {
+                const parsed = new URL(item);
+                if (["http:", "https:"].includes(parsed.protocol)) urls.add(parsed.href.toLowerCase());
+              } catch { /* Ignore malformed feed entries. */ }
+            }
+            globalThis.__secureIdOpenPhishCache = { fetchedAt: now, urls };
+          } finally {
+            clearTimeout(feedTimeout);
+          }
+        }
+        const normalized = new URL(target.href);
+        normalized.hash = "";
+        const canonical = normalized.href.toLowerCase();
+        const canonicalNoSlash = canonical.replace(/\\/$/, "");
+        const found = globalThis.__secureIdOpenPhishCache.urls.has(canonical) ||
+          globalThis.__secureIdOpenPhishCache.urls.has(canonicalNoSlash) ||
+          globalThis.__secureIdOpenPhishCache.urls.has(canonicalNoSlash + "/");
+        return res.json({
+          success: true,
+          status: found ? "threat_found" : "no_match",
+          provider: "OpenPhish community feed",
+          checkedAt: new Date().toISOString(),
+          threats: found ? [{ type: "SOCIAL_ENGINEERING", platform: "ANY_PLATFORM" }] : [],
+          message: found
+            ? "The OpenPhish community feed lists this URL as a suspected phishing URL. Do not open it or enter information."
+            : "No exact URL match was found in the OpenPhish community feed. This does not prove the website is safe."
+        });
+      } catch {
+        if (!res.headersSent) return res.status(502).json({
+          success: false,
+          status: "provider_error",
+          provider: "OpenPhish community feed",
+          message: "The live phishing feed could not be reached. URL pattern checks are still available, but this is not a clean bill of health."
+        });
+      }
+    })();
+    return;
   }
 
   const controller = new AbortController();
