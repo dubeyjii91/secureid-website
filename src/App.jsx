@@ -92,7 +92,7 @@ function InstallSecureIDButton() {
 }
 
 function FunctionVisual({ label }) {
-  const visual = /identity/i.test(label) ? "🪪" : /sharing/i.test(label) ? "🔗" : /safety|phishing/i.test(label) ? "🛡️" : /privacy/i.test(label) ? "🔐" : /responsible use/i.test(label) ? "📋" : /emergency/i.test(label) ? "🚨" : /document/i.test(label) ? "📁" : "🔒";
+  const visual = /identity/i.test(label) ? "🪪" : /sharing/i.test(label) ? "🔗" : /safety|phishing/i.test(label) ? "🛡️" : /privacy/i.test(label) ? "🔐" : /responsible use/i.test(label) ? "📋" : /emergency/i.test(label) ? "🔒" : /document/i.test(label) ? "📁" : "🔒";
   return <div className="functionVisual" aria-label={label}><span className="functionEmoji" aria-hidden="true">{visual}</span><img src="/secureid-welcome.svg" alt="" /></div>;
 }
 
@@ -102,7 +102,7 @@ const navItems = [
   ["documents", "Document vault", "📁"],
   ["share", "Share ID", "🔗"],
   ["safety", "Safety check", "🛡️"],
-  ["lock", "Emergency lock/unlock", "🚨"],
+  ["lock", "Emergency lock/unlock", "🔒"],
   ["activity", "Security activity", "📊"],
   ["sessions", "Active sessions", "💻"],
   ["shares", "Share management", "🔐"],
