@@ -315,10 +315,10 @@ export default function DocumentVault(){
           <div><strong>Aadhaar service</strong><span>{governmentReadiness?.aadhaar?.live ? "Live verification enabled" : governmentReadiness?.aadhaar?.approved && governmentReadiness?.aadhaar?.configured ? "Approved configuration detected; live verification not enabled" : governmentReadiness?.aadhaar?.configured ? "Configuration present; provider approval not confirmed" : "Authorized provider configuration required"}</span></div>
         </div>
         <div className="officialVerificationActions">
-          <button type="button" onClick={() => setGovernmentActionMessage(governmentReadiness?.pan?.live ? "A live PAN provider is marked enabled, but the in-site verification endpoint is not available in this deployment. No verification was performed." : "Direct PAN verification is not available yet because SecureID has no approved, connected PAN verification provider. No data was sent and no verification was performed.")}>Verify PAN inside SecureID</button>
-          <button type="button" onClick={() => setGovernmentActionMessage(governmentReadiness?.aadhaar?.live ? "A live Aadhaar provider is marked enabled, but the in-site verification endpoint is not available in this deployment. No verification was performed." : "Direct Aadhaar verification is not available yet because SecureID has no UIDAI-authorized or approved partner connection. No Aadhaar data was sent and no verification was performed.")}>Verify Aadhaar inside SecureID</button>
+          <button type="button" disabled title="Requires an authorized provider integration">PAN verification unavailable</button>
+          <button type="button" disabled title="Requires a UIDAI-authorized or approved partner integration">Aadhaar verification unavailable</button>
         </div>
-        {governmentActionMessage && <p className="vaultMessage" role="status">{governmentActionMessage}</p>}
+        <p className="vaultMessage" role="status">No government verification request can be submitted from this deployment. SecureID has no live, authorized provider connection; uploading a document or checking file integrity is not proof of authenticity.</p>
         <small>These controls stay inside SecureID and will not redirect you to government websites. Actual verification requires the necessary authorization and secure provider/API integration. Saving a document is not verification.</small>
       </div>
       <div className="identityDocumentChoices" role="group" aria-label="Choose identity document type">
