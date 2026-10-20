@@ -108,7 +108,19 @@ app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-src 'self' blob:;");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-  res.setHeader("Cache-Control", "no-store");
+  // Keep the app shell and all API responses out of caches. Only public, fingerprinted
+  // build assets may be cached long-term; public discovery metadata gets a short TTL.
+  const isFingerprintedAsset =
+    /^\/assets\/[A-Za-z0-9._-]+\.[A-Za-z0-9]+$/.test(req.path) &&
+    /-[A-Za-z0-9_-]{8,}\./.test(req.path);
+  const isPublicMetadata = ["/manifest.webmanifest", "/robots.txt", "/sitemap.xml", "/secureid-app-icon.svg"].includes(req.path);
+  if (isFingerprintedAsset) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  } else if (isPublicMetadata && req.method === "GET") {
+    res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+  } else {
+    res.setHeader("Cache-Control", "no-store");
+  }
   if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   next();
 });
