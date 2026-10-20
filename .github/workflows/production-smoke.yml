@@ -134,6 +134,27 @@ jobs:
               console.error(`FAIL ${route.path}: ${lastError.message}`);
             }
           }
+          // The HTML app shell must never be stored by shared/browser caches.
+          const shell = await fetch(new URL("/", base), { signal: AbortSignal.timeout(15000) });
+          const shellCache = (shell.headers.get("cache-control") || "").toLowerCase();
+          if (!shellCache.includes("no-store")) throw new Error("App shell is missing Cache-Control: no-store");
+
+          // Vite emits content-hashed assets. Verify those can be cached immutably without
+          // accidentally allowing un-fingerprinted or sensitive routes to be cached.
+          const shellHtml = await shell.text();
+          const assetPath = shellHtml.match(/(?:src|href)="([^"]*\/assets\/[^"]+\.(?:js|css))"/)?.[1];
+          if (!assetPath) throw new Error("Could not locate a fingerprinted JavaScript/CSS asset in the production app shell");
+          const assetUrl = new URL(assetPath, base);
+          if (!/-[A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(assetUrl.pathname)) {
+            throw new Error("Production asset filename is not content-fingerprinted");
+          }
+          const assetResponse = await fetch(assetUrl, { signal: AbortSignal.timeout(15000) });
+          const assetCache = (assetResponse.headers.get("cache-control") || "").toLowerCase();
+          if (!assetResponse.ok || !assetCache.includes("public") || !assetCache.includes("immutable") || !assetCache.includes("max-age=31536000")) {
+            throw new Error("Fingerprint asset must return public, immutable, one-year cache headers");
+          }
+          console.log("PASS cache policy: app shell is no-store and fingerprinted assets are immutable.");
+
           if (failed) process.exit(1);
           console.log("Production route, security-header, and unauthenticated-access smoke tests passed.");
           NODE
