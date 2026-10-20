@@ -21,6 +21,12 @@ Production startup deliberately fails closed unless `SESSION_HASH_SECRET`, `OTP_
 
 The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, account export/deletion, security email alerts, encrypted automated backups, and privacy-safe operational error alerting are implemented. Production onboarding should still include a managed PostgreSQL migration before horizontal scaling and an independent security review.
 
+## Security and release documentation
+
+- [Security policy and responsible disclosure](SECURITY.md)
+- [Production security test plan and release evidence checklist](docs/SECURITY-TEST-PLAN.md)
+- [Threat model and residual risks](docs/THREAT-MODEL.md)
+
 ## Project checks
 
 ```powershell
