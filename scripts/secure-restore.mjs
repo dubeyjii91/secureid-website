@@ -66,6 +66,11 @@ const dbParent = path.dirname(dbPath);
 const docParent = path.dirname(documentDir);
 const tempDb = path.join(dbParent, ".secureid-restore-" + stamp + ".sqlite");
 const previousDb = dbPath + ".pre-restore-" + stamp;
+const dbSidecars = ["-wal", "-shm"].map((suffix) => ({
+  source: dbPath + suffix,
+  previous: previousDb + suffix,
+  moved: false,
+}));
 const stageDocs = documentDir + "-restore-" + stamp;
 const previousDocs = documentDir + "-pre-restore-" + stamp;
 mkdirSync(dbParent, { recursive: true });
@@ -95,6 +100,14 @@ try {
     }
   }
 
+  // SQLite WAL/SHM sidecars belong to the old database. Move them with its
+  // recovery copy so they can never be replayed against the newly restored DB.
+  for (const sidecar of dbSidecars) {
+    if (existsSync(sidecar.source)) {
+      renameSync(sidecar.source, sidecar.previous);
+      sidecar.moved = true;
+    }
+  }
   if (existsSync(dbPath)) {
     renameSync(dbPath, previousDb);
     dbMoved = true;
@@ -119,6 +132,11 @@ try {
   if (docsMoved && existsSync(previousDocs) && !existsSync(documentDir)) renameSync(previousDocs, documentDir);
   if (newDbInstalled && existsSync(dbPath)) rmSync(dbPath, { force: true });
   if (dbMoved && existsSync(previousDb) && !existsSync(dbPath)) renameSync(previousDb, dbPath);
+  for (const sidecar of dbSidecars.reverse()) {
+    if (sidecar.moved && existsSync(sidecar.previous) && !existsSync(sidecar.source)) {
+      renameSync(sidecar.previous, sidecar.source);
+    }
+  }
   throw error;
 } finally {
   rmSync(tempDb, { force: true });
