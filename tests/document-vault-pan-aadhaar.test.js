@@ -23,12 +23,14 @@ test("PAN/Aadhaar upload guidance does not falsely claim government verification
   assert.match(ui, /masked Aadhaar recommended/);
 });
 
-test("government verification stays inside SecureID and does not redirect to external portals", () => {
+test("government verification is disabled until an authorized provider is connected", () => {
   assert.match(ui, /OFFICIAL GOVERNMENT VERIFICATION/);
   assert.match(ui, /Government verification is not connected yet/);
-  assert.match(ui, /Verify PAN inside SecureID/);
-  assert.match(ui, /Verify Aadhaar inside SecureID/);
-  assert.match(ui, /These controls stay inside SecureID and will not redirect you to government websites/);
+  assert.match(ui, /PAN verification unavailable/);
+  assert.match(ui, /Aadhaar verification unavailable/);
+  assert.match(ui, /No government verification request can be submitted from this deployment/);
+  assert.match(ui, /disabled title="Requires an authorized provider integration"/);
+  assert.match(ui, /disabled title="Requires a UIDAI-authorized or approved partner integration"/);
   assert.doesNotMatch(ui, /href="https:\/\/www\.incometax\.gov\.in/);
   assert.doesNotMatch(ui, /href="https:\/\/uidai\.gov\.in/);
   assert.match(ui, /This is a submission status only, not an independent college or government verification/);
