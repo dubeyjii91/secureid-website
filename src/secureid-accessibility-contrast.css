@@ -442,3 +442,22 @@ a { text-underline-offset: .18em; }
 #root :focus-visible {
   outline-color: #1d4ed8 !important;
 }
+
+/* FINAL GLOBAL READABILITY ENFORCEMENT — this file is imported after the app's design layers. */
+:root{--sid-contrast-text:#f8fafc;--sid-contrast-muted:#dbe5f1;--sid-contrast-link:#7dd3fc}
+body,#root,.shell,.main,.content,.sidebar,.topbar,header,.panel,.card,.functionHero,.profilePanel,.statusPanel,.actionCard,.claim,.shareResult,.documentVault,.documentItem,.identityProfileEditor,.systemHealthPanel,.securityCard,.identityCard,.shareCard,.lockPanel,.authShell,.authCard,.mfaModal,.welcomeCard,.managedShare,.activityEmpty{color:var(--sid-contrast-text)!important}
+.sidebar small,.topbar small,.account,.breadcrumb,.navLabel,p,small,li,dt,dd,figcaption,.lead,.muted,.text-muted,.subtle,.helperText,.fieldHint,.emptyState,.empty-state,.secondaryText,.secondary-text,.description,.subtitle,.details span,.securityRow span,.privacy p,.shareHint,.shareExpiry,.healthMeta,.vaultBlock small,.documentItem small,.notification small,.notification em,.privacyRow small,.systemHealthGrid span{color:var(--sid-contrast-muted)!important;opacity:1!important}
+h1,h2,h3,h4,h5,h6,legend,.panelHead h2,.sectionTitle h2,.functionHero h2,.brand strong,.authBrand,.welcomeCard h2{color:#fff!important;opacity:1!important}
+a,.textLink,.linkButton{color:var(--sid-contrast-link)!important;text-underline-offset:.18em}
+a:visited{color:#c4b5fd!important}
+input,select,textarea{color:#f8fafc!important;background:#0b1425!important;border-color:#8293aa!important;opacity:1!important}
+input::placeholder,textarea::placeholder{color:#cbd5e1!important;opacity:1!important}
+input:disabled,select:disabled,textarea:disabled{color:#e2e8f0!important;-webkit-text-fill-color:#e2e8f0;opacity:1!important}
+button,button *, .navItem,.navItem *, .signOut{opacity:1!important}
+button:disabled,[aria-disabled=true]{opacity:1!important;filter:saturate(.65)}
+button.primary,.primary,.btn-primary,.primaryButton,button[type=submit]{color:#07111f!important;font-weight:750!important}
+button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submit] *{color:inherit!important}
+.scanResultAdvanced,.scanResultAdvanced *, .scanResult.safe,.scanResult.safe *, .vaultMessage,.vaultMessage *, .vaultSecurityNotice,.vaultSecurityNotice *,[role=alert].success,[role=alert].success *,[role=alert].warning,[role=alert].warning *,[role=alert].error,[role=alert].error *, .successNotice,.successNotice *, .successMessage,.successMessage *, .alert-success,.alert-success *, .alert-warning,.alert-warning *, .alert-danger,.alert-danger *, .dangerNotice,.dangerNotice *, .statusMessage.success,.statusMessage.success *, .statusMessage.warning,.statusMessage.warning *, .statusMessage.error,.statusMessage.error *, .formMessage.success,.formMessage.success *, .formMessage.error,.formMessage.error *{color:#172033!important;opacity:1!important}
+:focus-visible{outline:3px solid #67e8f9!important;outline-offset:3px!important}
+::selection{color:#07111f;background:#bae6fd}
+@media(prefers-contrast:more){:root{--sid-contrast-muted:#f1f5f9;--sid-contrast-link:#bae6fd}.panel,.card,input,select,textarea,button{border-color:#94a3b8!important}}
