@@ -17,7 +17,15 @@ To use MFA locally or in production, select an email provider explicitly with `O
 
 ## Production configuration
 
-Production startup deliberately fails closed unless `SESSION_HASH_SECRET`, `OTP_HASH_SECRET`, and a fully configured `OTP_DELIVERY` provider are set. Configure `APP_ORIGIN` as the exact frontend origin allowed by CORS, `DATABASE_PATH` to durable protected storage, and `TRUST_PROXY_HOPS` to the actual trusted proxy count. The frontend uses `/api`; route it through a same-origin or same-site HTTPS reverse proxy. Use HTTPS, durable encrypted backups, monitoring, and a deployment secret manager. Never commit `.env`, credentials, or database files.
+Production startup deliberately fails closed unless `SESSION_HASH_SECRET`, `OTP_HASH_SECRET`, and a fully configured `OTP_DELIVERY` provider are set. In addition, production document storage requires `DOCUMENT_ENCRYPTION_KEY`, and encrypted backups require `BACKUP_ENCRYPTION_KEY`. Configure `APP_ORIGIN` as the exact frontend origin allowed by CORS, `DATABASE_PATH` to durable protected storage, and `TRUST_PROXY_HOPS` to the actual trusted proxy count. The frontend uses `/api`; route it through a same-origin or same-site HTTPS reverse proxy. Use HTTPS, durable encrypted backups, monitoring, and a deployment secret manager. Never commit `.env`, credentials, or database files.
+
+Generate independent 32-byte base64 keys (run twice, using a different result each time) with Node.js:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Set one result as `DOCUMENT_ENCRYPTION_KEY` and the other as `BACKUP_ENCRYPTION_KEY` in the hosting secret manager. Do not use the example file itself as a source of real secrets, and do not rotate the document key without a planned re-encryption migration. Losing the document key can make stored files permanently unreadable; losing the backup key can make encrypted backups unrestorable.
 
 The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, account export/deletion, security email alerts, encrypted automated backups, and privacy-safe operational error alerting are implemented. Production onboarding should still include a managed PostgreSQL migration before horizontal scaling and an independent security review.
 
