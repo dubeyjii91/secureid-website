@@ -501,3 +501,41 @@ button,button *,[role=button],[role=button] *{
 .formMessage.error,.formMessage.error *{background:#fff!important;color:#000!important}
 :focus-visible{outline:3px solid #005fcc!important;outline-offset:3px!important}
 ::selection{color:#fff!important;background:#222!important}
+
+
+/* FINAL VISUAL OVERRIDE: user requested plain white surfaces and black text site-wide. */
+html body #root *:not(svg):not(path):not(img):not(video):not(canvas):not(iframe):not(picture):not(source) {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+  text-shadow: none !important;
+}
+html body #root *::before,
+html body #root *::after {
+  background-image: none !important;
+  text-shadow: none !important;
+}
+html body #root a,
+html body #root a:visited {
+  color: #0033a0 !important;
+  -webkit-text-fill-color: #0033a0 !important;
+  text-decoration: underline !important;
+}
+html body #root button,
+html body #root button *,
+html body #root [role="button"],
+html body #root [role="button"] * {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+}
+html body #root input,
+html body #root select,
+html body #root textarea {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+}
