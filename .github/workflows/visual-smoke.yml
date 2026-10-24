@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "public/**"
       - ".github/workflows/visual-smoke.yml"
   workflow_dispatch:
 
@@ -137,6 +138,15 @@ jobs:
             }
           } finally {
             await browser.close();
+          }
+          for (const path of ['/secureid-welcome.svg', '/secureid-app-icon.svg']) {
+            const response = await fetch(new URL(path, base), { signal: AbortSignal.timeout(15000) });
+            const source = await response.text();
+            if (!response.ok || !source.includes('fill="#ffffff"') || !source.includes('fill="#000000"')) {
+              failures.push(`${path}: SVG background/text colors are not white/black as requested`);
+            } else {
+              console.log(`PASS ${path}: white background and black lettering`);
+            }
           }
           if (failures.length) {
             console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
