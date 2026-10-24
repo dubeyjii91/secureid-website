@@ -570,3 +570,42 @@ html body [role="button"]:not(.sid-light-override-never-1):not(.sid-light-overri
   background-image: none !important;
   -webkit-text-fill-color: #000 !important;
 }
+
+
+/* Final override with the app root ID and intentionally high specificity so legacy theme selectors cannot win. */
+html body #root *:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12):not(svg):not(path):not(img):not(video):not(canvas):not(iframe):not(picture):not(source) {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+  text-shadow: none !important;
+}
+html body #root *:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12)::before,
+html body #root *:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12)::after {
+  background-image: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+html body #root a:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12),
+html body #root a:visited:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12) {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+  text-decoration: underline !important;
+}
+html body #root button:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12),
+html body #root button:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12) *,
+html body #root [role="button"]:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12),
+html body #root [role="button"]:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12) * {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+}
+html body #root input:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12),
+html body #root select:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12),
+html body #root textarea:not(.sid-light-override-never-1):not(.sid-light-override-never-2):not(.sid-light-override-never-3):not(.sid-light-override-never-4):not(.sid-light-override-never-5):not(.sid-light-override-never-6):not(.sid-light-override-never-7):not(.sid-light-override-never-8):not(.sid-light-override-never-9):not(.sid-light-override-never-10):not(.sid-light-override-never-11):not(.sid-light-override-never-12) {
+  color: #000 !important;
+  background-color: #fff !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #000 !important;
+}
