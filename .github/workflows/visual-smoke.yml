@@ -1,0 +1,125 @@
+name: SecureID visual appearance smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/visual-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Check desktop and mobile appearance and capture screenshots
+        env:
+          BASE_URL: https://secureid-production-b732.up.railway.app
+        run: |
+          mkdir -p artifacts
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+
+          const base = process.env.BASE_URL;
+          const browser = await chromium.launch({ headless: true });
+          let failures = [];
+          try {
+            for (const viewport of [
+              { name: 'desktop', width: 1440, height: 1000 },
+              { name: 'mobile', width: 390, height: 844 },
+            ]) {
+              const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 1 });
+              page.on('pageerror', error => failures.push(`${viewport.name}: browser JS error: ${error.message}`));
+              let response;
+              for (let attempt = 1; attempt <= 5; attempt++) {
+                try {
+                  response = await page.goto(base, { waitUntil: 'networkidle', timeout: 30000 });
+                  if (response?.ok()) break;
+                } catch (error) {
+                  if (attempt === 5) throw error;
+                  await page.waitForTimeout(2000);
+                }
+              }
+              if (!response?.ok()) throw new Error(`${viewport.name}: homepage returned HTTP ${response?.status()}`);
+              await page.waitForTimeout(2500);
+              await page.screenshot({ path: `artifacts/secureid-${viewport.name}.png`, fullPage: true, animations: 'disabled' });
+
+              const result = await page.evaluate(() => {
+                const visible = element => {
+                  const rect = element.getBoundingClientRect();
+                  const style = getComputedStyle(element);
+                  return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
+                };
+                const isMedia = element => /^(IMG|VIDEO|CANVAS|IFRAME|SVG|PATH|PICTURE|SOURCE)$/i.test(element.tagName);
+                const rgb = value => value.replace(/\\s/g, '');
+                const backgrounds = [];
+                const textColors = [];
+                for (const element of document.querySelectorAll('body, body *')) {
+                  if (!visible(element) || isMedia(element)) continue;
+                  const style = getComputedStyle(element);
+                  const bg = style.backgroundColor;
+                  const transparent = bg === 'transparent' || /rgba\\([^)]*,0(?:\\.0+)?\\)$/.test(rgb(bg));
+                  if (!transparent && bg !== 'rgb(255, 255, 255)') {
+                    backgrounds.push({ tag: element.tagName, className: String(element.className?.baseVal ?? element.className ?? '').slice(0, 100), background: bg });
+                  }
+                  if (style.backgroundImage !== 'none') {
+                    backgrounds.push({ tag: element.tagName, className: String(element.className?.baseVal ?? element.className ?? '').slice(0, 100), backgroundImage: style.backgroundImage.slice(0, 120) });
+                  }
+                  const hasText = element.children.length === 0 && (element.textContent || '').trim().length > 0;
+                  if (hasText) {
+                    const color = style.color;
+                    const isLink = element.closest('a');
+                    const allowed = color === 'rgb(0, 0, 0)' || (isLink && color === 'rgb(0, 51, 160)');
+                    if (!allowed) textColors.push({ tag: element.tagName, text: element.textContent.trim().slice(0, 60), color });
+                  }
+                }
+                return {
+                  title: document.title,
+                  rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+                  bodyBackground: getComputedStyle(document.body).backgroundColor,
+                  backgroundIssues: backgrounds.slice(0, 40),
+                  backgroundIssueCount: backgrounds.length,
+                  textColorIssues: textColors.slice(0, 40),
+                  textColorIssueCount: textColors.length,
+                  horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
+                };
+              });
+
+              console.log(`VISUAL ${viewport.name.toUpperCase()} ${JSON.stringify(result)}`);
+              if (result.rootBackground !== 'rgb(255, 255, 255)' || result.bodyBackground !== 'rgb(255, 255, 255)') {
+                failures.push(`${viewport.name}: root/body background is not white`);
+              }
+              if (result.backgroundIssueCount > 0) failures.push(`${viewport.name}: ${result.backgroundIssueCount} visible non-white/gradient backgrounds found`);
+              if (result.textColorIssueCount > 0) failures.push(`${viewport.name}: ${result.textColorIssueCount} visible text color exceptions found`);
+              if (result.horizontalOverflow) failures.push(`${viewport.name}: horizontal overflow detected`);
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          if (failures.length) {
+            console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
+            process.exit(1);
+          }
+          console.log('PASS: desktop and mobile backgrounds are white, text is black (links blue), no gradient backgrounds or horizontal overflow.');
+          NODE
+      - name: Upload desktop and mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secureid-visual-screenshots
+          path: artifacts/*.png
+          if-no-files-found: warn
+          retention-days: 7
