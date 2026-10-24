@@ -486,7 +486,10 @@ button:not(.primary):not(.btn-primary):not(.primaryButton):not([type=submit]),
 .navItem,.signOut,.installAppButton{background:#fff!important;color:#000!important;border-color:#555!important}
 button.primary,.primary,.btn-primary,.primaryButton,button[type=submit],
 button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submit] *{
- background:#111!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-weight:700!important
+ background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;font-weight:700!important
+}
+button,button *,[role=button],[role=button] *{
+ background-color:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important
 }
 .scanResultAdvanced,.scanResultAdvanced *, .scanResult.safe,.scanResult.safe *, .vaultMessage,.vaultMessage *,
 .vaultSecurityNotice,.vaultSecurityNotice *,[role=alert].success,[role=alert].success *,
