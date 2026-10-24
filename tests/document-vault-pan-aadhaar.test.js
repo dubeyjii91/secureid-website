@@ -51,3 +51,15 @@ test("government integration readiness endpoint is authenticated and never repor
   assert.match(ui, /governmentReadiness\?\.aadhaar\?\.configured/);
   assert.match(styles, /\.governmentReadinessList/);
 });
+
+test("document integrity verification awaits file-type detection before responding", () => {
+  const routeStart = backend.indexOf('app.post("/api/documents/:id/verify"');
+  assert.notEqual(routeStart, -1);
+  const routeEnd = backend.indexOf("/*", routeStart);
+  const route = backend.slice(routeStart, routeEnd === -1 ? undefined : routeEnd);
+  assert.match(route, /async \(req,res,next\)=>/);
+  assert.match(route, /await fileTypeFromBuffer\(buffer\)/);
+  assert.doesNotMatch(route, /fileTypeFromBuffer\(buffer\)\.then\(/);
+  assert.match(route, /authenticityStatus:"not_verified"/);
+  assert.match(route, /Document authenticity is NOT verified/);
+});
