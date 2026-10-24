@@ -461,3 +461,40 @@ button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submi
 :focus-visible{outline:3px solid #67e8f9!important;outline-offset:3px!important}
 ::selection{color:#07111f;background:#bae6fd}
 @media(prefers-contrast:more){:root{--sid-contrast-muted:#f1f5f9;--sid-contrast-link:#bae6fd}.panel,.card,input,select,textarea,button{border-color:#94a3b8!important}}
+
+/* User-requested universal light theme: white backgrounds and black text. */
+:root{color-scheme:light!important;--sid-contrast-text:#000!important;--sid-contrast-muted:#111!important;--sid-contrast-link:#0033a0!important}
+html,body,#root{background:#fff!important;color:#000!important}
+body,body *:not(svg):not(path):not(img):not(video):not(canvas):not(iframe):not([aria-hidden=true]){color:#000!important}
+html,body,#root,.shell,.main,.content,.sidebar,.topbar,header,main,section,article,aside,nav,
+.panel,.card,.functionHero,.profilePanel,.statusPanel,.actionCard,.claim,.shareResult,.documentVault,.documentItem,
+.identityProfileEditor,.systemHealthPanel,.securityCard,.identityCard,.shareCard,.lockPanel,.authShell,.authCard,
+.mfaModal,.welcomeCard,.managedShare,.activityEmpty,.modal,.dialog,.dropdown,.popover,.menu,.tooltip,
+.formSection,.settingsPanel,.tableWrap,.emptyState,.empty-state{background-color:#fff!important;color:#000!important}
+h1,h2,h3,h4,h5,h6,p,span,small,strong,em,b,i,label,legend,li,dt,dd,th,td,caption,figcaption,summary,
+.muted,.text-muted,.subtle,.helperText,.fieldHint,.description,.subtitle,.secondaryText,.secondary-text,
+.details span,.securityRow span,.privacy p,.shareHint,.shareExpiry,.healthMeta,.vaultBlock small,
+.documentItem small,.notification small,.notification em,.privacyRow small,.systemHealthGrid span{
+ color:#000!important;opacity:1!important;text-shadow:none!important
+}
+a,.textLink,.linkButton,a:visited{color:#0033a0!important;text-decoration:underline;text-underline-offset:.15em}
+input,select,textarea{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;border:1px solid #555!important;opacity:1!important}
+input::placeholder,textarea::placeholder{color:#444!important;-webkit-text-fill-color:#444!important;opacity:1!important}
+input:disabled,select:disabled,textarea:disabled{background:#f2f2f2!important;color:#222!important;-webkit-text-fill-color:#222!important;opacity:1!important}
+button,button *,[role=button],[role=button] *{opacity:1!important}
+button:not(.primary):not(.btn-primary):not(.primaryButton):not([type=submit]),
+.navItem,.signOut,.installAppButton{background:#fff!important;color:#000!important;border-color:#555!important}
+button.primary,.primary,.btn-primary,.primaryButton,button[type=submit],
+button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submit] *{
+ background:#111!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-weight:700!important
+}
+.scanResultAdvanced,.scanResultAdvanced *, .scanResult.safe,.scanResult.safe *, .vaultMessage,.vaultMessage *,
+.vaultSecurityNotice,.vaultSecurityNotice *,[role=alert].success,[role=alert].success *,
+[role=alert].warning,[role=alert].warning *,[role=alert].error,[role=alert].error *,
+.successNotice,.successNotice *, .successMessage,.successMessage *, .alert-success,.alert-success *,
+.alert-warning,.alert-warning *, .alert-danger,.alert-danger *, .dangerNotice,.dangerNotice *,
+.statusMessage.success,.statusMessage.success *, .statusMessage.warning,.statusMessage.warning *,
+.statusMessage.error,.statusMessage.error *, .formMessage.success,.formMessage.success *,
+.formMessage.error,.formMessage.error *{background:#fff!important;color:#000!important}
+:focus-visible{outline:3px solid #005fcc!important;outline-offset:3px!important}
+::selection{color:#fff!important;background:#222!important}
