@@ -371,3 +371,74 @@ a { text-underline-offset: .18em; }
 #root .functionVisual { border-color: #4568a3 !important; background: linear-gradient(135deg,#153c68,#382d78) !important; }
 #root .functionEmoji { filter: saturate(1.1); }
 #root .sideBottom .privacy { background: #e6fffb !important; color: #134e4a !important; }
+
+
+/* Readability fix: the primary dashboard is a LIGHT interface. Earlier
+   global dark-glass rules forced white text onto white cards and inputs.
+   Keep dark text on light surfaces and reserve white text for explicit dark
+   components only. */
+#root .shell,
+#root .main,
+#root .content,
+#root .sidebar,
+#root .topbar,
+#root .panel,
+#root .card,
+#root .functionHero,
+#root .profilePanel,
+#root .statusPanel,
+#root .systemHealthPanel,
+#root .scorePanel,
+#root .dashboardGrid,
+#root .dashboardGrid > *,
+#root .documentVault,
+#root .documentItem,
+#root .shareCard,
+#root .securityCard,
+#root .identityCard {
+  color: #172033 !important;
+}
+#root .panel p,
+#root .panel small,
+#root .panel label,
+#root .panel span,
+#root .panel li,
+#root .functionHero p,
+#root .sidebar small,
+#root .topbar .account,
+#root .topbar .breadcrumb,
+#root .details span,
+#root .securityRow span,
+#root .documentItem small,
+#root .lead,
+#root .muted,
+#root .text-muted,
+#root .helperText,
+#root .fieldHint {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+#root input,
+#root textarea,
+#root select {
+  color: #172033 !important;
+  background: #ffffff !important;
+  border-color: #94a3b8 !important;
+}
+#root input::placeholder,
+#root textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+#root .navItem { color: #475569 !important; }
+#root .navItem.active { color: #2446b6 !important; }
+#root .eyebrow.dark { color: #475569 !important; }
+#root .vaultMessage,
+#root .vaultSecurityNotice,
+#root .scanResultAdvanced,
+#root .liveReputation {
+  color: #172033 !important;
+}
+#root :focus-visible {
+  outline-color: #1d4ed8 !important;
+}
