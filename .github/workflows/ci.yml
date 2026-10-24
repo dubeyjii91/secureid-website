@@ -37,6 +37,8 @@ jobs:
         run: npm run lint
       - name: Run security unit tests
         run: npm test
+      - name: Test encrypted backup and restore in isolated temporary storage
+        run: node scripts/backup-restore-smoke.mjs
 
   codeql:
     name: CodeQL static security analysis
