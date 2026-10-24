@@ -1,3 +1,66 @@
 .dashboardScore{display:grid;place-items:center;min-width:130px;min-height:130px;border-radius:28px;border:1px solid rgba(22,163,74,.25);background:rgba(22,163,74,.07)}.dashboardScore strong{font-size:42px;line-height:1}.dashboardScore span{font-size:13px;opacity:.65}.dashboardScore small{font-weight:700;color:#15803d}.dashboardGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}.scorePanel h3{font-size:36px;margin:8px 0}.securityStats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.securityStats span{padding:12px;border-radius:12px;background:rgba(127,127,127,.08)}.securityStats b{display:block;font-size:22px}.notificationList{display:grid;gap:8px}.notification{width:100%;display:flex;gap:12px;text-align:left;padding:12px;border:1px solid rgba(127,127,127,.15);border-radius:12px;background:transparent;cursor:pointer}.notification.read{opacity:.62}.notificationDot{width:9px;height:9px;border-radius:50%;margin-top:6px;background:#16a34a;flex:0 0 auto}.notification strong,.notification small,.notification em{display:block}.notification small{margin-top:3px;opacity:.78}.notification em{font-size:11px;margin-top:6px;opacity:.55;font-style:normal}.privacyList{display:grid;gap:2px;margin-top:12px}.privacyRow{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid rgba(127,127,127,.12);cursor:pointer}.privacyRow span{display:grid;gap:4px}.privacyRow small{opacity:.68}.privacyRow input{width:20px;height:20px}@media(max-width:700px){.dashboardGrid{grid-template-columns:1fr}.dashboardScore{min-width:100px;min-height:100px}.securityStats{grid-template-columns:1fr}}
 .scorePanel p,.notification,.notification strong,.notification small,.notification em{color:#dbe5f5}.notification strong{font-weight:700}.notification small{color:#aab8cf;opacity:1}.notification em{color:#8090aa;opacity:1}.privacyRow span b{color:#eef4ff}.privacyRow small{color:#a5b3c8;opacity:1}.privacyRow{color:#eef4ff}
 .unreadBadge{display:inline-block;margin-left:8px;padding:3px 8px;border-radius:999px;font-size:11px;background:rgba(34,197,94,.14);color:#76e7ad;vertical-align:middle}.systemHealthGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.systemHealthGrid>div{padding:12px;border-radius:12px;background:rgba(127,127,127,.08)}.systemHealthGrid span{display:block;color:#9aa9bf;font-size:12px}.systemHealthGrid strong{display:block;margin-top:6px;color:#eef4ff}.systemHealthGrid .healthOk{color:#75e7ad}.healthMeta{display:block;margin-top:12px;color:#8190a8}@media(max-width:700px){.systemHealthGrid{grid-template-columns:1fr}}
+
+/* Final dashboard sizing pass: compact hero and balanced cards across screen sizes. */
+.content.narrow:has(> .dashboardGrid) {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+}
+.content.narrow:has(> .dashboardGrid) > .functionHero {
+  min-height: 0;
+  align-items: center;
+  padding: clamp(18px, 2.4vw, 26px);
+  gap: 20px;
+}
+.content.narrow:has(> .dashboardGrid) > .functionHero h2 {
+  margin: 5px 0 8px;
+  font-size: clamp(1.35rem, 2.2vw, 1.8rem);
+  line-height: 1.2;
+}
+.content.narrow:has(> .dashboardGrid) > .functionHero p {
+  max-width: 56ch;
+  margin-bottom: 0;
+  font-size: .94rem;
+}
+.dashboardScore {
+  flex: 0 0 108px;
+  min-width: 108px;
+  min-height: 108px;
+  border-radius: 22px;
+}
+.dashboardScore strong { font-size: 34px; }
+.dashboardGrid {
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: stretch;
+  gap: 14px;
+  margin: 14px 0;
+}
+.dashboardGrid > .panel,
+.content.narrow:has(> .dashboardGrid) > .panel {
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border-radius: 16px;
+}
+.scorePanel h3 { font-size: clamp(1.8rem, 3vw, 2.25rem); }
+.securityStats { gap: 9px; }
+.securityStats span { padding: 10px; font-size: .85rem; line-height: 1.4; }
+.securityStats b { font-size: 20px; margin-bottom: 2px; }
+.systemHealthGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.privacyRow { padding: 12px 0; }
+.privacyRow small { line-height: 1.45; }
+@media (max-width: 760px) {
+  .content.narrow:has(> .dashboardGrid) > .functionHero { gap: 12px; }
+  .dashboardGrid { grid-template-columns: minmax(0, 1fr); }
+  .dashboardScore { flex-basis: 92px; min-width: 92px; min-height: 92px; border-radius: 18px; }
+  .dashboardScore strong { font-size: 30px; }
+}
+@media (max-width: 460px) {
+  .content.narrow:has(> .dashboardGrid) > .functionHero { align-items: flex-start; }
+  .dashboardScore { flex-basis: 76px; min-width: 76px; min-height: 76px; border-radius: 15px; }
+  .dashboardScore strong { font-size: 25px; }
+  .dashboardScore span { font-size: 11px; }
+  .dashboardScore small { font-size: 10px; }
+  .securityStats { grid-template-columns: minmax(0, 1fr); }
+  .systemHealthGrid { grid-template-columns: minmax(0, 1fr); }
+}
