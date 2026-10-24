@@ -1,0 +1,119 @@
+/* Global readability enforcement — loaded last across the entire SecureID app.
+   Dark glass surfaces use near-white text; secondary copy remains high-contrast.
+   Semantic light alerts keep dark text for contrast. */
+:root {
+  color-scheme: dark;
+  --sid-contrast-text: #f8fafc;
+  --sid-contrast-secondary: #dbe5f1;
+  --sid-contrast-link: #7dd3fc;
+  --sid-contrast-border: #64748b;
+}
+html, body, #root {
+  color: var(--sid-contrast-text) !important;
+}
+body, .shell, .main, .content, .sidebar, .topbar, header,
+.panel, .card, .functionHero, .profilePanel, .statusPanel,
+.actionCard, .claim, .shareResult, .documentVault, .documentItem,
+.identityProfileEditor, .systemHealthPanel, .securityCard,
+.identityCard, .shareCard, .lockPanel, .authShell, .authCard,
+.mfaModal, .welcomeCard, .managedShare, .activityEmpty {
+  color: var(--sid-contrast-text) !important;
+}
+/* Remove opacity-based hiding of actual readable copy. */
+p, small, label, strong, span, em, li, dt, dd, th, td, legend,
+figcaption, summary, .lead, .muted, .text-muted, .subtle,
+.helperText, .fieldHint, .emptyState, .empty-state,
+.secondaryText, .secondary-text, .description, .subtitle,
+.details span, .securityRow span, .privacy p, .shareHint,
+.shareExpiry, .breadcrumb, .navLabel, .account, .healthMeta,
+.vaultBlock small, .documentItem small, .notification small,
+.notification em, .privacyRow small, .systemHealthGrid span {
+  opacity: 1 !important;
+  text-shadow: none;
+}
+p, small, li, dt, dd, figcaption, .lead, .muted, .text-muted,
+.subtle, .helperText, .fieldHint, .emptyState, .empty-state,
+.secondaryText, .secondary-text, .description, .subtitle,
+.details span, .securityRow span, .privacy p, .shareHint,
+.shareExpiry, .healthMeta, .vaultBlock small, .documentItem small,
+.notification small, .notification em, .privacyRow small,
+.systemHealthGrid span, .statusMessage, .formMessage {
+  color: var(--sid-contrast-secondary) !important;
+}
+h1, h2, h3, h4, h5, h6, legend, .panelHead h2,
+.sectionTitle h2, .functionHero h2, .brand strong,
+.authBrand, .welcomeCard h2 {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+a, .textLink, .linkButton {
+  color: var(--sid-contrast-link) !important;
+  text-underline-offset: .18em;
+}
+a:visited { color: #c4b5fd !important; }
+/* Inputs and placeholders remain readable, including disabled fields. */
+input, select, textarea {
+  color: #f8fafc !important;
+  background-color: #0b1425 !important;
+  border-color: #8293aa !important;
+  opacity: 1 !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+input:disabled, select:disabled, textarea:disabled {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0;
+  opacity: 1 !important;
+}
+button, button *, .navItem, .navItem *, .signOut, .installAppButton {
+  opacity: 1 !important;
+}
+button:disabled, [aria-disabled="true"] {
+  opacity: 1 !important;
+  filter: saturate(.65);
+}
+button.primary, .primary, .btn-primary, .primaryButton,
+button[type="submit"] {
+  color: #07111f !important;
+  font-weight: 750 !important;
+}
+button.primary *, .primary *, .btn-primary *, .primaryButton *,
+button[type="submit"] * {
+  color: inherit !important;
+}
+/* Light semantic result cards must retain dark foregrounds on light backgrounds. */
+.scanResultAdvanced, .scanResultAdvanced *,
+.scanResult.safe, .scanResult.safe *,
+.vaultMessage, .vaultMessage *,
+.vaultSecurityNotice, .vaultSecurityNotice *,
+[role="alert"].success, [role="alert"].success *,
+[role="alert"].warning, [role="alert"].warning *,
+[role="alert"].error, [role="alert"].error *,
+.successNotice, .successNotice *, .successMessage, .successMessage *,
+.alert-success, .alert-success *, .alert-warning, .alert-warning *,
+.alert-danger, .alert-danger *, .dangerNotice, .dangerNotice *,
+.statusMessage.success, .statusMessage.success *,
+.statusMessage.warning, .statusMessage.warning *,
+.statusMessage.error, .statusMessage.error *,
+.formMessage.success, .formMessage.success *,
+.formMessage.error, .formMessage.error * {
+  color: #172033 !important;
+  opacity: 1 !important;
+}
+.scanResultAdvanced p, .scanResultAdvanced small,
+.scanResultAdvanced li, .scanResultAdvanced strong,
+.scanResultAdvanced span, .scanResultAdvanced h3,
+.scanResultAdvanced h4 {
+  color: #172033 !important;
+}
+:focus-visible {
+  outline: 3px solid #67e8f9 !important;
+  outline-offset: 3px !important;
+}
+::selection { color: #07111f; background: #bae6fd; }
+@media (prefers-contrast: more) {
+  :root { --sid-contrast-secondary: #f1f5f9; --sid-contrast-link: #bae6fd; }
+  .panel, .card, input, select, textarea, button { border-color: #94a3b8 !important; }
+}
