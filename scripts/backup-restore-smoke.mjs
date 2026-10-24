@@ -55,7 +55,7 @@ try {
   const restoredDb = new DatabaseSync(dbPath, { readOnly: true });
   try {
     assert.equal(restoredDb.prepare("SELECT value FROM smoke_test WHERE id = ?").get("seed").value, "before-backup");
-    assert.deepEqual(restoredDb.prepare("PRAGMA integrity_check").get(), { integrity_check: "ok" });
+    assert.equal(restoredDb.prepare("PRAGMA integrity_check").get().integrity_check, "ok");
   } finally {
     restoredDb.close();
   }
