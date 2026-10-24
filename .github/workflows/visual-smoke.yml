@@ -70,7 +70,8 @@ jobs:
                   if (!visible(element) || isMedia(element)) continue;
                   const style = getComputedStyle(element);
                   const bg = style.backgroundColor;
-                  const transparent = bg === 'transparent' || /rgba\\([^)]*,0(?:\\.0+)?\\)$/.test(rgb(bg));
+                  const alphaText = bg.startsWith('rgba(') ? bg.slice(bg.lastIndexOf(',') + 1, -1).trim() : null;
+                  const transparent = bg === 'transparent' || (alphaText !== null && Number(alphaText) === 0);
                   if (!transparent && bg !== 'rgb(255, 255, 255)') {
                     backgrounds.push({ tag: element.tagName, className: String(element.className?.baseVal ?? element.className ?? '').slice(0, 100), background: bg });
                   }
