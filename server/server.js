@@ -461,14 +461,14 @@ app.post("/api/security/sessions/revoke-others", enforceSameOrigin, requireAuth,
 
 app.get("/api/account/export", requireAuth, requireMfa, (req,res,next)=>{
   try{
-    const user=database.prepare("SELECT id,email,created_at AS createdAt,password_changed_at AS passwordChangedAt FROM users WHERE id=?").get(req.user.id);
+    const user=database.prepare("SELECT id,email,created_at AS createdAt,password_changed_at AS passwordChangedAt,phone_number AS phoneNumber,phone_verified_at AS phoneVerifiedAt FROM users WHERE id=?").get(req.user.id);
     const wallet=database.prepare("SELECT risk,locked,share_name,share_age,share_date_of_birth,share_address,share_email,share_phone,share_identity_id,share_college,share_student_id,share_government_id,share_verification_status FROM wallet_settings WHERE user_id=?").get(req.user.id);
     const privacy=database.prepare("SELECT security_alerts,login_notifications,share_notifications,analytics,updated_at AS updatedAt FROM privacy_settings WHERE user_id=?").get(req.user.id);
     const documents=database.prepare("SELECT id,original_name AS originalName,mime_type AS mimeType,size_bytes AS sizeBytes,document_category AS category,created_at AS createdAt,deleted_at AS deletedAt FROM secure_documents WHERE user_id=?").all(req.user.id);
     const identityShares=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
     const documentShares=database.prepare("SELECT id,document_id AS documentId,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_document_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
     const events=database.prepare("SELECT event_type AS eventType,created_at AS createdAt,metadata_json AS metadata FROM security_events WHERE user_id=? ORDER BY created_at DESC LIMIT 1000").all(req.user.id).map(e=>({...e,metadata:e.metadata?JSON.parse(e.metadata):null}));
-    const payload={exportVersion:1,exportedAt:new Date().toISOString(),account:{email:user.email,createdAt:user.createdAt,passwordChangedAt:user.passwordChangedAt||null},wallet,privacy,documents,identityShares,documentShares,securityActivity:events};
+    const payload={exportVersion:1,exportedAt:new Date().toISOString(),account:{email:user.email,createdAt:user.createdAt,passwordChangedAt:user.passwordChangedAt||null,phoneNumber:user.phoneVerifiedAt?user.phoneNumber:null,phoneVerifiedAt:user.phoneVerifiedAt||null},wallet,privacy,documents,identityShares,documentShares,securityActivity:events};
     res.setHeader("Content-Type","application/json");
     res.setHeader("Content-Disposition",'attachment; filename="secureid-data-export.json"');
     res.json(payload);
