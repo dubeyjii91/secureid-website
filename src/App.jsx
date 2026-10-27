@@ -147,7 +147,7 @@ function PhoneMfaSetup({ mfaVerified, onEnrolled }) {
       setCode("");
       setChallengeId("");
       setMessage(result.message || "Phone number verified.");
-      onEnrolled?.();
+      onEnrolled?.(result);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -983,7 +983,7 @@ function App() {
 
       {page === "college" && <CollegeWorkspace />}
 
-      {page === "account" && <section className="content narrow"><PhoneMfaSetup mfaVerified={mfaVerified} onEnrolled={() => { setSmsAvailable(true); }} /><AccountSecurity /></section>}
+      {page === "account" && <section className="content narrow"><PhoneMfaSetup mfaVerified={mfaVerified} onEnrolled={(result) => { setSmsAvailable(true); setSmsMaskedPhone(result.maskedPhone || "your verified phone"); }} /><AccountSecurity /></section>}
 
       {page === "privacy" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">PRIVACY CENTER</div><h2>Your identity stays under your control.</h2><p>Review what SecureID handles and how to use its privacy controls.</p></div><FunctionVisual label="SecureID privacy protection" /></div><section className="panel"><h2>Privacy notice</h2><p className="lead">SecureID is an identity-wallet application. The information below describes the categories of data used by the current product features; it is not a substitute for a full legal review.</p><div className="tips"><div><strong>Account and security data</strong><span>Your account email, authentication and MFA state, session/device metadata, and security activity may be processed to operate and protect your account.</span></div><div><strong>Identity and documents</strong><span>Identity profile fields and documents you choose to add are used to provide wallet and document-vault features.</span></div><div><strong>Selective sharing</strong><span>When you create a share, the selected claims are made available to someone who has the share link until it expires or is revoked. Only share links with the intended recipient.</span></div><div><strong>Account controls</strong><span>Use the Account security area to review available account controls. Data retention periods, service-provider details, and a verified privacy contact should be confirmed by the service operator before public launch.</span></div></div><div className="note"><strong>Before using real documents</strong><span>Do not upload highly sensitive documents until the operator has published complete retention, contact, backup/restore, and incident-response details.</span></div></section></section>}
 
