@@ -1387,7 +1387,8 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
       database.prepare("UPDATE users SET phone_number = ?, phone_verified_at = ? WHERE id = ?").run(challenge.phone_number, Date.now(), req.user.id);
       database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
       logEvent(req.user.id, "MFA_PHONE_ENROLLED", req);
-      return res.json({ success: true, phoneVerified: true, message: "Phone number verified and linked. You can now choose SMS OTP when signing in." });
+      const phone = String(challenge.phone_number || "");
+      return res.json({ success: true, phoneVerified: true, maskedPhone: `${phone.slice(0, 2)}••••••${phone.slice(-4)}`, message: "Phone number verified and linked. You can now choose SMS OTP when signing in." });
     }
     const trustDevice = req.body?.trustDevice === true;
     const verifiedNow = Date.now();
