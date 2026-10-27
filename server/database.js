@@ -18,7 +18,9 @@ database.exec(`
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    otp_last_sent_at INTEGER NOT NULL DEFAULT 0
+    otp_last_sent_at INTEGER NOT NULL DEFAULT 0,
+    phone_number TEXT,
+    phone_verified_at INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -37,7 +39,10 @@ database.exec(`
     code_hash TEXT NOT NULL,
     expires_at INTEGER NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'email',
+    phone_number TEXT,
+    purpose TEXT NOT NULL DEFAULT 'login'
   );
   CREATE INDEX IF NOT EXISTS otp_challenges_user_id ON otp_challenges(user_id);
 
@@ -156,6 +161,23 @@ if (!sessionColumns.includes("mfa_verified_until")) {
 const userColumns = database.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
 if (!userColumns.includes("otp_last_sent_at")) {
   database.exec("ALTER TABLE users ADD COLUMN otp_last_sent_at INTEGER NOT NULL DEFAULT 0");
+}
+if (!userColumns.includes("phone_number")) {
+  database.exec("ALTER TABLE users ADD COLUMN phone_number TEXT");
+}
+if (!userColumns.includes("phone_verified_at")) {
+  database.exec("ALTER TABLE users ADD COLUMN phone_verified_at INTEGER");
+}
+
+const otpChallengeColumns = database.prepare("PRAGMA table_info(otp_challenges)").all().map((column) => column.name);
+if (!otpChallengeColumns.includes("channel")) {
+  database.exec("ALTER TABLE otp_challenges ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'");
+}
+if (!otpChallengeColumns.includes("phone_number")) {
+  database.exec("ALTER TABLE otp_challenges ADD COLUMN phone_number TEXT");
+}
+if (!otpChallengeColumns.includes("purpose")) {
+  database.exec("ALTER TABLE otp_challenges ADD COLUMN purpose TEXT NOT NULL DEFAULT 'login'");
 }
 
 if (!userColumns.includes("password_changed_at")) {
