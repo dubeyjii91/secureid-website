@@ -13,7 +13,7 @@ npm run dev
 
 Open `http://127.0.0.1:5173`. The API persists accounts, sessions, OTP challenges, and rate-limit counters in `data/secureid.sqlite`. Passwords are hashed with bcrypt. The example `.env` keeps the API runnable in local `OTP_DELIVERY=console` mode, but email OTP delivery fails closed until an email provider is configured. Codes are never written to logs or returned by the API.
 
-To use MFA locally or in production, select an email provider explicitly with `OTP_DELIVERY`. For SMTP, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `OTP_FROM_EMAIL`; for Resend, configure `RESEND_API_KEY` and `OTP_FROM_EMAIL`; for Brevo API, configure `BREVO_API_KEY` and `OTP_FROM_EMAIL`. The API refuses to start when the selected provider is missing required settings. Resend's `onboarding@resend.dev` sender is suitable only with its test recipient `delivered@resend.dev`; real users require an `OTP_FROM_EMAIL` on a domain verified in Resend. A `resend.dev` sender is reported as test-only and cannot be used for production OTP delivery. `OTP_RESEND_COOLDOWN_SECONDS` controls the per-account resend cooldown (default 60 seconds).
+To use MFA locally or in production, select an email provider explicitly with `OTP_DELIVERY`. For SMTP, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `OTP_FROM_EMAIL`; for Resend, configure `RESEND_API_KEY` and `OTP_FROM_EMAIL`; for Brevo API, configure `BREVO_API_KEY` and `OTP_FROM_EMAIL`. The API refuses to start when the selected provider is missing required settings. SMS MFA is optional and configured separately with `MSG91_AUTH_KEY` and `MSG91_OTP_TEMPLATE_ID`; see [MSG91 SMS MFA setup](docs/MSG91-SMS-MFA.md). Resend's `onboarding@resend.dev` sender is suitable only with its test recipient `delivered@resend.dev`; real users require an `OTP_FROM_EMAIL` on a domain verified in Resend. A `resend.dev` sender is reported as test-only and cannot be used for production OTP delivery. `OTP_RESEND_COOLDOWN_SECONDS` controls the per-account resend cooldown (default 60 seconds).
 
 ## Production configuration
 
@@ -28,6 +28,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 Set one result as `DOCUMENT_ENCRYPTION_KEY` and the other as `BACKUP_ENCRYPTION_KEY` in the hosting secret manager. Do not use the example file itself as a source of real secrets, and do not rotate the document key without a planned re-encryption migration. Losing the document key can make stored files permanently unreadable; losing the backup key can make encrypted backups unrestorable.
 
 The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, account export/deletion, security email alerts, encrypted automated backups, and privacy-safe operational error alerting are implemented. Production onboarding should still include a managed PostgreSQL migration before horizontal scaling and an independent security review.
+
+## Email or SMS MFA
+
+After password sign-in, users can select Email OTP or SMS OTP. Email remains the default and does not require MSG91. To use SMS, a user first completes email MFA, then opens **Account security** to verify and link their phone number. SecureID stores only the verified phone number and timestamp; MSG91's OTP is verified with MSG91's verification API. SMS delivery cannot be tested until the MSG91 account, OTP template, DLT configuration, and deployment secrets are ready.
 
 ## Security and release documentation
 
