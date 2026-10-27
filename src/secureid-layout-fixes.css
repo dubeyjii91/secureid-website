@@ -32,7 +32,8 @@ p, small, label, strong, span, code, a, h1, h2, h3 {
   font-weight: 700;
   line-height: 1.45;
 }
-.shareContextField input {
+.shareContextField input,
+.shareContextField select {
   display: block;
   width: 100%;
   min-width: 0;
@@ -66,6 +67,16 @@ p, small, label, strong, span, code, a, h1, h2, h3 {
 .shareLinkActions button { max-width: 100%; }
 .shareHint { line-height: 1.65; }
 .shareExpiry { line-height: 1.55; overflow-wrap: anywhere; }
+.shareAccessGate { display: grid; gap: 14px; margin: 18px 0; text-align: left; }
+.shareAccessGate > p { margin: 0; line-height: 1.6; }
+.shareAccessForm { display: grid; gap: 12px; }
+.shareAccessForm label { display: grid; gap: 7px; font-weight: 650; }
+.shareAccessForm input { width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 10px; }
+.shareAccessMessage { color: #8de2bd; }
+.shareTrustNotice { display: grid; gap: 5px; margin: 16px 0; padding: 14px 16px; border: 1px solid rgba(245, 184, 85, .42); border-radius: 12px; background: rgba(245, 184, 85, .09); text-align: left; line-height: 1.55; }
+.shareTrustNotice strong { color: #ffd58c; }
+.shareTrustNotice span { color: #edf1f8; }
+.documentVault .documentShareContext small { display: block; color: #91a0ba; font-size: 12px; line-height: 1.5; }
 
 /* Give all major panels and forms reliable vertical rhythm. */
 .content { padding-top: clamp(20px, 3vw, 34px); padding-bottom: clamp(20px, 3vw, 34px); }

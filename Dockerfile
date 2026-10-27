@@ -1,4 +1,5 @@
-﻿FROM node:24-alpine
+FROM node:24-alpine
+RUN apk add --no-cache su-exec
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --include=dev --no-audit --no-fund

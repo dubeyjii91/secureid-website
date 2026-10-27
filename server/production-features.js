@@ -73,7 +73,8 @@ export function registerProductionFeatures({
   enforceSameOrigin,
   isProduction,
   logEvent,
-  ensureSecurityNotification
+  ensureSecurityNotification,
+  deliverShareOtp
 }){
   const key=createCryptoKey(isProduction);
 
@@ -596,19 +597,22 @@ export function registerProductionFeatures({
       enforceShareRateLimit(database,req,req.user.id);
       assertWalletUnlocked(req.user.id);
       const documentId=String(req.body?.documentId || "").trim();
-      const reasonText=String(req.body?.reasonText || "").trim();
+      const recipientEmail=normalizeRecipientEmail(req.body?.recipientEmail);
       const share_reason=String(req.body?.share_reason || "").trim().replace(/\s+/g," ");
+      const shareTtlMs=shareTtlForRequest(req.body);
+      if(!recipientEmail) return res.status(400).json({success:false,message:"Enter a valid recipient email address to protect this share."});
       if(share_reason.length>160) return res.status(400).json({success:false,message:"Sharing purpose must be 160 characters or fewer."});
+      if(!shareTtlMs) return res.status(400).json({success:false,message:"Choose a supported share duration: 15 minutes, 1 hour, or 24 hours."});
       const row=database.prepare("SELECT id,original_name,mime_type FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
       if(!row) return res.status(404).json({success:false,message:"Document not found."});
       const now=Date.now();
-      const expiresAt=new Date(now+SHARE_TTL_MS);
+      const expiresAt=new Date(now+shareTtlMs);
       const token=crypto.randomBytes(32).toString("base64url");
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
-      database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,share_reason) VALUES (?,?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString(),share_reason || null);
+      database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,share_reason,recipient_email_encrypted) VALUES (?,?,?,?,?,?,?)").run(req.user.id,row.id,tokenHash,new Date(now).toISOString(),expiresAt.toISOString(),share_reason || null,JSON.stringify(jsonEncrypt(recipientEmail,key)));
       logEvent(req.user.id,"DOCUMENT_SHARED",req);
       if(typeof ensureSecurityNotification==="function") ensureSecurityNotification(req.user.id,"DOCUMENT_SHARE_CREATED","Document shared","A secure document share was created. Review Share management to check its purpose and expiry.");
-      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),share_reason:share_reason || "",document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
+      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt.toISOString(),shareDurationMinutes:Number(req.body?.shareDurationMinutes??15),share_reason:share_reason || "",recipientHint:maskRecipientEmail(recipientEmail),document:{id:row.id,name:row.original_name,mimeType:row.mime_type}});
     }catch(error){ next(error); }
   });
 
@@ -629,22 +633,13 @@ export function registerProductionFeatures({
     try{
       const token=String(req.params.token || "");
       if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)) return res.status(404).json({success:false,message:"Document share not found."});
-      const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
-      const row=database.prepare("SELECT s.document_id,s.user_id,s.expires_at,s.revoked_at,s.share_reason,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL").get(tokenHash);
-      if(!row || row.revoked_at || Date.now()>=Date.parse(row.expires_at)) return res.status(404).json({success:false,message:"Document share not found or expired."});
-      if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
-      const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
-      database.prepare("UPDATE secure_document_shares SET accessed_at=?, access_count=COALESCE(access_count,0)+1 WHERE token_hash=?").run(new Date().toISOString(),tokenHash);
-      logEvent(row.user_id,"DOCUMENT_SHARE_ACCESSED",req);
-      res.setHeader("Content-Type",row.mime_type);
-      res.setHeader("Content-Disposition",`inline; filename="${safeFilename(row.original_name)}"`);
-      res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
-      res.setHeader("X-SecureID-Share-Expires-At",row.expires_at);
+      const row=readActiveShare("document",token);
+      if(!row || !row.recipient_email_encrypted || !recipientHint(row)) return res.status(404).json({success:false,message:"Document share not found or expired."});
       res.setHeader("Cache-Control","no-store");
       res.setHeader("Pragma","no-cache");
       res.setHeader("X-Content-Type-Options","nosniff");
       res.setHeader("Referrer-Policy","no-referrer");
-      res.send(plaintext);
+      res.json({success:true,accessRequired:true,recipientHint:recipientHint(row),expiresAt:row.expires_at});
     }catch(error){ next(error); }
   });
 
@@ -653,6 +648,11 @@ export function registerProductionFeatures({
    * Short-lived, encrypted, revocable share tokens.
    */
   const SHARE_TTL_MS = 15 * 60 * 1000;
+  const SHARE_DURATION_TTLS = new Map([[15, 15 * 60 * 1000], [60, 60 * 60 * 1000], [1440, 24 * 60 * 60 * 1000]]);
+  const shareTtlForRequest = (body) => {
+    const minutes = Number(body?.shareDurationMinutes ?? 15);
+    return SHARE_DURATION_TTLS.get(minutes) || 0;
+  };
 
   const shareFields = [
     "name",
@@ -674,6 +674,11 @@ export function registerProductionFeatures({
         user_id INTEGER NOT NULL,
         token_hash TEXT NOT NULL UNIQUE,
         encrypted_payload TEXT NOT NULL,
+        recipient_email_encrypted TEXT,
+        access_code_hash TEXT,
+        access_code_expires_at INTEGER,
+        access_code_attempts INTEGER NOT NULL DEFAULT 0,
+        access_code_sent_at INTEGER,
         created_at TEXT NOT NULL,
         expires_at TEXT NOT NULL,
         revoked_at TEXT,
@@ -696,6 +701,157 @@ export function registerProductionFeatures({
     return crypto.createHash("sha256").update(token,"utf8").digest("hex");
   }
 
+  function normalizeRecipientEmail(value){
+    const email=String(value || "").trim().toLowerCase();
+    return email.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+  }
+
+  function maskRecipientEmail(value){
+    const [local,domain=""]=String(value || "").split("@");
+    if(!local || !domain) return "recipient email";
+    const dot=domain.lastIndexOf(".");
+    const domainName=dot>0 ? domain.slice(0,dot) : domain;
+    const suffix=dot>0 ? domain.slice(dot) : "";
+    return `${local.slice(0,1)}***@${domainName.slice(0,1)}***${suffix}`;
+  }
+
+  function shareAccessCodeHash(code){
+    return crypto.createHmac("sha256",key).update(String(code)).digest("hex");
+  }
+
+  function shareAccessCodeMatches(code,expected){
+    if(!/^\d{6}$/.test(String(code || "")) || !/^[a-f0-9]{64}$/.test(String(expected || ""))) return false;
+    const actual=Buffer.from(shareAccessCodeHash(code),"hex");
+    const stored=Buffer.from(expected,"hex");
+    return crypto.timingSafeEqual(actual,stored);
+  }
+
+  function enforcePublicShareOrigin(req,res,next){
+    const origin=String(req.get("origin") || "");
+    const expected=process.env.APP_ORIGIN || "http://127.0.0.1:5173";
+    const developmentOrigins=new Set([expected,"http://localhost:5173","http://127.0.0.1:5173"]);
+    if((isProduction && origin!==expected) || (!isProduction && !developmentOrigins.has(origin))){
+      return res.status(403).json({success:false,message:"Request origin is not allowed."});
+    }
+    next();
+  }
+
+  function readActiveShare(type,token){
+    const tokenHash=shareTokenHash(token);
+    if(type==="document"){
+      const row=database.prepare(`SELECT s.id,s.user_id,s.document_id,s.expires_at,s.revoked_at,s.share_reason,s.recipient_email_encrypted,s.access_code_hash,s.access_code_expires_at,s.access_code_attempts,s.access_code_sent_at,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL`).get(tokenHash);
+      return row && !row.revoked_at && Date.now()<Date.parse(row.expires_at) ? {...row,tokenHash} : null;
+    }
+    const row=database.prepare("SELECT id,user_id,encrypted_payload,created_at,expires_at,revoked_at,share_reason,recipient_email_encrypted,access_code_hash,access_code_expires_at,access_code_attempts,access_code_sent_at FROM secure_shares WHERE token_hash=?").get(tokenHash);
+    return row && !row.revoked_at && Date.now()<Date.parse(row.expires_at) ? {...row,tokenHash} : null;
+  }
+
+  function recipientHint(row){
+    if(!row?.recipient_email_encrypted) return "";
+    try{
+      const email=jsonDecrypt(JSON.parse(row.recipient_email_encrypted),key);
+      return maskRecipientEmail(email);
+    }catch{return "";}
+  }
+
+  function recordShareAccess(type,row,req){
+    const table=type==="document"?"secure_document_shares":"secure_shares";
+    database.prepare(`UPDATE ${table} SET accessed_at=?,access_count=COALESCE(access_count,0)+1,access_code_hash=NULL,access_code_expires_at=NULL,access_code_attempts=0 WHERE token_hash=?`).run(new Date().toISOString(),row.tokenHash);
+    logEvent(row.user_id,type==="document"?"DOCUMENT_SHARE_ACCESSED":"IDENTITY_SHARE_ACCESSED",req);
+  }
+
+  function ensureShareAccessColumns(table){
+    const existing=new Set(database.prepare(`PRAGMA table_info(${table})`).all().map((column)=>column.name));
+    const columns=[
+      ["recipient_email_encrypted","TEXT"],
+      ["access_code_hash","TEXT"],
+      ["access_code_expires_at","INTEGER"],
+      ["access_code_attempts","INTEGER NOT NULL DEFAULT 0"],
+      ["access_code_sent_at","INTEGER"]
+    ];
+    for(const [name,declaration] of columns){
+      if(!existing.has(name)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${declaration}`);
+    }
+  }
+
+  function registerPublicShareAccessRoutes(type){
+    const table=type==="document"?"secure_document_shares":"secure_shares";
+    const base=type==="document"?"/api/document-share":"/api/share";
+    const tokenPattern=/^[A-Za-z0-9_-]{30,100}$/;
+
+    app.post(`${base}/:token/challenge`,enforcePublicShareOrigin,async(req,res,next)=>{
+      try{
+        const token=String(req.params.token || "");
+        if(!tokenPattern.test(token)) return res.status(404).json({success:false,message:"Share not found or expired."});
+        const row=readActiveShare(type,token);
+        if(!row || !row.recipient_email_encrypted) return res.status(404).json({success:false,message:"Share not found or expired."});
+        enforceShareRateLimit(database,req,`share-access:${row.tokenHash}`);
+        const now=Date.now();
+        if(Number(row.access_code_sent_at || 0)>now-60_000){
+          const retryAfter=Math.max(1,Math.ceil((60_000-(now-Number(row.access_code_sent_at)))/1000));
+          res.setHeader("Retry-After",String(retryAfter));
+          return res.status(429).json({success:false,message:"A code was sent recently. Try again shortly.",retryAfter});
+        }
+        if(typeof deliverShareOtp!=="function") return res.status(503).json({success:false,message:"Email delivery is unavailable right now."});
+        let email="";
+        try{ email=jsonDecrypt(JSON.parse(row.recipient_email_encrypted),key); }catch{}
+        if(!email) return res.status(404).json({success:false,message:"Share not found or expired."});
+        const code=String(crypto.randomInt(100000,1_000_000));
+        const codeHash=shareAccessCodeHash(code);
+        const reserved=database.prepare(`UPDATE ${table} SET access_code_hash=?,access_code_expires_at=?,access_code_attempts=0,access_code_sent_at=? WHERE token_hash=? AND (access_code_sent_at IS NULL OR access_code_sent_at<=?)`).run(codeHash,now+5*60_000,now,row.tokenHash,now-60_000);
+        if(!reserved.changes){
+          res.setHeader("Retry-After","60");
+          return res.status(429).json({success:false,message:"A code was sent recently. Try again shortly.",retryAfter:60});
+        }
+        try{
+          await deliverShareOtp(email,code);
+        }catch{
+          database.prepare(`UPDATE ${table} SET access_code_hash=NULL,access_code_expires_at=NULL,access_code_sent_at=NULL WHERE token_hash=? AND access_code_hash=?`).run(row.tokenHash,codeHash);
+          return res.status(503).json({success:false,message:"Could not send the access code. Please try again later."});
+        }
+        res.setHeader("Cache-Control","no-store");
+        res.json({success:true,message:"Access code sent.",recipientHint:recipientHint(row),expiresIn:300,resendAvailableIn:60});
+      }catch(error){next(error);}
+    });
+
+    app.post(`${base}/:token/verify`,enforcePublicShareOrigin,(req,res,next)=>{
+      try{
+        const token=String(req.params.token || "");
+        if(!tokenPattern.test(token)) return res.status(404).json({success:false,message:"Share not found or expired."});
+        const row=readActiveShare(type,token);
+        if(!row || !row.recipient_email_encrypted) return res.status(404).json({success:false,message:"Share not found or expired."});
+        enforceShareRateLimit(database,req,`share-access:${row.tokenHash}`);
+        const code=String(req.body?.code || "").trim();
+        const now=Date.now();
+        if(Number(row.access_code_attempts || 0)>=5) return res.status(429).json({success:false,message:"Too many incorrect codes. Request a new code later."});
+        if(!row.access_code_hash || Number(row.access_code_expires_at || 0)<=now){
+          return res.status(400).json({success:false,message:"Access code expired. Request a new code."});
+        }
+        if(!shareAccessCodeMatches(code,row.access_code_hash)){
+          const attempts=Number(row.access_code_attempts || 0)+1;
+          database.prepare(`UPDATE ${table} SET access_code_attempts=?,access_code_hash=CASE WHEN ?>=5 THEN NULL ELSE access_code_hash END,access_code_expires_at=CASE WHEN ?>=5 THEN NULL ELSE access_code_expires_at END WHERE token_hash=?`).run(attempts,attempts,attempts,row.tokenHash);
+          return res.status(attempts>=5?429:400).json({success:false,message:attempts>=5?"Too many incorrect codes. Request a new code later.":"That code is incorrect. Try again."});
+        }
+        res.setHeader("Cache-Control","no-store");
+        res.setHeader("X-Content-Type-Options","nosniff");
+        res.setHeader("Referrer-Policy","no-referrer");
+        if(type==="document"){
+          if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
+          const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
+          recordShareAccess(type,row,req);
+          res.setHeader("Content-Type",row.mime_type);
+          res.setHeader("Content-Disposition",`inline; filename="${safeFilename(row.original_name)}"`);
+          res.setHeader("X-SecureID-Share-Reason",String(row.share_reason || "").slice(0,160));
+          res.setHeader("X-SecureID-Share-Expires-At",row.expires_at);
+          return res.send(plaintext);
+        }
+        const payload=jsonDecrypt(JSON.parse(row.encrypted_payload),key);
+        recordShareAccess(type,row,req);
+        res.json({success:true,claims:payload.claims,contextLabel:payload.contextLabel||"",verificationBadge:{verified:false,label:"Shared by account owner",assurance:"Identity claims are user-provided and have not been independently verified.",issuedAt:row.created_at,expiresAt:row.expires_at},createdAt:row.created_at,expiresAt:row.expires_at});
+      }catch(error){next(error);}
+    });
+  }
+
   function maskGovernmentId(value){
     const text=String(value || "").trim();
     if(!text) return "";
@@ -714,7 +870,12 @@ export function registerProductionFeatures({
       revoked_at TEXT,
       share_reason TEXT,
       accessed_at TEXT,
-      access_count INTEGER NOT NULL DEFAULT 0
+      access_count INTEGER NOT NULL DEFAULT 0,
+      recipient_email_encrypted TEXT,
+      access_code_hash TEXT,
+      access_code_expires_at INTEGER,
+      access_code_attempts INTEGER NOT NULL DEFAULT 0,
+      access_code_sent_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_secure_document_shares_user
       ON secure_document_shares(user_id, created_at);
@@ -737,16 +898,55 @@ export function registerProductionFeatures({
 
   try { database.exec("ALTER TABLE secure_shares ADD COLUMN share_reason TEXT"); } catch {}
   try { database.exec("ALTER TABLE secure_document_shares ADD COLUMN share_reason TEXT"); } catch {}
+  ensureShareAccessColumns("secure_shares");
+  ensureShareAccessColumns("secure_document_shares");
+  registerPublicShareAccessRoutes("identity");
+  registerPublicShareAccessRoutes("document");
   app.get("/api/security/shares",requireAuth,requireMfaProduction,(req,res,next)=>{
     try{
-      const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS shareReason,encrypted_payload AS encryptedPayload FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
+      const identity=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS shareReason,encrypted_payload AS encryptedPayload,recipient_email_encrypted AS recipientEmailEncrypted FROM secure_shares WHERE user_id=? ORDER BY created_at DESC LIMIT 100").all(req.user.id).map(row=>{
         let claims=[];
         let contextLabel="";
         try { const payload=jsonDecrypt(JSON.parse(row.encryptedPayload),key); claims=Object.keys(payload.claims || {}); contextLabel=payload.contextLabel || ""; } catch {}
-        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel,claims,verificationBadge:{verified:false,label:"Shared by account owner",assurance:"Identity claims have not been independently verified."}};
+        return {id:String(row.id),type:"identity",createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel,claims,recipientHint:recipientHint({recipient_email_encrypted:row.recipientEmailEncrypted}),verificationBadge:{verified:false,label:"Shared by account owner",assurance:"Identity claims have not been independently verified."}};
       });
-      const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,s.share_reason AS shareReason,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel:row.shareReason||""}));
+      const documents=database.prepare("SELECT s.id,s.created_at AS createdAt,s.expires_at AS expiresAt,s.revoked_at AS revokedAt,s.accessed_at AS accessedAt,s.access_count AS accessCount,s.share_reason AS shareReason,s.recipient_email_encrypted AS recipientEmailEncrypted,d.original_name AS name FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.user_id=? ORDER BY s.created_at DESC LIMIT 100").all(req.user.id).map(row=>({id:String(row.id),type:"document",name:row.name,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,accessedAt:row.accessedAt,accessCount:Number(row.accessCount||0),contextLabel:row.shareReason||"",recipientHint:recipientHint({recipient_email_encrypted:row.recipientEmailEncrypted})}));
       res.json({success:true,shares:[...identity,...documents]});
+    }catch(error){next(error);}
+  });
+
+  app.post("/api/security/shares/reissue",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    try{
+      enforceShareRateLimit(database,req,req.user.id);
+      assertWalletUnlocked(req.user.id);
+      const type=String(req.body?.type||"");
+      const id=String(req.body?.id||"");
+      const email=normalizeRecipientEmail(req.body?.recipientEmail);
+      if(!/^(identity|document)$/.test(type)||!/^\d+$/.test(id)) return res.status(400).json({success:false,message:"Select a valid older share."});
+      if(!email) return res.status(400).json({success:false,message:"Enter a valid recipient email address."});
+
+      const now=Date.now();
+      const expiresAt=new Date(now+SHARE_TTL_MS).toISOString();
+      const createdAt=new Date(now).toISOString();
+      const token=crypto.randomBytes(32).toString("base64url");
+      const recipientEmailEncrypted=JSON.stringify(jsonEncrypt(email,key));
+      let inserted;
+      if(type==="identity"){
+        const source=database.prepare("SELECT encrypted_payload,share_reason,revoked_at,recipient_email_encrypted FROM secure_shares WHERE id=? AND user_id=?").get(Number(id),req.user.id);
+        if(!source) return res.status(404).json({success:false,message:"Older share not found."});
+        if(source.revoked_at) return res.status(409).json({success:false,message:"A revoked share cannot be recreated."});
+        if(source.recipient_email_encrypted) return res.status(409).json({success:false,message:"This share already has recipient protection."});
+        inserted=database.prepare("INSERT INTO secure_shares (user_id,token_hash,encrypted_payload,created_at,expires_at,share_reason,recipient_email_encrypted) VALUES (?,?,?,?,?,?,?)").run(req.user.id,shareTokenHash(token),source.encrypted_payload,createdAt,expiresAt,source.share_reason||null,recipientEmailEncrypted);
+      }else{
+        const source=database.prepare("SELECT s.document_id,s.share_reason,s.revoked_at,s.recipient_email_encrypted FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.id=? AND s.user_id=? AND d.deleted_at IS NULL").get(Number(id),req.user.id);
+        if(!source) return res.status(404).json({success:false,message:"Older document share not found."});
+        if(source.revoked_at) return res.status(409).json({success:false,message:"A revoked share cannot be recreated."});
+        if(source.recipient_email_encrypted) return res.status(409).json({success:false,message:"This share already has recipient protection."});
+        inserted=database.prepare("INSERT INTO secure_document_shares (user_id,document_id,token_hash,created_at,expires_at,share_reason,recipient_email_encrypted) VALUES (?,?,?,?,?,?,?)").run(req.user.id,source.document_id,shareTokenHash(token),createdAt,expiresAt,source.share_reason||null,recipientEmailEncrypted);
+      }
+      if(!inserted.changes) return res.status(500).json({success:false,message:"Could not recreate this share."});
+      logEvent(req.user.id,"SHARE_REISSUED",req,{shareType:type,sourceShareId:id});
+      res.json({success:true,shareToken:token,shareExpiresAt:expiresAt,recipientHint:maskRecipientEmail(email)});
     }catch(error){next(error);}
   });
 
@@ -855,8 +1055,12 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       }
 
       const profile=jsonDecrypt(JSON.parse(row.encrypted_data),key);
+      const recipientEmail=normalizeRecipientEmail(req.body?.recipientEmail);
       const share_reason=String(req.body?.share_reason || "").trim().replace(/\s+/g," ");
+      const shareTtlMs=shareTtlForRequest(req.body);
+      if(!recipientEmail) return res.status(400).json({success:false,message:"Enter a valid recipient email address to protect this share."});
       if(share_reason.length>160) return res.status(400).json({success:false,message:"Share share_reason must be 160 characters or fewer."});
+      if(!shareTtlMs) return res.status(400).json({success:false,message:"Choose a supported share duration: 15 minutes, 1 hour, or 24 hours."});
       const selected={};
 
       for(const field of shareFields){
@@ -875,7 +1079,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       }
 
       const now=Date.now();
-      const expiresAt=new Date(now+SHARE_TTL_MS);
+      const expiresAt=new Date(now+shareTtlMs);
       const token=crypto.randomBytes(32).toString("base64url");
 
       database.prepare(`
@@ -909,8 +1113,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
       database.prepare(`
         INSERT INTO secure_shares
-          (user_id,token_hash,encrypted_payload,created_at,expires_at,share_reason)
-        VALUES (?,?,?,?,?,?)
+          (user_id,token_hash,encrypted_payload,created_at,expires_at,share_reason,recipient_email_encrypted)
+        VALUES (?,?,?,?,?,?,?)
       `).run(
         req.user.id,
         shareTokenHash(token),
@@ -921,7 +1125,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         },key)),
         new Date(now).toISOString(),
         expiresAt.toISOString(),
-        share_reason
+        share_reason,
+        JSON.stringify(jsonEncrypt(recipientEmail,key))
       );
 
       logEvent(req.user.id,"IDENTITY_SHARED",req);
@@ -931,6 +1136,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         success:true,
         shareToken:token,
         shareExpiresAt:expiresAt.toISOString(),
+        shareDurationMinutes:Number(req.body?.shareDurationMinutes??15),
+        recipientHint:maskRecipientEmail(recipientEmail),
         wallet:getWalletState(req.user.id)
       });
     }catch(error){ next(error); }
@@ -961,41 +1168,16 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         });
       }
 
-      const row=database.prepare(`
-        SELECT encrypted_payload,created_at,expires_at,revoked_at
-        FROM secure_shares
-        WHERE token_hash=?
-      `).get(shareTokenHash(token));
-
-      if(!row || row.revoked_at || Date.now() >= Date.parse(row.expires_at)){
+      const row=readActiveShare("identity",token);
+      if(!row || !row.recipient_email_encrypted || !recipientHint(row)){
         return res.status(404).json({
           success:false,
           message:"Share not found or expired."
         });
       }
-
-      const payload=jsonDecrypt(JSON.parse(row.encrypted_payload),key);
-
-      database.prepare("UPDATE secure_shares SET accessed_at=?, access_count=COALESCE(access_count,0)+1 WHERE token_hash=?").run(new Date().toISOString(),shareTokenHash(token));
-      logEvent(payload.ownerUserId,"IDENTITY_SHARE_ACCESSED",req);
-
       res.setHeader("Cache-Control","no-store");
       res.setHeader("X-Content-Type-Options","nosniff");
-
-      res.json({
-        success:true,
-        claims:payload.claims,
-        contextLabel:payload.contextLabel || "",
-        verificationBadge:{
-          verified:false,
-          label:"Shared by account owner",
-          assurance:"Identity claims are user-provided and have not been independently verified.",
-          issuedAt:row.created_at,
-          expiresAt:row.expires_at
-        },
-        createdAt:row.created_at,
-        expiresAt:row.expires_at
-      });
+      res.json({success:true,accessRequired:true,recipientHint:recipientHint(row),expiresAt:row.expires_at});
     }catch(error){ next(error); }
   });
 

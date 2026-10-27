@@ -42,6 +42,8 @@ const maxOtpAttempts = Number(process.env.MAX_OTP_ATTEMPTS || 5);
 const otpDelivery = process.env.OTP_DELIVERY || "console";
 const resendApiKey = process.env.RESEND_API_KEY || "";
 const otpFromEmail = process.env.OTP_FROM_EMAIL || "";
+const otpSenderDomain = otpFromEmail.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || "";
+const otpTestSender = otpSenderDomain === "resend.dev";
 const securityAlertEmail = process.env.SECURITY_ALERT_EMAIL || "";
 const resendCooldownMs = Math.max(15, Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60)) * 1000;
 const bcryptRounds = Math.min(15, Math.max(10, Number(process.env.BCRYPT_ROUNDS || (isProduction ? 12 : 10))));
@@ -106,7 +108,7 @@ function enforceSameOrigin(req, res, next) {
     const cookieToken=getCookie(req,csrfCookieName);
     const headerToken=String(req.get("X-CSRF-Token") || "");
     if(!cookieToken || !headerToken || cookieToken !== headerToken){
-      return res.status(403).json({ success:false,message:"CSRF validation failed." });
+      return res.status(403).json({ success:false,code:"CSRF_VALIDATION_FAILED",message:"CSRF validation failed." });
     }
   }
   next();
@@ -132,6 +134,11 @@ function ensureCsrfCookie(req,res){
   }
   return token;
 }
+
+app.get("/api/security/csrf", (req, res) => {
+  ensureCsrfCookie(req, res);
+  res.json({ success: true, csrfReady: true });
+});
 
 function hashSessionToken(token) { return createHmac("sha256", sessionPepper).update(token).digest("hex"); }
 function hashOtpCode(code, userId, challengeId) { return createHmac("sha256", otpPepper).update(`${userId}:${challengeId}:${code}`).digest("hex"); }
@@ -523,17 +530,53 @@ function logEvent(userId, eventType, req = null, metadata = null) {
   database.prepare("INSERT INTO security_events (id, user_id, event_type, created_at, user_agent, ip_hash, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), userId, eventType, Date.now(), userAgent, ipHash, metadata ? JSON.stringify(metadata).slice(0, 4000) : null);
 }
 
-async function deliverOtp(email, code) {
+async function deliverOtp(email, code, purpose = "verification", requestId = "", idempotencyKey = "") {
   if (otpDelivery === "console") {
     console.log(`[SecureID DEV OTP] ${email}: ${code}`);
-    return;
+    return { accepted: true, providerMessageId: null };
   }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: otpFromEmail, to: [email], subject: "Your SecureID verification code", text: `Your SecureID verification code is ${code}. It expires in 5 minutes.` }),
-  });
-  if (!response.ok) throw new Error(`Resend request failed with status ${response.status}.`);
+  const isShareAccess = purpose === "share access";
+  const payload = { from: otpFromEmail, to: [email], subject: isShareAccess ? "Your SecureID share access code" : "Your SecureID verification code", text: `Your SecureID ${purpose} code is ${code}. It expires in 5 minutes. If you did not request access, you can ignore this message.` };
+  let providerStatus = 0;
+  let providerError = "";
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    try {
+      response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (error) {
+      providerError = error?.name || "NetworkError";
+      console.warn(JSON.stringify({ level: "warn", event: "otp_email_attempt_failed", requestId, provider: "resend", purpose, attempt, errorType: providerError }));
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      continue;
+    }
+
+    providerStatus = response.status;
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) {
+      console.info(JSON.stringify({ level: "info", event: "otp_email_accepted", requestId, provider: "resend", purpose, attempt, providerStatus, providerMessageId: result?.id || null }));
+      return { accepted: true, providerMessageId: result?.id || null };
+    }
+
+    providerError = String(result?.name || result?.error?.name || result?.type || "ProviderRejected").slice(0, 80);
+    console.warn(JSON.stringify({ level: "warn", event: "otp_email_attempt_failed", requestId, provider: "resend", purpose, attempt, providerStatus, providerError }));
+    if (attempt < 3 && (providerStatus === 429 || providerStatus >= 500)) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      continue;
+    }
+    break;
+  }
+
+  const error = new Error("The email provider did not accept the verification message.");
+  error.code = "EMAIL_DELIVERY_FAILED";
+  error.providerStatus = providerStatus;
+  error.providerError = providerError;
+  throw error;
 }
 
 
@@ -569,13 +612,14 @@ registerProductionFeatures({
   enforceSameOrigin,
   isProduction,
   logEvent,
-  ensureSecurityNotification
+  ensureSecurityNotification,
+  deliverShareOtp: (email, code) => deliverOtp(email, code, "share access")
 });
 startAutomaticBackup();
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && otpDelivery==="resend"),timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",emailDelivery:{provider:otpDelivery,configured:otpDelivery==="resend"&&Boolean(resendApiKey&&otpFromEmail),testSender:otpTestSender},backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && otpDelivery==="resend"),timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
@@ -1009,12 +1053,19 @@ app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, pe
     const now = Date.now();
     database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)").run(id, user.id, hashOtpCode(code, user.id, id), now + otpTtlMs, now);
     database.prepare("UPDATE users SET otp_last_sent_at = ? WHERE id = ?").run(now, user.id);
-    try { await deliverOtp(user.email, code); } catch (deliveryError) {
+    try { await deliverOtp(user.email, code, "verification", String(res.getHeader("X-Request-Id") || ""), `secureid-login-otp:${id}`); } catch (deliveryError) {
       database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(id);
       database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
-      throw deliveryError;
+      const requestId=String(res.getHeader("X-Request-Id") || "unavailable");
+      const providerStatus=Number(deliveryError?.providerStatus || 0);
+      const providerError=String(deliveryError?.providerError || deliveryError?.name || "EmailDeliveryError").slice(0, 80);
+      console.error(JSON.stringify({ level: "error", event: "mfa_email_delivery_failed", requestId, provider: "resend", providerStatus, providerError }));
+      const message=[401,403,422].includes(providerStatus)
+        ? `The email provider rejected its sender or recipient setup. Check the verified sender and recipient settings in Railway/Resend. Request ID: ${requestId}.`
+        : `SecureID could not send your code right now. Check your account email, then try again. If it continues, inspect the Resend logs with request ID ${requestId}.`;
+      return res.status(503).json({ success: false, code: "EMAIL_DELIVERY_FAILED", message });
     }
-    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Verification code generated.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
+    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), expiresIn: Math.ceil(otpTtlMs / 1000), message: "Email provider accepted the verification code request.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
   } catch (error) { next(error); }
 });
 

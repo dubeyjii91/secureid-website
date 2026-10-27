@@ -1,36 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import "./document-vault.css";
-
-function csrfToken(){
-  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-async function api(path, options={}){
-  const response=await fetch(path,{
-    credentials:"include",
-    ...options,
-    headers: { ...(options.headers || {}), ...(["POST","PUT","PATCH","DELETE"].includes(String(options.method||"GET").toUpperCase()) && csrfToken() ? {"X-CSRF-Token":csrfToken()} : {}) }
-  });
-
-  const contentType=response.headers.get("content-type") || "";
-
-  if(contentType.includes("application/json")){
-    const data=await response.json();
-
-    if(!response.ok || data.success===false){
-      throw new Error(data.message || "Request failed.");
-    }
-
-    return data;
-  }
-
-  if(!response.ok){
-    throw new Error("Request failed.");
-  }
-
-  return response;
-}
+import { api } from "./api.js";
 
 const fields=[
   ["name","Name"],
@@ -58,6 +28,8 @@ export default function DocumentVault(){
   const [message,setMessage]=useState("");
   const [documentShares,setDocumentShares]=useState({});
   const [docContext,setDocContext]=useState("");
+  const [docRecipientEmail,setDocRecipientEmail]=useState("");
+  const [docShareDurationMinutes,setDocShareDurationMinutes]=useState(15);
   const [verificationStatus,setVerificationStatus]=useState(null);
 
   async function load(){
@@ -191,11 +163,12 @@ export default function DocumentVault(){
 
   async function shareDocument(doc){
     try{
-      const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id,share_reason:docContext})});
+      const result=await api("/api/document-share",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({documentId:doc.id,recipientEmail:docRecipientEmail,shareDurationMinutes:docShareDurationMinutes,share_reason:docContext})});
       const link=new URL("/document-share/"+result.shareToken,window.location.origin).toString();
       setDocumentShares(current=>({...current,[doc.id]:{token:result.shareToken,link,expiresAt:result.shareExpiresAt}}));
       await navigator.clipboard?.writeText(link);
-      setMessage("Secure document link created and copied. It expires in 15 minutes.");
+      const durationLabel=docShareDurationMinutes===15?"15 minutes":docShareDurationMinutes===60?"1 hour":"24 hours";
+      setMessage(`Secure document link created and copied. A one-time access code will be sent to ${docRecipientEmail}. The link expires in ${durationLabel}.`);
     }catch(error){setMessage(error.message);}
   }
 
@@ -300,7 +273,7 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Your documents</h3><label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label>
+      <h3>Your documents</h3><label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label><label className="documentShareContext"><span>Link expires after</span><select value={docShareDurationMinutes} onChange={e=>setDocShareDurationMinutes(Number(e.target.value))}><option value={15}>15 minutes</option><option value={60}>1 hour</option><option value={1440}>24 hours</option></select><small>Choose the shortest time the recipient needs. You can revoke the link sooner.</small></label><label className="documentShareContext"><span>Recipient email</span><input type="email" autoComplete="email" maxLength={254} value={docRecipientEmail} onChange={e=>setDocRecipientEmail(e.target.value)} placeholder="recipient@example.com" required /><small>A one-time code will be sent here before the recipient can view a document.</small></label>
 
       {documents.length===0 ? (
         <p>No documents stored yet.</p>
@@ -317,7 +290,7 @@ export default function DocumentVault(){
 
               <div className="documentActions">
                 <button onClick={()=>download(doc.id,doc.name)}>Download</button>
-                {!documentShares[doc.id] ? <button onClick={()=>shareDocument(doc)}>Share</button> : <button onClick={()=>revokeDocumentShare(doc.id)}>Revoke share</button>}
+                {!documentShares[doc.id] ? <button onClick={()=>shareDocument(doc)} disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(docRecipientEmail.trim())}>Share</button> : <button onClick={()=>revokeDocumentShare(doc.id)}>Revoke share</button>}
                 <button onClick={()=>remove(doc.id)}>
                   Delete
                 </button>

@@ -160,7 +160,8 @@
   line-height: 1.5;
 }
 
-.documentVault .documentShareContext input {
+.documentVault .documentShareContext input,
+.documentVault .documentShareContext select {
   display: block;
   box-sizing: border-box;
   width: 100%;

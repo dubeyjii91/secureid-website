@@ -1,27 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { api } from "./api.js";
 import "./account-security.css";
-
-function csrfToken(){
-  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "include",
-    ...options,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(["POST","PUT","PATCH","DELETE"].includes(String(options.method||"GET").toUpperCase()) && csrfToken() ? {"X-CSRF-Token":csrfToken()} : {}), ...(options.headers || {}) },
-  });
-  const data = (response.headers.get("content-type") || "").includes("application/json")
-    ? await response.json().catch(() => ({}))
-    : {};
-  if (!response.ok) {
-    const error = new Error(data?.message || "Request failed.");
-    error.status = response.status;
-    throw error;
-  }
-  return data;
-}
 
 function strength(password) {
   if (!password) return { label: "Enter a password", score: 0 };

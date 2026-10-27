@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react";
+import { api } from "./api.js";
 import "./security-dashboard.css";
 
-function csrfToken(){
-  const m=document.cookie.match(/(?:^|; )(?:__Host-secureid\.csrf|secureid\.csrf)=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
-async function api(path,options={}){
-  const method=String(options.method||"GET").toUpperCase();
-  const r=await fetch(path,{credentials:"include",...options,headers:{...(options.body?{"Content-Type":"application/json"}:{}),...(csrfToken()?{"X-CSRF-Token":csrfToken()}:{}),...(options.headers||{})}});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(d.message||"Request failed.");
-  return d;
-}
 export default function SecurityDashboard(){
   const [data,setData]=useState(null),[notifications,setNotifications]=useState([]),[privacy,setPrivacy]=useState(null),[health,setHealth]=useState(null),[message,setMessage]=useState(""),[loading,setLoading]=useState(true);
   async function load(){
@@ -46,8 +36,11 @@ export default function SecurityDashboard(){
         <div><span>API status</span><strong className="healthOk">{health?.status === "ready" ? "Operational" : "Check required"}</strong></div>
         <div><span>Database</span><strong className="healthOk">{health?.database === "ok" ? "Healthy" : "Check required"}</strong></div>
         <div><span>Encrypted backups</span><strong>{health?.backup?.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured"}</strong></div>
+        <div><span>Sign-in email setup</span><strong className={health?.emailDelivery?.configured && !health?.emailDelivery?.testSender ? "healthOk" : ""}>{health?.emailDelivery?.testSender ? "Testing sender" : health?.emailDelivery?.configured ? `Configured (${health.emailDelivery.provider})` : "Needs setup"}</strong></div>
         <div><span>Operational alerts</span><strong className={health?.operationalAlerting ? "healthOk" : ""}>{health?.operationalAlerting ? "Configured" : "Configure alert email"}</strong></div>
       </div>
+      <small className="healthMeta">Provider configuration does not confirm inbox delivery. If a code is missing, check Spam and Promotions, then use Resend or a recovery code.</small>
+      {health?.emailDelivery?.testSender && <small className="healthMeta">This deployment uses Resend's shared testing sender. Configure a sender on a verified domain before relying on sign-in emails in production.</small>}
       {health?.backup?.lastSuccessAt && <small className="healthMeta">Last encrypted backup: {new Date(health.backup.lastSuccessAt).toLocaleString()}</small>}
     </section>
 

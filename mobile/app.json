@@ -28,7 +28,8 @@
           "faceIDPermission": "Allow SecureID to use Face ID to unlock the app."
         }
       ],
-      "expo-document-picker"
+      "expo-document-picker",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

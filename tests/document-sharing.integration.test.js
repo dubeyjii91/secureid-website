@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
@@ -111,7 +111,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const createShare = async () => fetch(base + "/api/document-share", {
     method: "POST",
     headers: { ...asUser("user-a"), "content-type": "application/json" },
-    body: JSON.stringify({ documentId, share_reason: "integration test" })
+    body: JSON.stringify({ documentId, recipientEmail: "recipient@example.com", share_reason: "integration test" })
   });
   const created = await createShare();
   assert.equal(created.status, 200, await created.clone().text());
@@ -146,7 +146,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const createIdentityShare = async () => fetch(base + "/api/wallet/share", {
     method: "POST",
     headers: { ...asUser("user-a"), "content-type": "application/json" },
-    body: JSON.stringify({ name: true, age: false })
+    body: JSON.stringify({ name: true, age: false, recipientEmail: "recipient@example.com", shareDurationMinutes: 15 })
   });
   const identityShareResponse = await createIdentityShare();
   assert.equal(identityShareResponse.status, 200, await identityShareResponse.clone().text());
@@ -154,8 +154,8 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const sharedIdentityResponse = await fetch(base + `/api/share/${identityShare.shareToken}`);
   assert.equal(sharedIdentityResponse.status, 200);
   const sharedIdentity = await sharedIdentityResponse.json();
-  assert.deepEqual(Object.keys(sharedIdentity.claims), ["name"]);
-  assert.equal(sharedIdentity.claims.name, "Test User");
+assert.equal(sharedIdentity.accessRequired, true, "Share must require recipient verification before exposing claims");
+assert.equal("claims" in sharedIdentity, false, "Claims must not be exposed before verification");
 
   const revokeIdentity = await fetch(base + "/api/wallet/share/revoke", {
     method: "POST",
@@ -171,3 +171,4 @@ test("document ownership isolation, share access, revocation, and expiry", async
   database.prepare("UPDATE secure_shares SET expires_at=? WHERE token_hash=?").run(new Date(Date.now() - 1000).toISOString(), identityTokenHash);
   assert.equal((await fetch(base + `/api/share/${expiringIdentity.shareToken}`)).status, 404);
 });
+
