@@ -32,7 +32,7 @@ function WelcomeSplash({ onClose }) {
         <div className="mfaChoice active"><span className="mfaChoiceIcon">✉️</span><span><strong>Email OTP</strong><small>Available now · Gmail addresses work too</small></span><b>✓</b></div>
         <div className="mfaChoice"><span className="mfaChoiceIcon">📱</span><span><strong>Phone / SMS OTP</strong><small>Requires SMS provider setup</small></span><small className="mfaUnavailable">Not enabled</small></div>
         <div className="mfaChoice"><span className="mfaChoiceIcon"></span><span><strong>Apple / Google sign-in</strong><small>Separate identity-provider setup required</small></span><small className="mfaUnavailable">Not enabled</small></div>
-        <p className="mfaNote">After signing in, SecureID asks for an email verification code. The website can be opened on iPhone, iPad, Android and desktop; native app-store launch still needs an app build.</p>
+        <p className="mfaNote">After signing in, choose Email OTP or verified SMS OTP. The website can be opened on iPhone, iPad, Android and desktop; native app-store launch still needs an app build.</p>
       </section>
       <button className="primary" onClick={onClose}>Continue securely</button>
     </div>
@@ -112,7 +112,7 @@ const navItems = [
   ["terms", "Terms & use", "📜"],
 ];
 
-function PhoneMfaSetup({ mfaVerified, onEnrolled }) {
+function PhoneMfaSetup({ mfaVerified, smsAvailable, smsMaskedPhone, onEnrolled }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -159,6 +159,7 @@ function PhoneMfaSetup({ mfaVerified, onEnrolled }) {
     <div className="eyebrow dark">SMS MULTI-FACTOR AUTHENTICATION</div>
     <h2>Link a phone number</h2>
     <p className="lead">Verify a phone number once to use SMS OTP as an alternative to email when signing in. Only the verified number can be used for SMS sign-in.</p>
+    {smsAvailable && <p role="status">SMS OTP is enabled for <strong>{smsMaskedPhone || "your verified phone"}</strong>. Verifying a new number will replace the current one.</p>}
     {!mfaVerified && <p role="status">Verify your current sign-in with Email OTP before changing MFA settings.</p>}
     {!challengeId ? <form onSubmit={sendCode} className="phoneMfaForm">
       <label>Phone number <span>(include country code, e.g. +91)</span>
@@ -983,7 +984,7 @@ function App() {
 
       {page === "college" && <CollegeWorkspace />}
 
-      {page === "account" && <section className="content narrow"><PhoneMfaSetup mfaVerified={mfaVerified} onEnrolled={(result) => { setSmsAvailable(true); setSmsMaskedPhone(result.maskedPhone || "your verified phone"); }} /><AccountSecurity /></section>}
+      {page === "account" && <section className="content narrow"><PhoneMfaSetup mfaVerified={mfaVerified} smsAvailable={smsAvailable} smsMaskedPhone={smsMaskedPhone} onEnrolled={(result) => { setSmsAvailable(true); setSmsMaskedPhone(result.maskedPhone || "your verified phone"); }} /><AccountSecurity /></section>}
 
       {page === "privacy" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">PRIVACY CENTER</div><h2>Your identity stays under your control.</h2><p>Review what SecureID handles and how to use its privacy controls.</p></div><FunctionVisual label="SecureID privacy protection" /></div><section className="panel"><h2>Privacy notice</h2><p className="lead">SecureID is an identity-wallet application. The information below describes the categories of data used by the current product features; it is not a substitute for a full legal review.</p><div className="tips"><div><strong>Account and security data</strong><span>Your account email, authentication and MFA state, session/device metadata, and security activity may be processed to operate and protect your account.</span></div><div><strong>Identity and documents</strong><span>Identity profile fields and documents you choose to add are used to provide wallet and document-vault features.</span></div><div><strong>Selective sharing</strong><span>When you create a share, the selected claims are made available to someone who has the share link until it expires or is revoked. Only share links with the intended recipient.</span></div><div><strong>Account controls</strong><span>Use the Account security area to review available account controls. Data retention periods, service-provider details, and a verified privacy contact should be confirmed by the service operator before public launch.</span></div></div><div className="note"><strong>Before using real documents</strong><span>Do not upload highly sensitive documents until the operator has published complete retention, contact, backup/restore, and incident-response details.</span></div></section></section>}
 
