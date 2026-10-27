@@ -112,6 +112,70 @@ const navItems = [
   ["terms", "Terms & use", "📜"],
 ];
 
+function PhoneMfaSetup({ mfaVerified, onEnrolled }) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const sendCode = async (event) => {
+    event.preventDefault();
+    if (!mfaVerified || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await api("/api/mfa/phone/enroll", { method: "POST", body: JSON.stringify({ phone }) });
+      setChallengeId(result.challengeId);
+      setCode("");
+      setMessage(result.message || "SMS code sent. Check your phone.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async (event) => {
+    event.preventDefault();
+    if (!challengeId || code.length !== 6 || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await api("/api/mfa/verify", { method: "POST", body: JSON.stringify({ challengeId, code }) });
+      setPhone("");
+      setCode("");
+      setChallengeId("");
+      setMessage(result.message || "Phone number verified.");
+      onEnrolled?.();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <section className="panel phoneMfaSetup">
+    <div className="eyebrow dark">SMS MULTI-FACTOR AUTHENTICATION</div>
+    <h2>Link a phone number</h2>
+    <p className="lead">Verify a phone number once to use SMS OTP as an alternative to email when signing in. Only the verified number can be used for SMS sign-in.</p>
+    {!mfaVerified && <p role="status">Verify your current sign-in with Email OTP before changing MFA settings.</p>}
+    {!challengeId ? <form onSubmit={sendCode} className="phoneMfaForm">
+      <label>Phone number <span>(include country code, e.g. +91)</span>
+        <input type="tel" autoComplete="tel" inputMode="tel" maxLength={32} required value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+91 9876543210" disabled={!mfaVerified || busy} />
+      </label>
+      <button className="primary" type="submit" disabled={!mfaVerified || busy || !phone.trim()}>{busy ? "Sending…" : "Send SMS verification code"}</button>
+    </form> : <form onSubmit={verifyCode} className="phoneMfaForm">
+      <label>Six-digit SMS code
+        <input className="otpInput" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} placeholder="000000" disabled={busy} />
+      </label>
+      <button className="primary" type="submit" disabled={busy || code.length !== 6}>{busy ? "Verifying…" : "Verify and link phone"}</button>
+      <button className="textButton" type="button" disabled={busy} onClick={() => { setChallengeId(""); setCode(""); setMessage(""); }}>Use a different number</button>
+    </form>}
+    <p className="studentProofMessage" role="status" aria-live="polite">{message}</p>
+  </section>;
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -130,6 +194,9 @@ function App() {
   const [challengeId, setChallengeId] = useState("");
   const [mfaMessage, setMfaMessage] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaChannel, setMfaChannel] = useState("email");
+  const [smsAvailable, setSmsAvailable] = useState(false);
+  const [smsMaskedPhone, setSmsMaskedPhone] = useState("");
   const [trustDevice, setTrustDevice] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [phishingUrl, setPhishingUrl] = useState("");
@@ -176,6 +243,21 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    let active = true;
+    api("/api/mfa/options")
+      .then((result) => {
+        if (!active) return;
+        setSmsAvailable(Boolean(result.smsAvailable));
+        setSmsMaskedPhone(result.maskedPhone || "");
+      })
+      .catch(() => {
+        if (active) { setSmsAvailable(false); setSmsMaskedPhone(""); }
+      });
+    return () => { active = false; };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
     if (resendCooldown <= 0) return undefined;
     const timer = window.setTimeout(() => setResendCooldown((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearTimeout(timer);
@@ -201,19 +283,22 @@ function App() {
     setOtp("");
     setMfaMessage("Sending a verification code…");
     try {
-      const result = await api("/api/mfa/challenge", { method: "POST" });
+      const result = await api("/api/mfa/challenge", { method: "POST", body: JSON.stringify({ channel: mfaChannel }) });
       setChallengeId(result.challengeId);
       setResendCooldown(result.resendAvailableIn || 60);
-      setMfaMessage("The email provider accepted the request. Check Inbox, Spam, and Promotions; delivery can take a short time.");
+      setMfaMessage(mfaChannel === "sms"
+        ? `MSG91 accepted the SMS request for ${result.maskedPhone || smsMaskedPhone}. Delivery may take a short time.`
+        : "The email provider accepted the request. Check Inbox, Spam, and Promotions; delivery can take a short time.");
     } catch (error) {
       if (error.retryAfter) setResendCooldown(error.retryAfter);
+      if (error.code === "PHONE_NOT_ENROLLED") setSmsAvailable(false);
       setMfaMessage(error.code === "EMAIL_DELIVERY_FAILED"
         ? `${error.message}${error.requestId ? ` Support reference: ${error.requestId}.` : ""}`
         : error.message);
     } finally {
       setMfaLoading(false);
     }
-  }, []);
+  }, [mfaChannel, smsMaskedPhone]);
 
   // SECUREID_QUERY_HANDLERS
   useEffect(() => {
@@ -275,13 +360,13 @@ function App() {
     }
 
     api("/api/auth/session")
-      .then(async (result) => {
+      .then((result) => {
         applySession(result);
-        if (!result.user.mfaVerified) await requestOtp();
+        if (!result.user.mfaVerified) setMfaMessage("Choose Email OTP or SMS OTP, then send a verification code.");
       })
       .catch(() => {})
       .finally(() => setSessionLoading(false));
-  }, [applySession, requestOtp]);
+  }, [applySession]);
 
   const submitAuth = async (event) => {
     event.preventDefault();
@@ -307,7 +392,10 @@ function App() {
 
       applySession({ ...result, wallet: result.wallet || defaultWallet });
       setWallet(result.wallet || defaultWallet);
-      await requestOtp();
+      setMfaChannel("email");
+      setChallengeId("");
+      setOtp("");
+      setMfaMessage("Choose Email OTP or SMS OTP, then send a verification code.");
     } catch (error) {
       if (error.status === 403 && error.message) {
         setVerificationMessage(error.message);
@@ -895,7 +983,7 @@ function App() {
 
       {page === "college" && <CollegeWorkspace />}
 
-      {page === "account" && <AccountSecurity />}
+      {page === "account" && <section className="content narrow"><PhoneMfaSetup mfaVerified={mfaVerified} onEnrolled={() => { setSmsAvailable(true); }} /><AccountSecurity /></section>}
 
       {page === "privacy" && <section className="content narrow"><div className="functionHero compact"><div><div className="eyebrow dark">PRIVACY CENTER</div><h2>Your identity stays under your control.</h2><p>Review what SecureID handles and how to use its privacy controls.</p></div><FunctionVisual label="SecureID privacy protection" /></div><section className="panel"><h2>Privacy notice</h2><p className="lead">SecureID is an identity-wallet application. The information below describes the categories of data used by the current product features; it is not a substitute for a full legal review.</p><div className="tips"><div><strong>Account and security data</strong><span>Your account email, authentication and MFA state, session/device metadata, and security activity may be processed to operate and protect your account.</span></div><div><strong>Identity and documents</strong><span>Identity profile fields and documents you choose to add are used to provide wallet and document-vault features.</span></div><div><strong>Selective sharing</strong><span>When you create a share, the selected claims are made available to someone who has the share link until it expires or is revoked. Only share links with the intended recipient.</span></div><div><strong>Account controls</strong><span>Use the Account security area to review available account controls. Data retention periods, service-provider details, and a verified privacy contact should be confirmed by the service operator before public launch.</span></div></div><div className="note"><strong>Before using real documents</strong><span>Do not upload highly sensitive documents until the operator has published complete retention, contact, backup/restore, and incident-response details.</span></div></section></section>}
 
@@ -906,7 +994,7 @@ function App() {
       <footer>SecureID · Privacy-first identity wallet <span><button type="button" className="footerLink" onClick={() => setPage("privacy")}>Privacy center</button> · <button type="button" className="footerLink" onClick={() => setPage("terms")}>Terms & use</button> · Security · Privacy · Trust</span></footer>
     </main>
     {showWelcome && !publicShare && !publicDocumentShare && <WelcomeSplash onClose={() => setShowWelcome(false)} />}
-    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : mfaLoading ? <>Sending a six-digit code to <strong>{sessionUser}</strong>…</> : challengeId ? <>The email provider accepted a code request for <strong>{sessionUser}</strong>. Check Inbox, Spam, and Promotions.</> : <>No active email code exists yet. Send a code to <strong>{sessionUser}</strong> before entering one.</>}</p><form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <label className="trustDeviceRow"><input type="checkbox" checked={trustDevice} onChange={e=>setTrustDevice(e.target.checked)} /> <span><strong>Trust this device for 30 days</strong><small>Only use this on a personal device you control.</small></span></label>}{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : challengeId ? "Resend code" : "Send code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use email verification code" : "Use a recovery code instead"}</button><div className="mfaMessage" role="status" aria-live="polite">{mfaMessage}</div></section></div>}
+    {mfaRequired && <div className="modalBackdrop"><section className="mfaModal"><div className="modalShield">S</div><div className="eyebrow dark">MULTI-FACTOR VERIFICATION</div><h2>Verify your identity</h2><p>{mfaRecoveryMode ? "Enter one of your one-time recovery codes." : mfaLoading ? <>Sending a verification code using <strong>{mfaChannel === "sms" ? "SMS" : "email"}</strong>…</> : challengeId ? mfaChannel === "sms" ? <>MSG91 accepted an SMS code request for <strong>{smsMaskedPhone || "your verified phone"}</strong>.</> : <>The email provider accepted a code request for <strong>{sessionUser}</strong>. Check Inbox, Spam, and Promotions.</> : <>Choose a method and send a code to verify your sign-in.</>}</p>{!mfaRecoveryMode && <div className="mfaChannelChoices" role="group" aria-label="Verification method"><button type="button" className={mfaChannel === "email" ? "secondary active" : "secondary"} disabled={mfaLoading} onClick={() => { setMfaChannel("email"); setChallengeId(""); setOtp(""); setMfaMessage(""); }}>✉️ Email OTP</button><button type="button" className={mfaChannel === "sms" ? "secondary active" : "secondary"} disabled={mfaLoading || !smsAvailable} onClick={() => { setMfaChannel("sms"); setChallengeId(""); setOtp(""); setMfaMessage(""); }}>📱 SMS OTP</button></div>}{!smsAvailable && !mfaRecoveryMode && <small className="mfaSetupHint">To enable SMS, first verify by email, then open Account security and link your phone.</small>}<form onSubmit={verifyOtp}><input className="otpInput" inputMode={mfaRecoveryMode ? "text" : "numeric"} autoComplete={mfaRecoveryMode ? "off" : "one-time-code"} pattern={mfaRecoveryMode ? "[A-Za-z0-9-]{16,24}" : "[0-9]{6}"} maxLength={mfaRecoveryMode ? 24 : 6} value={otp} onChange={(e) => setOtp(mfaRecoveryMode ? e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") : e.target.value.replace(/\D/g, ""))} placeholder={mfaRecoveryMode ? "AB12-CD34-EF56-7890" : "000000"} required /><button className="primary full" disabled={mfaLoading || (!mfaRecoveryMode && (otp.length !== 6 || !challengeId)) || (mfaRecoveryMode && otp.length < 16)}>{mfaLoading ? "Verifying…" : mfaRecoveryMode ? "Use recovery code" : "Verify MFA"}</button></form>{!mfaRecoveryMode && <label className="trustDeviceRow"><input type="checkbox" checked={trustDevice} onChange={e=>setTrustDevice(e.target.checked)} /> <span><strong>Trust this device for 30 days</strong><small>Only use this on a personal device you control.</small></span></label>}{!mfaRecoveryMode && <button className="textButton" disabled={mfaLoading || resendCooldown > 0} onClick={requestOtp}>{resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : challengeId ? "Resend code" : "Send code"}</button>}<button className="textButton" disabled={mfaLoading} onClick={() => { setMfaRecoveryMode((value) => !value); setOtp(""); setMfaMessage(""); }}>{mfaRecoveryMode ? "Use verification code" : "Use a recovery code instead"}</button><div className="mfaMessage" role="status" aria-live="polite">{mfaMessage}</div></section></div>}
   </div>;
 }
 
