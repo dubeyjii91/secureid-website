@@ -15,6 +15,7 @@ import {
 } from "node:crypto";
 import { database } from "./database.js";
 import { startAutomaticBackup, getBackupStatus } from "./backup-manager.js";
+import { normalizeMsg91Phone, sendMsg91Otp, verifyMsg91Otp } from "./msg91.js";
 
 const envFile = path.resolve(process.cwd(), ".env");
 if (existsSync(envFile)) {
@@ -1251,11 +1252,27 @@ app.post("/api/auth/logout", enforceSameOrigin, requireAuth, perIpWalletLimit, p
   res.json({ success: true });
 });
 
-app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, perUserOtpLimit, async (req, res, next) => {
-  if (req.user.mfaVerified) return res.status(400).json({ success: false, message: "MFA is already verified for this session." });
+app.get("/api/mfa/options", requireAuth, (req, res, next) => {
   try {
-    const user = database.prepare("SELECT id, email, otp_last_sent_at FROM users WHERE id = ?").get(req.user.id);
+    const user = database.prepare("SELECT phone_number, phone_verified_at FROM users WHERE id = ?").get(req.user.id);
+    const phone = user?.phone_verified_at && user?.phone_number ? String(user.phone_number) : "";
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      success: true,
+      smsAvailable: Boolean(phone),
+      maskedPhone: phone ? `${phone.slice(0, 2)}••••••${phone.slice(-4)}` : null
+    });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/mfa/phone/enroll", enforceSameOrigin, requireAuth, requireMfa, perIpOtpLimit, perUserOtpLimit, async (req, res, next) => {
+  try {
+    const phone = normalizeMsg91Phone(req.body?.phone);
+    if (!phone) return res.status(400).json({ success: false, message: "Enter a valid phone number with country code, for example +91 9876543210." });
+    const user = database.prepare("SELECT id, otp_last_sent_at FROM users WHERE id = ?").get(req.user.id);
     if (!user) return res.status(401).json({ success: false, message: "Sign in to continue." });
+    const otherAccount = database.prepare("SELECT id FROM users WHERE phone_number = ? AND phone_verified_at IS NOT NULL AND id != ? LIMIT 1").get(phone, req.user.id);
+    if (otherAccount) return res.status(409).json({ success: false, message: "That phone number is already linked to another SecureID account." });
     const remainingMs = Number(user.otp_last_sent_at || 0) + resendCooldownMs - Date.now();
     if (remainingMs > 0) {
       const retryAfter = Math.ceil(remainingMs / 1000);
@@ -1264,20 +1281,67 @@ app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, pe
     }
     database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(user.id);
     const id = randomUUID();
-    const code = String(randomInt(0, 1000000)).padStart(6, "0");
     const now = Date.now();
-    database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)").run(id, user.id, hashOtpCode(code, user.id, id), now + otpTtlMs, now);
+    database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at, channel, phone_number, purpose) VALUES (?, ?, ?, ?, 0, ?, 'sms', ?, 'enroll')").run(id, user.id, hashOtpCode(randomBytes(32).toString("hex"), user.id, id), now + otpTtlMs, now, phone);
+    database.prepare("UPDATE users SET otp_last_sent_at = ? WHERE id = ?").run(now, user.id);
+    try {
+      await sendMsg91Otp(phone);
+    } catch (deliveryError) {
+      database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(id);
+      database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
+      throw deliveryError;
+    }
+    logEvent(user.id, "MFA_PHONE_ENROLLMENT_CHALLENGE_SENT", req);
+    res.json({ success: true, challengeId: id, maskedPhone: `${phone.slice(0, 2)}••••••${phone.slice(-4)}`, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "SMS OTP accepted by the provider. Enter it to link this phone to your account." });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/mfa/challenge", enforceSameOrigin, requireAuth, perIpOtpLimit, perUserOtpLimit, async (req, res, next) => {
+  if (req.user.mfaVerified) return res.status(400).json({ success: false, message: "MFA is already verified for this session." });
+  try {
+    const channel = String(req.body?.channel || "email").trim().toLowerCase();
+    if (!["email", "sms"].includes(channel)) return res.status(400).json({ success: false, message: "Choose Email OTP or SMS OTP." });
+    const user = database.prepare("SELECT id, email, otp_last_sent_at, phone_number, phone_verified_at FROM users WHERE id = ?").get(req.user.id);
+    if (!user) return res.status(401).json({ success: false, message: "Sign in to continue." });
+    const phone = user.phone_verified_at && user.phone_number ? String(user.phone_number) : "";
+    if (channel === "sms" && !phone) {
+      return res.status(409).json({ success: false, code: "PHONE_NOT_ENROLLED", message: "SMS OTP is not set up yet. Sign in with Email OTP, then link and verify your phone in Account security." });
+    }
+    const remainingMs = Number(user.otp_last_sent_at || 0) + resendCooldownMs - Date.now();
+    if (remainingMs > 0) {
+      const retryAfter = Math.ceil(remainingMs / 1000);
+      res.setHeader("Retry-After", retryAfter);
+      return res.status(429).json({ success: false, message: `Please wait ${retryAfter}s before requesting another code.`, retryAfter });
+    }
+    database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(user.id);
+    const id = randomUUID();
+    const now = Date.now();
+    if (channel === "sms") {
+      database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at, channel, phone_number, purpose) VALUES (?, ?, ?, ?, 0, ?, 'sms', ?, 'login')").run(id, user.id, hashOtpCode(randomBytes(32).toString("hex"), user.id, id), now + otpTtlMs, now, phone);
+      database.prepare("UPDATE users SET otp_last_sent_at = ? WHERE id = ?").run(now, user.id);
+      try {
+        await sendMsg91Otp(phone);
+      } catch (deliveryError) {
+        database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(id);
+        database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
+        throw deliveryError;
+      }
+      res.json({ success: true, challengeId: id, channel: "sms", maskedPhone: `${phone.slice(0, 2)}••••••${phone.slice(-4)}`, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "MSG91 accepted the SMS OTP request." });
+      return;
+    }
+    const code = String(randomInt(0, 1000000)).padStart(6, "0");
+    database.prepare("INSERT INTO otp_challenges (id, user_id, code_hash, expires_at, attempts, created_at, channel, purpose) VALUES (?, ?, ?, ?, 0, ?, 'email', 'login')").run(id, user.id, hashOtpCode(code, user.id, id), now + otpTtlMs, now);
     database.prepare("UPDATE users SET otp_last_sent_at = ? WHERE id = ?").run(now, user.id);
     try { await deliverOtp(user.email, code, String(res.getHeader("X-Request-Id") || "")); } catch (deliveryError) {
       database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(id);
       database.prepare("UPDATE users SET otp_last_sent_at = 0 WHERE id = ?").run(user.id);
       throw deliveryError;
     }
-    res.json({ success: true, challengeId: id, resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Your email provider accepted the verification request.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
+    res.json({ success: true, challengeId: id, channel: "email", resendAvailableIn: Math.ceil(resendCooldownMs / 1000), message: "Your email provider accepted the verification request.", ...(otpDelivery === "console" ? { demoOtp: code } : {}) });
   } catch (error) { next(error); }
 });
 
-app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit, perUserOtpVerifyLimit, (req, res, next) => {
+app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit, perUserOtpVerifyLimit, async (req, res, next) => {
   try {
     const code = String(req.body?.code || "").trim();
     const challengeId = String(req.body?.challengeId || "");
@@ -1293,28 +1357,44 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
       return res.json({ success: true, message: "Recovery code accepted.", user: { email: req.user.email, mfaVerified: true } });
     }
     if (!/^\d{6}$/.test(code) || !challengeId) return res.status(400).json({ success: false, message: "Enter the 6-digit verification code or a recovery code." });
-    const challenge = database.prepare("SELECT id, code_hash, expires_at, attempts FROM otp_challenges WHERE id = ? AND user_id = ? LIMIT 1").get(challengeId, req.user.id);
+    const challenge = database.prepare("SELECT id, code_hash, expires_at, attempts, channel, phone_number, purpose FROM otp_challenges WHERE id = ? AND user_id = ? LIMIT 1").get(challengeId, req.user.id);
     if (!challenge || Number(challenge.expires_at) <= Date.now()) {
       database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
       return res.status(410).json({ success: false, message: "This verification code has expired. Request a new one." });
     }
     if (Number(challenge.attempts) >= maxOtpAttempts) return res.status(429).json({ success: false, message: "Too many incorrect attempts. Request a new code." });
-    const supplied = Buffer.from(hashOtpCode(code, req.user.id, challenge.id), "hex");
-    const stored = Buffer.from(challenge.code_hash, "hex");
-    const valid = supplied.length === stored.length && timingSafeEqual(supplied, stored);
+    let valid = false;
+    if (challenge.channel === "sms") {
+      valid = await verifyMsg91Otp(String(challenge.phone_number || ""), code);
+    } else {
+      const supplied = Buffer.from(hashOtpCode(code, req.user.id, challenge.id), "hex");
+      const stored = Buffer.from(challenge.code_hash, "hex");
+      valid = supplied.length === stored.length && timingSafeEqual(supplied, stored);
+    }
     if (!valid) {
       database.prepare("UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ? AND attempts < ?").run(challenge.id, maxOtpAttempts);
-      const failure=registerAuthFailure(req.user.email,req,"mfa_invalid");
-      logEvent(req.user.id,"MFA_FAILED",req,{failedCount:failure.count});
-      if(failure.count>=3) ensureSecurityNotification(req.user.id,"MFA_FAILED","MFA verification warning","Several unsuccessful MFA verification attempts were detected on your SecureID account.");
+      const failure = registerAuthFailure(req.user.email, req, "mfa_invalid");
+      logEvent(req.user.id, "MFA_FAILED", req, { failedCount: failure.count, channel: challenge.channel || "email" });
+      if (failure.count >= 3) ensureSecurityNotification(req.user.id, "MFA_FAILED", "MFA verification warning", "Several unsuccessful MFA verification attempts were detected on your SecureID account.");
       return res.status(400).json({ success: false, message: "Incorrect verification code." });
+    }
+    if (challenge.purpose === "enroll") {
+      const otherAccount = database.prepare("SELECT id FROM users WHERE phone_number = ? AND phone_verified_at IS NOT NULL AND id != ? LIMIT 1").get(challenge.phone_number, req.user.id);
+      if (otherAccount) {
+        database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
+        return res.status(409).json({ success: false, message: "That phone number is already linked to another SecureID account." });
+      }
+      database.prepare("UPDATE users SET phone_number = ?, phone_verified_at = ? WHERE id = ?").run(challenge.phone_number, Date.now(), req.user.id);
+      database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
+      logEvent(req.user.id, "MFA_PHONE_ENROLLED", req);
+      return res.json({ success: true, phoneVerified: true, message: "Phone number verified and linked. You can now choose SMS OTP when signing in." });
     }
     const trustDevice = req.body?.trustDevice === true;
     const verifiedNow = Date.now();
     database.prepare("UPDATE sessions SET mfa_verified_until = ?, trusted_until = ?, expires_at = ? WHERE token_hash = ?").run(verifiedNow + mfaVerifiedTtlMs, trustDevice ? verifiedNow + trustedDeviceTtlMs : 0, trustDevice ? verifiedNow + trustedDeviceTtlMs : Number(req.session.expires_at), req.session.token_hash);
     if (trustDevice) setSessionCookie(res, getCookie(req, sessionCookieName), trustedDeviceTtlMs);
     database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
-    logEvent(req.user.id, "MFA_VERIFIED", req);
+    logEvent(req.user.id, "MFA_VERIFIED", req, { channel: challenge.channel || "email" });
     res.json({ success: true, message: "MFA verification successful.", user: { email: req.user.email, mfaVerified: true } });
   } catch (error) { next(error); }
 });
@@ -1342,6 +1422,14 @@ app.use((error, req, res, next) => {
     void sendSecurityEmail({to:securityAlertEmail,subject:"SecureID operational error alert",text:"SecureID recorded "+operationalErrorAlertState.count+" server errors within a five-minute window. Check the production logs and health endpoint."}).catch(()=>{});
   }
   if (res.headersSent) return next(error);
+  if (String(error?.code || "").startsWith("SMS_")) {
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code,
+      requestId: res.getHeader("X-Request-Id"),
+      message: error.message || "SMS verification is unavailable. Please try again shortly."
+    });
+  }
   if(error?.code==="EMAIL_DELIVERY_FAILED"){
     const message=otpTestSender
       ? "SecureID is using Resend's test sender. To send codes to account holders, verify a sending domain and configure OTP_FROM_EMAIL with that domain. No active code was created."
