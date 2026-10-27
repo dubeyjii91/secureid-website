@@ -7,11 +7,11 @@ export function normalizeMsg91Phone(value) {
   let digits = raw.replace(/[\s()+.-]/g, "");
   if (!/^\d+$/.test(digits)) return null;
   if (digits.length === 10) {
-    if (!/^[6-9]\\d{9}$/.test(digits)) return null;
+    if (!/^[6-9]\d{9}$/.test(digits)) return null;
     digits = "91" + digits;
   }
   if (digits.length < 11 || digits.length > 15 || digits.startsWith("0")) return null;
-  if (digits.startsWith("91") && digits.length === 12 && !/^[6-9]\\d{9}$/.test(digits.slice(2))) return null;
+  if (digits.startsWith("91") && digits.length === 12 && !/^[6-9]\d{9}$/.test(digits.slice(2))) return null;
   return digits;
 }
 
