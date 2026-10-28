@@ -6,7 +6,7 @@ export default function SecurityDashboard(){
   async function load(){
     setLoading(true);setMessage("");
     try{
-      const [dashboard,privacyResult,healthResult]=await Promise.all([api("/api/security/dashboard"),api("/api/privacy"),api("/api/health")]);
+      const [dashboard,privacyResult,healthResult]=await Promise.all([api("/api/security/dashboard"),api("/api/privacy"),api("/api/admin/health").catch(()=>api("/api/health"))]);
       setData(dashboard);setPrivacy(privacyResult.settings);setHealth(healthResult);
     }catch(e){setMessage(e.message)}finally{setLoading(false)}
   }
@@ -30,8 +30,8 @@ export default function SecurityDashboard(){
       <div className="systemHealthGrid">
         <div><span>API status</span><strong className="healthOk">{health?.status === "ready" ? "Operational" : "Check required"}</strong></div>
         <div><span>Database</span><strong className="healthOk">{health?.database === "ok" ? "Healthy" : "Check required"}</strong></div>
-        <div><span>Email verification</span><strong>{health?.emailDelivery?.testSender ? "Test sender only" : health?.emailDelivery?.configured ? `${health.emailDelivery.provider} set · delivery unverified` : "Setup required"}</strong></div>
-        <div><span>Encrypted backups</span><strong>{health?.backup?.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured"}</strong></div>
+        <div><span>Email verification</span><strong>{health?.emailDelivery ? (health.emailDelivery.testSender ? "Test sender only" : health.emailDelivery.configured ? `${health.emailDelivery.provider} set · delivery unverified` : "Setup required") : "Owner-only status"}</strong></div>
+        <div><span>Encrypted backups</span><strong>{health?.backup ? (health.backup.enabled ? (health.backup.lastSuccessAt ? "Active" : "Scheduled") : "Not configured") : "Owner-only status"}</strong></div>
       </div>
       {health?.emailDelivery?.configured && <small className="healthMeta">A configured provider does not confirm inbox delivery. Verify the sender domain and check provider delivery events.</small>}
       {health?.backup?.lastSuccessAt && <small className="healthMeta">Last encrypted backup: {new Date(health.backup.lastSuccessAt).toLocaleString()}</small>}
