@@ -83,3 +83,51 @@ button.primary, .primaryButton, .btn-primary {
   body { background-attachment: scroll !important; }
   .panel, .actionCard { backdrop-filter: none; }
 }
+
+/* Visible background on the actual sign-in and first-load screens too.
+   These screens have their own opaque !important backgrounds in older stylesheets. */
+.authShell {
+  position: relative !important;
+  isolation: isolate;
+  min-height: 100vh !important;
+  background:
+    radial-gradient(ellipse at 12% 18%, rgba(37, 99, 235, .58), transparent 34rem),
+    radial-gradient(ellipse at 88% 22%, rgba(124, 58, 237, .52), transparent 32rem),
+    radial-gradient(ellipse at 58% 94%, rgba(13, 148, 136, .30), transparent 30rem),
+    linear-gradient(135deg, #050916 0%, #0a1b3a 48%, #17113b 100%) !important;
+  overflow: hidden;
+}
+.authShell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .26;
+  background-image:
+    linear-gradient(rgba(180, 205, 255, .16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180, 205, 255, .16) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+.welcomeSplash {
+  background:
+    radial-gradient(ellipse at 14% 12%, rgba(37, 99, 235, .40), transparent 38rem),
+    radial-gradient(ellipse at 86% 20%, rgba(124, 58, 237, .34), transparent 35rem),
+    rgba(3, 8, 20, .42) !important;
+  backdrop-filter: blur(9px) !important;
+  -webkit-backdrop-filter: blur(9px) !important;
+}
+.welcomeCard {
+  background: linear-gradient(145deg, rgba(12, 28, 59, .94), rgba(22, 18, 57, .92)) !important;
+  border-color: rgba(120, 174, 255, .52) !important;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .48), 0 0 70px rgba(59, 130, 246, .20) !important;
+}
+.loadingPage {
+  color: #f7f9ff !important;
+  background:
+    radial-gradient(ellipse at 15% 15%, rgba(59, 130, 246, .38), transparent 34rem),
+    radial-gradient(ellipse at 85% 20%, rgba(139, 92, 246, .32), transparent 32rem),
+    linear-gradient(135deg, #070b17, #11132b) !important;
+}
+
