@@ -1226,28 +1226,52 @@ app.post("/api/auth/reset-password", enforceSameOrigin, perIpAuthLimit, async (r
     const passwordHash = await bcrypt.hash(password, bcryptRounds);
     const now = Date.now();
 
-    database.prepare("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?").run(passwordHash, now, record.user_id);
+    // Consume the reset token and update credentials in one write transaction.
+    // BEGIN IMMEDIATE serializes competing reset requests; the conditional token
+    // update ensures a token can succeed only once, even under concurrent requests.
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const consumed = database.prepare(
+        "UPDATE password_reset_tokens SET used_at = ? WHERE id = ? AND user_id = ? AND used_at IS NULL AND expires_at > ?"
+      ).run(now, record.id, record.user_id, now);
 
-    database.prepare(
-      "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?"
-    ).run(now, record.id);
+      if (Number(consumed.changes) !== 1) {
+        database.exec("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "This password reset link is invalid or expired."
+        });
+      }
 
-    database.prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND id != ?").run(record.user_id, record.id);
-    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(record.user_id);
-    database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(record.user_id);
+      const updated = database.prepare(
+        "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?"
+      ).run(passwordHash, now, record.user_id);
+      if (Number(updated.changes) !== 1) {
+        throw new Error("Password reset user record could not be updated.");
+      }
 
-    const state = database.prepare(
-      "SELECT user_id FROM email_verification_state WHERE user_id = ?"
-    ).get(record.user_id);
+      database.prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND id != ?").run(record.user_id, record.id);
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(record.user_id);
+      database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(record.user_id);
 
-    if (state) {
-      database.prepare(
-        "UPDATE email_verification_state SET verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE user_id = ?"
-      ).run(now, now, record.user_id);
-    } else {
-      database.prepare(
-        "INSERT INTO email_verification_state (user_id, verified_at, created_at, updated_at) VALUES (?, ?, ?, ?)"
-      ).run(record.user_id, now, now, now);
+      const state = database.prepare(
+        "SELECT user_id FROM email_verification_state WHERE user_id = ?"
+      ).get(record.user_id);
+
+      if (state) {
+        database.prepare(
+          "UPDATE email_verification_state SET verified_at = COALESCE(verified_at, ?), updated_at = ? WHERE user_id = ?"
+        ).run(now, now, record.user_id);
+      } else {
+        database.prepare(
+          "INSERT INTO email_verification_state (user_id, verified_at, created_at, updated_at) VALUES (?, ?, ?, ?)"
+        ).run(record.user_id, now, now, now);
+      }
+
+      database.exec("COMMIT");
+    } catch (transactionError) {
+      try { database.exec("ROLLBACK"); } catch {}
+      throw transactionError;
     }
 
     logEvent(record.user_id, "PASSWORD_RESET_COMPLETED", req);
