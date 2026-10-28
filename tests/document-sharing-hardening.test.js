@@ -23,3 +23,8 @@ test("document-share bearer responses are non-cacheable and protected against co
   assert.match(backend, /res\.setHeader\("X-Content-Type-Options","nosniff"\)/);
   assert.match(backend, /res\.setHeader\("Referrer-Policy","no-referrer"\)/);
 });
+
+test("public document shares fail closed when ownership or expiry metadata is inconsistent", () => {
+  assert.match(backend, /s\\.user_id=d\\.user_id AND d\\.deleted_at IS NULL/);
+  assert.match(backend, /!Number\\.isFinite\\(expiresAt\\)/);
+});
