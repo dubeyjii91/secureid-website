@@ -462,42 +462,208 @@ button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submi
 ::selection{color:#07111f;background:#bae6fd}
 @media(prefers-contrast:more){:root{--sid-contrast-muted:#f1f5f9;--sid-contrast-link:#bae6fd}.panel,.card,input,select,textarea,button{border-color:#94a3b8!important}}
 
-/* User-requested universal light theme: white backgrounds and black text. */
-:root{color-scheme:light!important;--sid-contrast-text:#000!important;--sid-contrast-muted:#111!important;--sid-contrast-link:#0033a0!important}
-html,body,#root{background:#fff!important;color:#000!important}
-body,body *:not(svg):not(path):not(img):not(video):not(canvas):not(iframe):not([aria-hidden=true]){color:#000!important}
-html,body,#root,.shell,.main,.content,.sidebar,.topbar,header,main,section,article,aside,nav,
-.panel,.card,.functionHero,.profilePanel,.statusPanel,.actionCard,.claim,.shareResult,.documentVault,.documentItem,
-.identityProfileEditor,.systemHealthPanel,.securityCard,.identityCard,.shareCard,.lockPanel,.authShell,.authCard,
-.mfaModal,.welcomeCard,.managedShare,.activityEmpty,.modal,.dialog,.dropdown,.popover,.menu,.tooltip,
-.formSection,.settingsPanel,.tableWrap,.emptyState,.empty-state{background-color:#fff!important;color:#000!important}
-h1,h2,h3,h4,h5,h6,p,span,small,strong,em,b,i,label,legend,li,dt,dd,th,td,caption,figcaption,summary,
-.muted,.text-muted,.subtle,.helperText,.fieldHint,.description,.subtitle,.secondaryText,.secondary-text,
-.details span,.securityRow span,.privacy p,.shareHint,.shareExpiry,.healthMeta,.vaultBlock small,
-.documentItem small,.notification small,.notification em,.privacyRow small,.systemHealthGrid span{
- color:#000!important;opacity:1!important;text-shadow:none!important
+
+/* SecureID final visual system: calm premium light surfaces + WCAG-minded contrast.
+   Keep this file imported AFTER all other design layers. */
+:root {
+  color-scheme: light;
+  --sid-page: #f3f6fb;
+  --sid-surface: #ffffff;
+  --sid-surface-soft: #f8faff;
+  --sid-ink: #17243a;
+  --sid-muted: #475569;
+  --sid-border: #cbd5e1;
+  --sid-blue: #1d4ed8;
+  --sid-blue-hover: #1e40af;
+  --sid-focus: #2563eb;
 }
-a,.textLink,.linkButton,a:visited{color:#0033a0!important;text-decoration:underline;text-underline-offset:.15em}
-input,select,textarea{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;border:1px solid #555!important;opacity:1!important}
-input::placeholder,textarea::placeholder{color:#444!important;-webkit-text-fill-color:#444!important;opacity:1!important}
-input:disabled,select:disabled,textarea:disabled{background:#f2f2f2!important;color:#222!important;-webkit-text-fill-color:#222!important;opacity:1!important}
-button,button *,[role=button],[role=button] *{opacity:1!important}
-button:not(.primary):not(.btn-primary):not(.primaryButton):not([type=submit]),
-.navItem,.signOut,.installAppButton{background:#fff!important;color:#000!important;border-color:#555!important}
-button.primary,.primary,.btn-primary,.primaryButton,button[type=submit],
-button.primary *, .primary *, .btn-primary *, .primaryButton *,button[type=submit] *{
- background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important;font-weight:700!important
+html, body, #root {
+  min-height: 100%;
+  background: var(--sid-page) !important;
+  color: var(--sid-ink) !important;
 }
-button,button *,[role=button],[role=button] *{
- background-color:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important
+body {
+  background:
+    radial-gradient(ellipse at 8% 0%, rgba(59,130,246,.09), transparent 38rem),
+    radial-gradient(ellipse at 96% 8%, rgba(99,102,241,.06), transparent 34rem),
+    #f3f6fb !important;
+  background-attachment: fixed !important;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
-.scanResultAdvanced,.scanResultAdvanced *, .scanResult.safe,.scanResult.safe *, .vaultMessage,.vaultMessage *,
-.vaultSecurityNotice,.vaultSecurityNotice *,[role=alert].success,[role=alert].success *,
-[role=alert].warning,[role=alert].warning *,[role=alert].error,[role=alert].error *,
-.successNotice,.successNotice *, .successMessage,.successMessage *, .alert-success,.alert-success *,
-.alert-warning,.alert-warning *, .alert-danger,.alert-danger *, .dangerNotice,.dangerNotice *,
-.statusMessage.success,.statusMessage.success *, .statusMessage.warning,.statusMessage.warning *,
-.statusMessage.error,.statusMessage.error *, .formMessage.success,.formMessage.success *,
-.formMessage.error,.formMessage.error *{background:#fff!important;color:#000!important}
-:focus-visible{outline:3px solid #005fcc!important;outline-offset:3px!important}
-::selection{color:#fff!important;background:#222!important}
+#root, .shell, .main, .content { color: var(--sid-ink) !important; }
+.sidebar, .topbar, header {
+  color: var(--sid-ink) !important;
+  background: rgba(255,255,255,.97) !important;
+  border-color: #dbe3ef !important;
+  box-shadow: 0 4px 18px rgba(15,23,42,.045) !important;
+}
+.panel, .card, .actionCard, .securityCard, .identityCard, .shareCard,
+.documentVault, .documentItem, .functionHero, .profilePanel, .statusPanel,
+.systemHealthPanel, .scorePanel, .lockPanel, .authCard, .mfaModal,
+.welcomeCard, .shareResult, .tips > div, .note, .claim, .identityProfileEditor,
+.settingsPanel, .tableWrap, .verificationStatusCard, .studentProofPanel,
+.scanResultAdvanced {
+  color: var(--sid-ink) !important;
+  background: #ffffff !important;
+  border: 1px solid var(--sid-border) !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,.055) !important;
+}
+.panel h1, .panel h2, .panel h3, .panel h4,
+.card h1, .card h2, .card h3, .card h4,
+.functionHero h2, .functionHero h3, .welcomeCard h2,
+.authCard h1, .authCard h2, .mfaModal h2,
+.sectionTitle h2, .panelHead h2, .topbar h1,
+h1, h2, h3, h4, h5, h6, legend, label,
+strong, b, .brand, .brand strong, .account, .breadcrumb {
+  color: #17243a !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+#root p, #root li, #root small, #root label,
+#root .lead, #root .muted, #root .text-muted,
+#root .subtle, #root .description, #root .subtitle,
+#root .helperText, #root .fieldHint, #root .details span,
+#root .securityRow span, #root .shareHint, #root .shareExpiry,
+#root .tips span, #root .panel p, #root .card p,
+#root .functionHero p, #root .documentItem small,
+#root .sidebar small, #root .topbar small {
+  color: #475569 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+#root .eyebrow, #root .eyebrow.dark {
+  color: #1d4ed8 !important;
+  opacity: 1 !important;
+}
+#root a, #root .textButton, #root .linkButton, #root .footerLink {
+  color: #1d4ed8 !important;
+  text-underline-offset: .18em;
+}
+#root input, #root textarea, #root select {
+  color: #17243a !important;
+  -webkit-text-fill-color: #17243a !important;
+  background: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  opacity: 1 !important;
+}
+#root input::placeholder, #root textarea::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  opacity: 1 !important;
+}
+#root input:disabled, #root textarea:disabled, #root select:disabled {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  background: #eef2f7 !important;
+  opacity: 1 !important;
+}
+#root button, #root [role="button"] {
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+#root button.primary, #root button[type="submit"], #root .primary,
+#root .btn-primary, #root .primaryButton, #root .actionButton,
+#root .generateButton {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #1d4ed8 !important;
+  border: 1px solid #1d4ed8 !important;
+  box-shadow: 0 3px 9px rgba(29,78,216,.16) !important;
+  font-weight: 700 !important;
+}
+#root button.primary *, #root button[type="submit"] *, #root .primary *,
+#root .btn-primary *, #root .primaryButton *, #root .actionButton *,
+#root .generateButton * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: transparent !important;
+}
+#root button.primary:hover, #root button[type="submit"]:hover,
+#root .primary:hover, #root .btn-primary:hover { background: #1e40af !important; }
+#root button:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]),
+#root .secondary, #root button.secondary, #root .navItem,
+#root .signOut, #root .installAppButton {
+  color: #24344d !important;
+  -webkit-text-fill-color: #24344d !important;
+  background: #ffffff !important;
+  border-color: #94a3b8 !important;
+}
+#root .navItem.active {
+  color: #1d4ed8 !important;
+  -webkit-text-fill-color: #1d4ed8 !important;
+  background: #eaf1ff !important;
+  border-color: #b8ccff !important;
+  font-weight: 700 !important;
+}
+#root .textButton, #root .footerLink {
+  color: #1d4ed8 !important;
+  -webkit-text-fill-color: #1d4ed8 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+#root .dangerButton, #root button.dangerButton {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+#root .verifiedBadge, #root .statusBadge.success, #root .verificationChecks span.complete {
+  color: #166534 !important;
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+#root .studentSharePrivacyNote, #root .studentSharePrivacyNote * {
+  color: #713f12 !important;
+  background: #fff7df !important;
+  border-color: #f3c969 !important;
+}
+#root .studentProofStatus, #root .studentProofStatus * {
+  color: #1e3a8a !important;
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+}
+#root .vaultSecurityNotice, #root .vaultSecurityNotice * {
+  color: #14532d !important;
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+}
+#root .scanResultAdvanced { background: #ffffff !important; color: #17243a !important; }
+#root .scanResultAdvanced p, #root .scanResultAdvanced small,
+#root .scanResultAdvanced li, #root .scanResultAdvanced .scanLimitations,
+#root .scanResultAdvanced .scanCheckRow p { color: #334155 !important; opacity: 1 !important; }
+#root .scanResultAdvanced h3, #root .scanResultAdvanced strong { color: #17243a !important; }
+#root .scanResultAdvanced .scanRecommendation { background: #eff6ff !important; border-color: #93c5fd !important; }
+#root .scanResultAdvanced .riskScore { color: #1e3a8a !important; background: #dbeafe !important; border-color: #93c5fd !important; }
+#root .welcomeSplash { background: rgba(15,23,42,.46) !important; backdrop-filter: blur(8px) !important; }
+#root .welcomeCard, #root .authCard, #root .mfaModal {
+  background: #ffffff !important;
+  color: #17243a !important;
+  border-color: #cbd5e1 !important;
+}
+#root .welcomeCard h1, #root .welcomeCard h2, #root .welcomeCard h3,
+#root .welcomeCard strong, #root .authCard h1, #root .authCard h2,
+#root .mfaModal h2 { color: #17243a !important; }
+#root .welcomeCard p, #root .welcomeCard small, #root .welcomeCard .mfaNote,
+#root .authCard p, #root .mfaModal p { color: #475569 !important; }
+#root .welcomeCard .mfaChoice { background: #f8faff !important; border-color: #cbd5e1 !important; }
+#root .welcomeCard .mfaChoice strong { color: #17243a !important; }
+#root .welcomeCard .mfaChoice small { color: #475569 !important; }
+#root .claim { background: #ffffff !important; color: #24344d !important; border-color: #cbd5e1 !important; }
+#root .claim.selected { background: #eaf1ff !important; color: #1e3a8a !important; border-color: #2563eb !important; }
+#root .claim.selected span { color: #1e3a8a !important; }
+#root .note { background: #f8faff !important; color: #24344d !important; border-color: #cbd5e1 !important; }
+#root .note strong { color: #17243a !important; }
+#root .tips > div { background: #f8faff !important; border-color: #dbe3ef !important; }
+#root .functionVisual { background: linear-gradient(135deg,#eaf1ff,#f0edff) !important; border-color: #c7d2fe !important; }
+#root :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 3px !important; }
+#root ::selection { color: #17243a !important; background: #bfdbfe !important; }
+@media (prefers-contrast: more) {
+  #root p, #root small, #root li, #root label { color: #1e293b !important; }
+  #root input, #root select, #root textarea, #root button { border-width: 2px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root *, #root *::before, #root *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+@media (max-width: 700px) {
+  body { background-attachment: scroll !important; }
+}
