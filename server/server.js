@@ -1315,9 +1315,20 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
       const record = database.prepare("SELECT id FROM mfa_recovery_codes WHERE user_id = ? AND code_hash = ? AND used_at IS NULL LIMIT 1").get(req.user.id, hashRecoveryCode(recoveryCode, req.user.id));
       if (!record) return res.status(400).json({ success: false, message: "Recovery code is invalid or has already been used." });
       const now = Date.now();
-      database.prepare("UPDATE mfa_recovery_codes SET used_at = ? WHERE id = ? AND used_at IS NULL").run(now, record.id);
-      database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(now + mfaVerifiedTtlMs, req.session.token_hash);
-      database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const consumed = database.prepare("UPDATE mfa_recovery_codes SET used_at = ? WHERE id = ? AND user_id = ? AND used_at IS NULL").run(now, record.id, req.user.id);
+        if (Number(consumed.changes) !== 1) {
+          database.exec("ROLLBACK");
+          return res.status(400).json({ success: false, message: "Recovery code is invalid or has already been used." });
+        }
+        database.prepare("UPDATE sessions SET mfa_verified_until = ? WHERE token_hash = ?").run(now + mfaVerifiedTtlMs, req.session.token_hash);
+        database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+        database.exec("COMMIT");
+      } catch (transactionError) {
+        try { database.exec("ROLLBACK"); } catch {}
+        throw transactionError;
+      }
       logEvent(req.user.id, "MFA_RECOVERY_CODE_USED", req);
       return res.json({ success: true, message: "Recovery code accepted.", user: { email: req.user.email, mfaVerified: true } });
     }
@@ -1340,9 +1351,26 @@ app.post("/api/mfa/verify", enforceSameOrigin, requireAuth, perIpOtpVerifyLimit,
     }
     const trustDevice = req.body?.trustDevice === true;
     const verifiedNow = Date.now();
-    database.prepare("UPDATE sessions SET mfa_verified_until = ?, trusted_until = ?, expires_at = ? WHERE token_hash = ?").run(verifiedNow + mfaVerifiedTtlMs, trustDevice ? verifiedNow + trustedDeviceTtlMs : 0, trustDevice ? verifiedNow + trustedDeviceTtlMs : Number(req.session.expires_at), req.session.token_hash);
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const consumed = database.prepare(
+        "DELETE FROM otp_challenges WHERE id = ? AND user_id = ? AND code_hash = ? AND expires_at > ? AND attempts < ?"
+      ).run(challenge.id, req.user.id, challenge.code_hash, verifiedNow, maxOtpAttempts);
+      if (Number(consumed.changes) !== 1) {
+        database.exec("ROLLBACK");
+        return res.status(400).json({ success: false, message: "This verification code has already been used or is no longer valid." });
+      }
+      const sessionUpdate = database.prepare(
+        "UPDATE sessions SET mfa_verified_until = ?, trusted_until = ?, expires_at = ? WHERE token_hash = ?"
+      ).run(verifiedNow + mfaVerifiedTtlMs, trustDevice ? verifiedNow + trustedDeviceTtlMs : 0, trustDevice ? verifiedNow + trustedDeviceTtlMs : Number(req.session.expires_at), req.session.token_hash);
+      if (Number(sessionUpdate.changes) !== 1) throw new Error("MFA session could not be updated.");
+      database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+      database.exec("COMMIT");
+    } catch (transactionError) {
+      try { database.exec("ROLLBACK"); } catch {}
+      throw transactionError;
+    }
     if (trustDevice) setSessionCookie(res, getCookie(req, sessionCookieName), trustedDeviceTtlMs);
-    database.prepare("DELETE FROM otp_challenges WHERE id = ?").run(challenge.id);
     logEvent(req.user.id, "MFA_VERIFIED", req);
     res.json({ success: true, message: "MFA verification successful.", user: { email: req.user.email, mfaVerified: true } });
   } catch (error) { next(error); }
