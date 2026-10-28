@@ -396,9 +396,19 @@ app.post("/api/security/password/change", enforceSameOrigin, requireAuth, requir
     }
     const passwordHash = await bcrypt.hash(newPassword, bcryptRounds);
     const now = Date.now();
-    database.prepare("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?").run(passwordHash, now, req.user.id);
-    database.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(req.user.id, req.session.token_hash);
-    database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const updated = database.prepare("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?").run(passwordHash, now, req.user.id);
+      if (Number(updated.changes) !== 1) throw new Error("Password change user record could not be updated.");
+      // A previously emailed reset link must not override a newly chosen password.
+      database.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(req.user.id);
+      database.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(req.user.id, req.session.token_hash);
+      database.prepare("DELETE FROM otp_challenges WHERE user_id = ?").run(req.user.id);
+      database.exec("COMMIT");
+    } catch (transactionError) {
+      try { database.exec("ROLLBACK"); } catch {}
+      throw transactionError;
+    }
     logEvent(req.user.id, "PASSWORD_CHANGED", req);
     ensureSecurityNotification(req.user.id,"PASSWORD_CHANGED","Password changed","Your SecureID password was changed and other sessions were signed out.");
     res.json({ success: true, passwordChangedAt: now, message: "Password changed successfully. Other sessions were signed out." });
