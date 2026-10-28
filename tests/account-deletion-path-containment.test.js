@@ -11,5 +11,5 @@ test("account deletion confines document file deletion to the storage directory"
   assert.match(server, /relative!=="\.\."/);
   assert.match(server, /!relative\.startsWith\(\x60\.\.\$\{path\.sep\}\x60\)/);
   assert.match(server, /!path\.isAbsolute\(relative\)/);
-  assert.match(server, /if\(p && isInsideStorage\) try\{unlinkSync\(path\.resolve\(p\)\)\}/);
+  assert.match(server, /if\(p && isInsideStorage\) try\{unlinkSync\(path\.resolve\(p\)\);?\}/);
 });
