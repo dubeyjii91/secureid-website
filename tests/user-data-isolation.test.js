@@ -19,7 +19,7 @@ test("document reads and deletes are scoped to the authenticated owner", () => {
   const readRoute = routeBlock(
     productionFeatures,
     'app.get("/api/documents/:id"',
-    'app.delete("/api/documents/:id"',
+    'app.delete(\n    "/api/documents/:id"',
   );
   assert.match(readRoute, /WHERE id\s*=\s*\?\s+AND user_id\s*=\s*\?/);
   assert.match(readRoute, /\.get\(req\.params\.id,\s*req\.user\.id\)/);
