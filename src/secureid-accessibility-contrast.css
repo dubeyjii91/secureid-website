@@ -228,3 +228,90 @@ body {
     transition: none !important;
   }
 }
+
+
+/* Final premium polish: brighter surfaces, refined depth, and consistent interactions. */
+body {
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(255, 199, 143, .32), transparent 32rem),
+    radial-gradient(ellipse at 100% 4%, rgba(103, 208, 202, .27), transparent 34rem),
+    radial-gradient(ellipse at 78% 100%, rgba(191, 169, 255, .18), transparent 36rem),
+    linear-gradient(135deg, #fffaf2 0%, #f4fffd 52%, #f8f4ff 100%) !important;
+  background-attachment: fixed !important;
+}
+#root .panel, #root .card, #root .actionCard, #root .securityCard,
+#root .identityCard, #root .shareCard, #root .documentVault,
+#root .documentItem, #root .functionHero, #root .profilePanel,
+#root .statusPanel, #root .systemHealthPanel, #root .scorePanel,
+#root .lockPanel, #root .authCard, #root .mfaModal, #root .welcomeCard,
+#root .shareResult, #root .tips > div, #root .note, #root .claim,
+#root .identityProfileEditor, #root .settingsPanel, #root .tableWrap,
+#root .verificationStatusCard, #root .studentProofPanel,
+#root .scanResultAdvanced, #root .managedShare, #root .activityEmpty {
+  border-radius: 18px !important;
+  box-shadow: 0 10px 28px rgba(23, 37, 84, .065), 0 2px 6px rgba(8, 127, 140, .035) !important;
+  transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease !important;
+}
+#root .actionCard:hover, #root .card:hover, #root .securityCard:hover,
+#root .identityCard:hover, #root .shareCard:hover, #root .documentItem:hover {
+  border-color: #8ccbc9 !important;
+  box-shadow: 0 14px 34px rgba(23, 37, 84, .10) !important;
+  transform: translateY(-2px);
+}
+#root .topbar, #root header {
+  background: rgba(255, 255, 255, .88) !important;
+  backdrop-filter: blur(14px) !important;
+}
+#root .sidebar {
+  background: rgba(255, 255, 255, .92) !important;
+  backdrop-filter: blur(12px) !important;
+}
+#root button.primary, #root button[type="submit"], #root .primary,
+#root .btn-primary, #root .primaryButton, #root .actionButton,
+#root .generateButton {
+  border-radius: 12px !important;
+  background: linear-gradient(125deg, #078b91 0%, #087f8c 52%, #086f9c 100%) !important;
+  box-shadow: 0 6px 15px rgba(8, 127, 140, .20) !important;
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease !important;
+}
+#root button.primary:hover, #root button[type="submit"]:hover,
+#root .primary:hover, #root .btn-primary:hover, #root .primaryButton:hover {
+  filter: brightness(.96) saturate(1.08);
+  box-shadow: 0 8px 18px rgba(8, 127, 140, .27) !important;
+  transform: translateY(-1px);
+}
+#root input, #root textarea, #root select {
+  border-radius: 10px !important;
+  box-shadow: inset 0 1px 2px rgba(23, 37, 84, .025) !important;
+}
+#root input:focus, #root textarea:focus, #root select:focus {
+  border-color: #087f8c !important;
+  box-shadow: 0 0 0 3px rgba(8, 127, 140, .14) !important;
+  outline: none !important;
+}
+#root .navItem { border-radius: 11px !important; transition: background .16s ease, color .16s ease !important; }
+#root .navItem.active {
+  background: linear-gradient(100deg, #e2f7f5 0%, #eef5ff 100%) !important;
+  box-shadow: inset 3px 0 #087f8c !important;
+}
+#root .eyebrow {
+  letter-spacing: .12em;
+  font-weight: 800;
+}
+#root hr, #root .divider { border-color: #dcebea !important; }
+@media (prefers-reduced-motion: reduce) {
+  #root .panel, #root .card, #root .actionCard, #root .securityCard,
+  #root .identityCard, #root .shareCard, #root button.primary {
+    transition: none !important;
+  }
+  #root .actionCard:hover, #root .card:hover, #root .securityCard:hover,
+  #root .identityCard:hover, #root .shareCard:hover, #root .documentItem:hover {
+    transform: none !important;
+  }
+}
+@media (max-width: 700px) {
+  #root .panel, #root .card, #root .actionCard, #root .securityCard,
+  #root .identityCard, #root .shareCard, #root .documentItem {
+    border-radius: 15px !important;
+  }
+}
