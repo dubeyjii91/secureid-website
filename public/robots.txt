@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://secureid-production-b732.up.railway.app/sitemap.xml
