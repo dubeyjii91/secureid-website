@@ -302,7 +302,7 @@ function ensureSecurityNotification(userId,type,title,message){
   if(exists) return;
   database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
   const emailTypes=new Set(["LOGIN_SUCCESS","LOGIN_FAILED","MFA_FAILED","PASSWORD_CHANGED","PASSWORD_RESET_COMPLETED","SHARE_CREATED","DOCUMENT_SHARE_CREATED","SESSION_REVOKED","ALL_OTHER_SESSIONS_REVOKED"]);
-  if(emailTypes.has(type) && ["resend", "smtp"].includes(otpDelivery)){
+  if(emailTypes.has(type) && ["resend", "smtp", "brevo"].includes(otpDelivery)){
     const user=database.prepare("SELECT email FROM users WHERE id=?").get(userId);
     if(user?.email) void sendSecurityEmail({to:user.email,subject:"SecureID security alert",text:title+"\n\n"+message+"\n\nIf you did not perform this action, sign in to SecureID and review Active sessions and Security activity."}).catch(()=>{});
   }
