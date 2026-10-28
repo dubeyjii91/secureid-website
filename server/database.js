@@ -17,6 +17,7 @@ database.exec(`
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','owner')),
     created_at INTEGER NOT NULL,
     otp_last_sent_at INTEGER NOT NULL DEFAULT 0
   );
@@ -160,6 +161,10 @@ if (!userColumns.includes("otp_last_sent_at")) {
 
 if (!userColumns.includes("password_changed_at")) {
   database.exec("ALTER TABLE users ADD COLUMN password_changed_at INTEGER");
+}
+
+if (!userColumns.includes("role")) {
+  database.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
 }
 
 database.exec(`
