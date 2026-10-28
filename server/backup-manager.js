@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { createCipheriv, randomBytes, createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 function backupAlertConfiguration(){
@@ -118,6 +120,49 @@ export function runEncryptedBackup(){
   }
 }
 
+export function runEncryptedBackupRestoreDrill(){
+  const backupDir=process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups");
+  if(!existsSync(backupDir)) throw new Error("Encrypted backup directory does not exist.");
+  const candidates=readdirSync(backupDir)
+    .filter(name=>/^secureid-.*\\.backup\\.json$/.test(name))
+    .map(name=>({name,fullPath:path.join(backupDir,name),mtime:statSync(path.join(backupDir,name)).mtimeMs}))
+    .sort((a,b)=>b.mtime-a.mtime);
+  if(!candidates.length) throw new Error("No encrypted production backup is available for the restore drill.");
+  const backup=candidates[0];
+  const tempRoot=mkdtempSync(path.join(tmpdir(),"secureid-restore-drill-"));
+  const restoredDb=path.join(tempRoot,"restored.sqlite");
+  const restoredDocuments=path.join(tempRoot,"documents");
+  const restoreScript=path.resolve(process.cwd(),"scripts/secure-restore.mjs");
+  try{
+    const result=spawnSync(process.execPath,[restoreScript,backup.fullPath],{
+      encoding:"utf8",
+      timeout:120000,
+      maxBuffer:1024*1024,
+      env:{...process.env,DATABASE_PATH:restoredDb,DOCUMENT_STORAGE_PATH:restoredDocuments}
+    });
+    if(result.error) throw new Error("Isolated restore command failed: "+result.error.name);
+    if(result.status!==0) throw new Error("Isolated restore failed: "+String(result.stderr||"").slice(0,300).replace(/\\s+/g," "));
+    if(!existsSync(restoredDb)) throw new Error("Isolated restore did not create a database.");
+    const restored=new DatabaseSync(restoredDb,{readOnly:true});
+    let tableCount=0;
+    try{
+      const integrity=restored.prepare("PRAGMA integrity_check").all();
+      if(integrity.length!==1 || integrity[0].integrity_check!=="ok") throw new Error("Restored database failed SQLite integrity_check.");
+      const tables=restored.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row=>row.name);
+      if(!tables.includes("users")) throw new Error("Restored database is missing the users table.");
+      tableCount=tables.length;
+    }finally{ restored.close(); }
+    const restoredDocumentCount=existsSync(restoredDocuments)
+      ? readdirSync(restoredDocuments).filter(name=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.json$/i.test(name)).length
+      : 0;
+    const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,restoredDocumentCount,isolated:true};
+    console.log(JSON.stringify({level:"info",event:"encrypted_backup_restore_drill_completed",...resultSummary}));
+    return resultSummary;
+  }finally{
+    rmSync(tempRoot,{recursive:true,force:true});
+  }
+}
+
 export function getBackupStatus(){ return {...status}; }
 
 export function startAutomaticBackup(){
@@ -128,6 +173,12 @@ export function startAutomaticBackup(){
   if(!configured){
     console.warn(JSON.stringify({level:"warn",event:"encrypted_backup_disabled",reason:"BACKUP_ENCRYPTION_KEY is not configured"}));
     return;
+  }
+  if(process.env.BACKUP_RESTORE_DRILL==="true"){
+    setTimeout(()=>{
+      try{ runEncryptedBackupRestoreDrill(); }
+      catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_restore_drill_failed",errorType:error?.name||"Error",reason:String(error?.message||"unknown").slice(0,300)})); }
+    },20_000).unref();
   }
   const intervalHours=Math.max(1,Number(process.env.BACKUP_INTERVAL_HOURS||24));
   const run=()=>{ try{ runEncryptedBackup(); console.log(JSON.stringify({level:"info",event:"encrypted_backup_completed",file:status.lastFile})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
