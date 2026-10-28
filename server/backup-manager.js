@@ -124,7 +124,7 @@ export function runEncryptedBackupRestoreDrill(){
   const backupDir=process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups");
   if(!existsSync(backupDir)) throw new Error("Encrypted backup directory does not exist.");
   const candidates=readdirSync(backupDir)
-    .filter(name=>/^secureid-.*\\.backup\\.json$/.test(name))
+    .filter(name=>/^secureid-.*\.backup\.json$/.test(name))
     .map(name=>({name,fullPath:path.join(backupDir,name),mtime:statSync(path.join(backupDir,name)).mtimeMs}))
     .sort((a,b)=>b.mtime-a.mtime);
   if(!candidates.length) throw new Error("No encrypted production backup is available for the restore drill.");
@@ -141,7 +141,7 @@ export function runEncryptedBackupRestoreDrill(){
       env:{...process.env,DATABASE_PATH:restoredDb,DOCUMENT_STORAGE_PATH:restoredDocuments}
     });
     if(result.error) throw new Error("Isolated restore command failed: "+result.error.name);
-    if(result.status!==0) throw new Error("Isolated restore failed: "+String(result.stderr||"").slice(0,300).replace(/\\s+/g," "));
+    if(result.status!==0) throw new Error("Isolated restore failed: "+String(result.stderr||"").slice(0,300).replace(/\s+/g," "));
     if(!existsSync(restoredDb)) throw new Error("Isolated restore did not create a database.");
     const restored=new DatabaseSync(restoredDb,{readOnly:true});
     let tableCount=0;
@@ -153,7 +153,7 @@ export function runEncryptedBackupRestoreDrill(){
       tableCount=tables.length;
     }finally{ restored.close(); }
     const restoredDocumentCount=existsSync(restoredDocuments)
-      ? readdirSync(restoredDocuments).filter(name=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.json$/i.test(name)).length
+      ? readdirSync(restoredDocuments).filter(name=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/i.test(name)).length
       : 0;
     const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,restoredDocumentCount,isolated:true};
     console.log(JSON.stringify({level:"info",event:"encrypted_backup_restore_drill_completed",...resultSummary}));
