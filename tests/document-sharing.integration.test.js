@@ -192,7 +192,6 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.match(created.headers.get("cache-control") || "", /no-store/i);
   assert.match(created.headers.get("pragma") || "", /no-cache/i);
   const share = await created.json();
-  const shareTokenHash = (await import("node:crypto")).createHash("sha256").update(share.shareToken).digest("hex");
   const accessible = await fetch(base + `/api/document-share/${share.shareToken}`);
   assert.equal(accessible.status, 200);
   assert.match(accessible.headers.get("content-type") || "", /application\/pdf/);
