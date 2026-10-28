@@ -219,7 +219,7 @@ function requireAuth(req, res, next) {
   const token = getCookie(req, sessionCookieName);
   if (!token || token.length < 20 || token.length > 200) return res.status(401).json({ success: false, message: "Sign in to continue." });
   const tokenHash = hashSessionToken(token);
-  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, s.last_seen_at, u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
+  const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, s.last_seen_at, u.id, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
   if (!row || Number(row.expires_at) <= Date.now() || (Number(row.last_seen_at || 0) > 0 && Date.now() - Number(row.last_seen_at) > sessionIdleTtlMs)) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     clearSessionCookie(res);
@@ -227,7 +227,10 @@ function requireAuth(req, res, next) {
   }
   req.session = row;
   database.prepare("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?").run(Date.now(), tokenHash);
-  req.user = { id: row.id, email: row.email, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() || Number(row.trusted_until || 0) > Date.now(), trustedDevice: Number(row.trusted_until || 0) > Date.now() };
+  const configuredOwnerEmail = String(process.env.OWNER_EMAIL || "").trim().toLowerCase();
+  const effectiveRole = configuredOwnerEmail && row.email.toLowerCase() === configuredOwnerEmail ? "owner" : "user";
+  if (row.role !== effectiveRole) database.prepare("UPDATE users SET role = ? WHERE id = ?").run(effectiveRole, row.id);
+  req.user = { id: row.id, email: row.email, role: effectiveRole, mfaVerified: Number(row.mfa_verified_until || 0) > Date.now() || Number(row.trusted_until || 0) > Date.now(), trustedDevice: Number(row.trusted_until || 0) > Date.now() };
   next();
 }
 
@@ -850,13 +853,36 @@ app.get("/api/security/url-reputation", perIpUrlReputationLimit, (req, res) => {
   }).finally(() => clearTimeout(timeout));
 });
 
+// Public health response intentionally exposes only minimal liveness information.
 app.get("/api/health", (req, res) => {
   try {
     database.prepare("SELECT 1 AS ok").get();
-    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions},backup:{enabled:getBackupStatus().enabled,lastSuccessAt:getBackupStatus().lastSuccessAt,alertingConfigured:getBackupStatus().alertingConfigured},operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),timestamp:new Date().toISOString()});
+    res.json({success:true,service:"SecureID API",status:"ready",database:"ok",timestamp:new Date().toISOString()});
   } catch {
     res.status(503).json({success:false,service:"SecureID API",status:"not_ready",database:"error",timestamp:new Date().toISOString()});
   }
+});
+
+function requireOwner(req, res, next) {
+  if (req.user?.role !== "owner") {
+    return res.status(403).json({success:false,message:"Owner permissions are required for this action."});
+  }
+  next();
+}
+
+app.get("/api/admin/health", requireAuth, requireMfa, requireOwner, (req, res) => {
+  const backup = getBackupStatus();
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json({
+    success:true,
+    service:"SecureID API",
+    status:"ready",
+    database:"ok",
+    emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions},
+    backup:{enabled:backup.enabled,lastSuccessAt:backup.lastSuccessAt,alertingConfigured:backup.alertingConfigured},
+    operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),
+    timestamp:new Date().toISOString()
+  });
 });
 
 app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuthLimit, async (req, res, next) => {
