@@ -503,6 +503,11 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("DELETE FROM secure_shares WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
+      // These tables intentionally lack cascading user foreign keys for migration
+      // compatibility, so explicitly erase them before deleting the account.
+      database.prepare("DELETE FROM identity_document_checks WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM college_pilot_requests WHERE user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM institution_memberships WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM security_events WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM security_notifications WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM privacy_settings WHERE user_id=?").run(req.user.id);
