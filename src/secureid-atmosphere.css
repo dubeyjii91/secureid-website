@@ -1,75 +1,85 @@
-/* SecureID premium atmosphere — decorative only; content contrast stays high. */
+/* SecureID production atmosphere. High-contrast dark glass surfaces; selectors match the shipped app. */
 :root {
-  color-scheme: light;
-  --bg: #f4f7ff;
-  --panel: rgba(255, 255, 255, 0.94);
-  --text: #172033;
-  --muted: #58657b;
-  --line: rgba(115, 137, 177, 0.22);
-  --primary: #3157d5;
-  --primary2: #2446b6;
-  --shadow: 0 14px 38px rgba(33, 53, 98, 0.08);
+  color-scheme: dark;
+  --sid-bg: #080d1c;
+  --sid-panel: rgba(15, 24, 46, 0.88);
+  --sid-line: rgba(148, 170, 220, 0.22);
+  --sid-text: #f7f9ff;
+  --sid-muted: #c0cbe0;
+  --sid-blue: #66a5ff;
+  --sid-violet: #a78bfa;
 }
-html { background: #f4f7ff; }
+html, body, #root { min-height: 100%; }
 body {
-  color: var(--text);
+  color: var(--sid-text) !important;
   background:
-    radial-gradient(ellipse at 8% 4%, rgba(107, 148, 255, 0.18), transparent 34rem),
-    radial-gradient(ellipse at 92% 12%, rgba(164, 117, 255, 0.13), transparent 31rem),
-    radial-gradient(ellipse at 72% 88%, rgba(58, 198, 204, 0.10), transparent 34rem),
-    linear-gradient(135deg, #f7f9ff 0%, #f1f5ff 48%, #f8f7ff 100%);
-  background-attachment: fixed;
+    radial-gradient(ellipse at 12% 8%, rgba(59, 130, 246, .30), transparent 36rem),
+    radial-gradient(ellipse at 88% 15%, rgba(139, 92, 246, .26), transparent 34rem),
+    radial-gradient(ellipse at 75% 92%, rgba(20, 184, 166, .16), transparent 35rem),
+    linear-gradient(135deg, #070b17 0%, #0b1430 48%, #11132b 100%) !important;
+  background-attachment: fixed !important;
 }
-.shell { background: transparent; }
+#root, .shell, .main, .content { background: transparent !important; }
 .sidebar {
-  background: rgba(255, 255, 255, 0.96);
-  border-right-color: rgba(115, 137, 177, 0.20);
-  box-shadow: 8px 0 32px rgba(36, 56, 101, 0.035);
-  backdrop-filter: blur(16px);
+  background: rgba(7, 12, 28, .92) !important;
+  color: var(--sid-text) !important;
+  border-right: 1px solid var(--sid-line) !important;
+  box-shadow: 12px 0 38px rgba(0, 0, 0, .20) !important;
+  backdrop-filter: blur(20px) saturate(140%);
 }
-.topbar {
-  background: rgba(255, 255, 255, 0.91);
-  border-bottom-color: rgba(115, 137, 177, 0.20);
-  backdrop-filter: blur(16px);
+.topbar, header {
+  background: rgba(9, 15, 33, .90) !important;
+  color: var(--sid-text) !important;
+  border-bottom: 1px solid var(--sid-line) !important;
+  backdrop-filter: blur(18px) saturate(140%);
 }
-.content { position: relative; isolation: isolate; }
-.panel, .actionCard {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(119, 142, 185, 0.22);
-  box-shadow: 0 12px 34px rgba(37, 57, 104, 0.065);
-  backdrop-filter: blur(10px);
+.panel, .actionCard, .card, .statusPanel {
+  color: var(--sid-text) !important;
+  background: linear-gradient(145deg, rgba(19, 30, 57, .96), rgba(13, 22, 44, .92)) !important;
+  border: 1px solid var(--sid-line) !important;
+  border-radius: 17px !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .22) !important;
 }
-.panel { border-radius: 17px; }
 .actionCard {
-  border-radius: 15px;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
-.actionCard:hover {
-  transform: translateY(-2px);
-  border-color: rgba(49, 87, 213, 0.38);
-  box-shadow: 0 16px 36px rgba(37, 57, 104, 0.10);
+.actionCard:hover, .panel:hover {
+  border-color: rgba(102, 165, 255, .48) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .28) !important;
 }
-.navItem.active { background: #eaf0ff; color: #2446b6; }
-.primary {
-  background: linear-gradient(135deg, #3157d5, #5945c7);
-  box-shadow: 0 5px 14px rgba(49, 87, 213, 0.18);
+.navItem { color: #c0cbe0 !important; }
+.navItem:hover, .navItem.active {
+  background: rgba(74, 115, 220, .22) !important;
+  color: #ffffff !important;
 }
-.primary:hover { background: linear-gradient(135deg, #2446b6, #4835b2); }
-input, textarea, select { color: #172033; }
-input::placeholder, textarea::placeholder { color: #69758a; opacity: 1; }
+.brand strong, .topbar h1, .panel h2, .panel h3, .actionCard h2, .actionCard h3,
+h1, h2, h3, h4, label, strong { color: #f7f9ff; }
+p, .muted, .description, .subtitle { color: #c0cbe0; }
+input, textarea, select {
+  color: #f7f9ff !important;
+  background: rgba(4, 9, 22, .78) !important;
+  border-color: rgba(148, 170, 220, .30) !important;
+}
+input::placeholder, textarea::placeholder { color: #aab8d2 !important; opacity: 1; }
+button.primary, .primaryButton, .btn-primary {
+  color: #ffffff !important;
+  background: linear-gradient(125deg, #3478f6, #7757e8) !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 24px rgba(67, 104, 235, .30) !important;
+}
 :where(button, a, input, textarea, select):focus-visible {
-  outline: 3px solid #3157d5;
+  outline: 3px solid #8bbaff !important;
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
   }
 }
 @media (max-width: 700px) {
-  body { background-attachment: scroll; }
+  body { background-attachment: scroll !important; }
   .panel, .actionCard { backdrop-filter: none; }
 }
