@@ -192,6 +192,7 @@ test("document ownership isolation, share access, revocation, and expiry", async
   assert.match(created.headers.get("cache-control") || "", /no-store/i);
   assert.match(created.headers.get("pragma") || "", /no-cache/i);
   const share = await created.json();
+  const shareTokenHash = (await import("node:crypto")).createHash("sha256").update(share.shareToken).digest("hex");
   const accessible = await fetch(base + `/api/document-share/${share.shareToken}`);
   assert.equal(accessible.status, 200);
   assert.match(accessible.headers.get("content-type") || "", /application\/pdf/);
@@ -199,6 +200,13 @@ test("document ownership isolation, share access, revocation, and expiry", async
     Buffer.from(await accessible.arrayBuffer()),
     Buffer.from("%PDF-1.7\nSecureID test document\n%%EOF")
   );
+
+  // The public bearer endpoint must fail closed if stored share and document owners diverge.
+  database.prepare("UPDATE secure_documents SET user_id='user-b' WHERE id=?").run(documentId);
+  const mismatchedOwnerShare = await fetch(base + `/api/document-share/${share.shareToken}`);
+  assert.equal(mismatchedOwnerShare.status, 404);
+  database.prepare("UPDATE secure_documents SET user_id='user-a' WHERE id=?").run(documentId);
+  assert.equal((await fetch(base + `/api/document-share/${share.shareToken}`)).status, 200);
 
   // MFA-pending sessions must not revoke a document share.
   const mfaPendingDocumentRevoke = await fetch(base + "/api/document-share/revoke", {
@@ -233,6 +241,15 @@ test("document ownership isolation, share access, revocation, and expiry", async
   const afterRevoke = await fetch(base + `/api/document-share/${share.shareToken}`);
   assert.equal(afterRevoke.status, 404);
   assert.match(afterRevoke.headers.get("cache-control") || "", /no-store/i);
+
+  // Invalid expiry metadata must not be treated as a live bearer share.
+  const invalidExpiryCreate = await createShare();
+  assert.equal(invalidExpiryCreate.status, 200, await invalidExpiryCreate.clone().text());
+  const invalidExpiryShare = await invalidExpiryCreate.json();
+  const invalidExpiryHash = (await import("node:crypto")).createHash("sha256").update(invalidExpiryShare.shareToken).digest("hex");
+  database.prepare("UPDATE secure_document_shares SET expires_at='not-a-date' WHERE token_hash=?").run(invalidExpiryHash);
+  const invalidExpiryAccess = await fetch(base + `/api/document-share/${invalidExpiryShare.shareToken}`);
+  assert.equal(invalidExpiryAccess.status, 404);
   assert.equal(afterRevoke.headers.get("x-content-type-options"), "nosniff");
 
   const expiring = await createShare();
