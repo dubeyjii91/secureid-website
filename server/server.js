@@ -525,7 +525,7 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
     }catch(error){database.exec("ROLLBACK");throw error;}
     for(const doc of docs){
       const p=String(doc.encrypted_path||"");
-      if(p && p.startsWith(path.resolve(storagePath))) try{unlinkSync(p);}catch{}
+      const root=path.resolve(storagePath); const relative=path.relative(root,path.resolve(p)); const isInsideStorage=relative!=="" && relative!==".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); if(p && isInsideStorage) try{unlinkSync(path.resolve(p));}catch{}
     }
     clearSessionCookie(res);
     res.json({success:true,message:"Your SecureID account and stored account data were deleted."});
