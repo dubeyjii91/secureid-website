@@ -147,3 +147,84 @@ body {
   #root *, #root *::before, #root *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 @media (max-width: 700px) { body { background-attachment: scroll !important; } }
+
+
+/* Premium polish layer — preserve the approved palette, improve hierarchy and depth. */
+#root {
+  --sid-radius-card: 20px;
+  --sid-radius-control: 12px;
+}
+#root .panel, #root .card, #root .actionCard, #root .securityCard,
+#root .identityCard, #root .shareCard, #root .documentVault,
+#root .documentItem, #root .functionHero, #root .profilePanel,
+#root .statusPanel, #root .systemHealthPanel, #root .scorePanel,
+#root .lockPanel, #root .authCard, #root .mfaModal, #root .welcomeCard,
+#root .shareResult, #root .identityProfileEditor, #root .settingsPanel,
+#root .tableWrap, #root .verificationStatusCard, #root .studentProofPanel,
+#root .scanResultAdvanced, #root .managedShare {
+  border-radius: var(--sid-radius-card) !important;
+  box-shadow: 0 12px 30px rgba(23,37,84,.075), 0 2px 6px rgba(8,127,140,.035) !important;
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+#root .panel:hover, #root .card:hover, #root .actionCard:hover,
+#root .securityCard:hover, #root .identityCard:hover, #root .shareCard:hover,
+#root .documentItem:hover, #root .functionHero:hover {
+  border-color: #a8d8d9 !important;
+  box-shadow: 0 16px 34px rgba(23,37,84,.10), 0 3px 10px rgba(8,127,140,.06) !important;
+}
+#root .topbar, #root .sidebar {
+  backdrop-filter: blur(14px) !important;
+}
+#root h1 {
+  letter-spacing: -.035em !important;
+  line-height: 1.12 !important;
+  font-weight: 800 !important;
+}
+#root h2, #root h3 {
+  letter-spacing: -.02em !important;
+  line-height: 1.25 !important;
+  font-weight: 750 !important;
+}
+#root button, #root .navItem, #root .installAppButton,
+#root input, #root textarea, #root select {
+  border-radius: var(--sid-radius-control) !important;
+}
+#root button.primary, #root button[type="submit"], #root .primary,
+#root .btn-primary, #root .primaryButton, #root .actionButton,
+#root .generateButton {
+  background: linear-gradient(120deg,#087f8c 0%,#087f9f 58%,#3867b7 100%) !important;
+  box-shadow: 0 7px 16px rgba(8,127,140,.20) !important;
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease !important;
+}
+#root button.primary:hover, #root button[type="submit"]:hover,
+#root .primary:hover, #root .btn-primary:hover,
+#root .primaryButton:hover, #root .actionButton:hover,
+#root .generateButton:hover {
+  filter: brightness(.96) saturate(1.06) !important;
+  box-shadow: 0 10px 21px rgba(8,127,140,.25) !important;
+  transform: translateY(-1px);
+}
+#root .eyebrow {
+  font-size: .76rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .09em !important;
+  text-transform: uppercase !important;
+}
+#root .functionVisual {
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8) !important;
+}
+#root input:focus, #root textarea:focus, #root select:focus {
+  border-color: #6842c2 !important;
+  box-shadow: 0 0 0 3px rgba(104,66,194,.13) !important;
+  outline: none !important;
+}
+#root .navItem.active {
+  box-shadow: inset 3px 0 0 #087f8c !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .panel, #root .card, #root .actionCard, #root .securityCard,
+  #root .identityCard, #root .shareCard, #root button {
+    transition: none !important;
+  }
+}
