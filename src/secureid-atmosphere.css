@@ -131,3 +131,41 @@ button.primary, .primaryButton, .btn-primary {
     linear-gradient(135deg, #070b17, #11132b) !important;
 }
 
+
+
+/* FINAL VISIBILITY FIX: keep the login backdrop visible behind all auth content. */
+.authShell {
+  position: relative !important;
+  isolation: isolate !important;
+  min-height: 100vh !important;
+  background-color: #070d20 !important;
+  background-image:
+    radial-gradient(ellipse 70% 55% at 8% 8%, rgba(37, 99, 235, .72) 0%, transparent 72%),
+    radial-gradient(ellipse 60% 60% at 94% 12%, rgba(124, 58, 237, .62) 0%, transparent 72%),
+    radial-gradient(ellipse 70% 55% at 65% 100%, rgba(13, 148, 136, .38) 0%, transparent 70%),
+    linear-gradient(135deg, #050916 0%, #0a1b3a 48%, #17113b 100%) !important;
+  overflow: hidden;
+}
+.authShell::before {
+  z-index: 0 !important;
+  opacity: .22 !important;
+}
+.authShell > * {
+  position: relative;
+  z-index: 1;
+}
+.welcomeSplash {
+  background:
+    radial-gradient(ellipse at 10% 8%, rgba(37, 99, 235, .24), transparent 42rem),
+    radial-gradient(ellipse at 90% 18%, rgba(124, 58, 237, .22), transparent 38rem),
+    rgba(3, 8, 20, .12) !important;
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+}
+.welcomeGlow {
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+.welcomeCard {
+  z-index: 1 !important;
+}
