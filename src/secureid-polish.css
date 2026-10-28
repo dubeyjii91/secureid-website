@@ -173,3 +173,125 @@ input::placeholder, textarea::placeholder { color: #aebed2 !important; opacity: 
   .topbarActions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .installAppButton { padding: 7px 9px; font-size: .72rem; }
 }
+
+
+/* Oct 2026 visible UI refresh: make the signed-in workspace visibly different. */
+:root {
+  color-scheme: light !important;
+  --sid-readable-text: #17243b;
+  --sid-readable-muted: #5f6e84;
+}
+body {
+  background: #f3f6fc !important;
+  color: #17243b !important;
+}
+.shell { background: #f3f6fc !important; }
+.sidebar {
+  background: linear-gradient(180deg, #101b35 0%, #17294b 100%) !important;
+  border-right: 0 !important;
+  box-shadow: 8px 0 28px rgba(16, 27, 53, .08) !important;
+}
+.sidebar .brand strong, .sidebar .brand small { color: #fff !important; }
+.sidebar .navLabel { color: #91a7cc !important; }
+.sidebar .navItem {
+  color: #d4def0 !important;
+  border-radius: 12px !important;
+  margin: 2px 0 !important;
+  padding: 12px 13px !important;
+}
+.sidebar .navItem:hover { background: rgba(255,255,255,.09) !important; }
+.sidebar .navItem.active {
+  color: #fff !important;
+  background: linear-gradient(100deg, #2867df, #3688ed) !important;
+  box-shadow: 0 7px 18px rgba(37, 99, 235, .25) !important;
+}
+.sidebar .privacy {
+  background: rgba(255,255,255,.07) !important;
+  border-color: rgba(255,255,255,.12) !important;
+}
+.sidebar .privacy strong, .sidebar .privacy p, .sidebar .signOut { color: #d4def0 !important; }
+.main { background: #f3f6fc !important; }
+.topbar {
+  background: rgba(255,255,255,.94) !important;
+  border-bottom: 1px solid #e2e9f4 !important;
+  box-shadow: 0 4px 18px rgba(24, 44, 79, .035) !important;
+}
+.topbar h1 { color: #17243b !important; }
+.breadcrumb { color: #6480a8 !important; }
+.content { max-width: 1320px !important; padding-top: 38px !important; padding-bottom: 52px !important; }
+.panel, .profilePanel, .statusPanel, .actionCard, .shareResult, .authCard, .mfaModal {
+  background: #fff !important;
+  color: #17243b !important;
+  border: 1px solid #e1e8f3 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 10px 30px rgba(30, 54, 91, .065) !important;
+  backdrop-filter: none !important;
+}
+.panel h2, .panel h3, .panel h4, .profilePanel h2, .statusPanel h2,
+.functionHero h2, .sectionTitle h2, .actionCard strong {
+  color: #17243b !important;
+}
+.panel p, .panel small, .panel label, .panel .lead, .actionCard p,
+.details span, .securityRow, .shareHint, .shareExpiry, .tips span, .note span {
+  color: #5f6e84 !important;
+}
+.eyebrow, .eyebrow.dark { color: #3972cf !important; }
+.functionHero {
+  background: linear-gradient(115deg, #142747 0%, #1d4f91 60%, #287bc4 100%) !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  padding: 30px !important;
+  box-shadow: 0 16px 32px rgba(24, 67, 125, .17) !important;
+}
+.functionHero h2, .functionHero p, .functionHero .eyebrow,
+.functionHero .eyebrow.dark { color: #fff !important; }
+.functionHero p { opacity: .86; }
+.dashboardScore {
+  background: rgba(255,255,255,.13) !important;
+  border: 1px solid rgba(255,255,255,.23) !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+}
+.dashboardScore strong, .dashboardScore span, .dashboardScore small { color: #fff !important; }
+.dashboardGrid { gap: 18px !important; margin-top: 20px !important; }
+.dashboardGrid .panel { min-height: 170px; }
+.scorePanel { border-top: 4px solid #3478e5 !important; }
+.systemHealthPanel { margin-top: 18px !important; }
+.systemHealthGrid > div, .securityStats > span {
+  background: #f5f8fd !important;
+  border: 1px solid #e4ebf5 !important;
+  border-radius: 12px !important;
+  padding: 13px !important;
+}
+input, textarea, select {
+  color: #17243b !important;
+  background: #fff !important;
+  border-color: #ccd7e7 !important;
+  border-radius: 10px !important;
+}
+input::placeholder, textarea::placeholder { color: #8492a7 !important; }
+button.primary, .primary {
+  background: linear-gradient(100deg, #245ed7, #367de6) !important;
+  border: 0 !important;
+  border-radius: 11px !important;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, .17);
+}
+button.secondary, .secondary {
+  border-radius: 10px !important;
+  border-color: #cbd8ec !important;
+}
+.claim {
+  background: #f8faff !important;
+  color: #253650 !important;
+  border-color: #dce5f1 !important;
+}
+.claim.selected { background: #edf4ff !important; border-color: #4b83e3 !important; }
+.note { background: #eef5ff !important; border-color: #d7e7ff !important; color: #425773 !important; }
+.note strong { color: #1f3b66 !important; }
+footer { color: #65758e !important; }
+@media (max-width: 720px) {
+  .content { padding: 22px 16px 36px !important; }
+  .functionHero { padding: 22px !important; border-radius: 17px !important; }
+  .panel { padding: 19px !important; }
+  .sidebar { box-shadow: none !important; }
+}
