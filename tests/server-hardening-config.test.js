@@ -12,3 +12,9 @@ test("OTP verification has a bounded per-IP and per-user attempt limit", () => {
 test("security notification email supports Brevo delivery", () => {
   assert.match(server, /\["resend",\s*"smtp",\s*"brevo"\]/);
 });
+
+test("session revocation rejects ambiguous shortened session identifiers", () => {
+  assert.match(server, /const matches = sessions\.filter\(\(session\) => session\.token_hash\.startsWith\(sessionId\)\)/);
+  assert.match(server, /if \(matches\.length > 1\) return res\.status\(409\)/);
+  assert.match(server, /const target = matches\[0\]/);
+});
