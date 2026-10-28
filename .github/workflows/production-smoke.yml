@@ -37,6 +37,7 @@ jobs:
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
             { path: "/api/health", type: "json" },
             { path: "/api/health/ready", type: "json" },
+            { path: "/api/__smoke_unknown_route__", type: "json", expectedStatus: 404 },
             { path: "/api/auth/session", type: "json", expectedStatus: 401 },
             { path: "/api/privacy", type: "json", expectedStatus: 401 },
             { path: "/api/identity/government-verification/readiness", type: "json", expectedStatus: 401 },
@@ -111,6 +112,9 @@ jobs:
                   }
                   if (route.expectedStatus === 401 && payload.success === true) {
                     throw new Error("Protected endpoint reported success without authentication");
+                  }
+                  if (route.path === "/api/__smoke_unknown_route__" && payload.success !== false) {
+                    throw new Error("Unknown API route must return a JSON failure response, not the SPA shell");
                   }
                   if (route.path.startsWith("/api/share/") && payload.success === true) {
                     throw new Error("An unknown share token must not return a successful payload");

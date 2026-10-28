@@ -1456,6 +1456,11 @@ setInterval(() => {
   database.prepare("DELETE FROM otp_challenges WHERE expires_at <= ?").run(now);
 }, 60 * 60 * 1000).unref();
 
+app.use("/api", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(404).json({ success: false, code: "API_ROUTE_NOT_FOUND", message: "API endpoint not found." });
+});
+
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 app.listen(port, () => console.log(JSON.stringify({ level: "info", event: "server_started", port, environment: isProduction ? "production" : "development", storage: "sqlite", emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions} })));
 
