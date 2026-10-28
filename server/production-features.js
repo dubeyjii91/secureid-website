@@ -799,8 +799,9 @@ export function registerProductionFeatures({
       const token=String(req.params.token || "");
       if(!/^[A-Za-z0-9_-]{30,100}$/.test(token)) return res.status(404).json({success:false,message:"Document share not found."});
       const tokenHash=crypto.createHash("sha256").update(token,"utf8").digest("hex");
-      const row=database.prepare("SELECT s.document_id,s.user_id,s.expires_at,s.revoked_at,s.share_reason,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND d.deleted_at IS NULL").get(tokenHash);
-      if(!row || row.revoked_at || Date.now()>=Date.parse(row.expires_at)) return res.status(404).json({success:false,message:"Document share not found or expired."});
+      const row=database.prepare("SELECT s.document_id,s.user_id,s.expires_at,s.revoked_at,s.share_reason,d.original_name,d.mime_type,d.encrypted_path FROM secure_document_shares s JOIN secure_documents d ON d.id=s.document_id WHERE s.token_hash=? AND s.user_id=d.user_id AND d.deleted_at IS NULL").get(tokenHash);
+      const expiresAt=Date.parse(row?.expires_at || "");
+      if(!row || row.revoked_at || !Number.isFinite(expiresAt) || Date.now()>=expiresAt) return res.status(404).json({success:false,message:"Document share not found or expired."});
       if(!fs.existsSync(row.encrypted_path)) return res.status(404).json({success:false,message:"Shared document unavailable."});
       const plaintext=decryptBuffer(JSON.parse(fs.readFileSync(row.encrypted_path,"utf8")),key);
       database.prepare("UPDATE secure_document_shares SET accessed_at=?, access_count=COALESCE(access_count,0)+1 WHERE token_hash=?").run(new Date().toISOString(),tokenHash);
