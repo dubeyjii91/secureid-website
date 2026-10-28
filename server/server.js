@@ -262,8 +262,8 @@ const perIpAuthLimit = createRateLimit("auth-ip", 10, window15m, getClientKey);
 const perAccountAuthLimit = createRateLimit("auth-account", 10, window15m, (req) => String(req.body?.email || "unknown").trim().toLowerCase());
 const perIpOtpLimit = createRateLimit("otp-ip", 5, window15m, getClientKey);
 const perUserOtpLimit = createRateLimit("otp-user", 5, window15m, (req) => req.user?.id || getClientKey(req));
-const perIpOtpVerifyLimit = createRateLimit("otp-verify-ip", 20, window15m, getClientKey);
-const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 20, window15m, (req) => req.user?.id || getClientKey(req));
+const perIpOtpVerifyLimit = createRateLimit("otp-verify-ip", 5, window15m, getClientKey);
+const perUserOtpVerifyLimit = createRateLimit("otp-verify-user", 5, window15m, (req) => req.user?.id || getClientKey(req));
 const perIpWalletLimit = createRateLimit("wallet-ip", 60, window15m, getClientKey);
 const perUserWalletLimit = createRateLimit("wallet-user", 40, window15m, (req) => req.user?.id || getClientKey(req));
 const perIpApiLimit = createRateLimit("api-ip", 180, 60 * 1000, getClientKey);
@@ -302,7 +302,7 @@ function ensureSecurityNotification(userId,type,title,message){
   if(exists) return;
   database.prepare("INSERT INTO security_notifications (id,user_id,type,title,message,created_at) VALUES (?,?,?,?,?,?)").run(randomUUID(),userId,type,title,message,Date.now());
   const emailTypes=new Set(["LOGIN_SUCCESS","LOGIN_FAILED","MFA_FAILED","PASSWORD_CHANGED","PASSWORD_RESET_COMPLETED","SHARE_CREATED","DOCUMENT_SHARE_CREATED","SESSION_REVOKED","ALL_OTHER_SESSIONS_REVOKED"]);
-  if(emailTypes.has(type) && ["resend", "smtp"].includes(otpDelivery)){
+  if(emailTypes.has(type) && ["resend", "smtp", "brevo"].includes(otpDelivery)){
     const user=database.prepare("SELECT email FROM users WHERE id=?").get(userId);
     if(user?.email) void sendSecurityEmail({to:user.email,subject:"SecureID security alert",text:title+"\n\n"+message+"\n\nIf you did not perform this action, sign in to SecureID and review Active sessions and Security activity."}).catch(()=>{});
   }
@@ -437,8 +437,11 @@ app.post("/api/security/sessions/revoke", enforceSameOrigin, requireAuth, requir
     const sessionId = String(req.body?.sessionId || "").trim();
     if (!sessionId || sessionId.length !== 16) return res.status(400).json({ success: false, message: "Invalid session." });
     const sessions = database.prepare("SELECT token_hash FROM sessions WHERE user_id = ?").all(req.user.id);
-    const target = sessions.find((session) => session.token_hash.startsWith(sessionId));
-    if (!target) return res.status(404).json({ success: false, message: "Session not found." });
+    const matches = sessions.filter((session) => session.token_hash.startsWith(sessionId));
+    if (matches.length === 0) return res.status(404).json({ success: false, message: "Session not found." });
+    // The UI sends a short prefix, so fail closed if a prefix ever matches more than one session.
+    if (matches.length > 1) return res.status(409).json({ success: false, message: "Session identifier is ambiguous. Refresh the session list and try again." });
+    const target = matches[0];
     if (target.token_hash === req.session.token_hash) return res.status(400).json({ success: false, message: "Use Sign out to end your current session." });
     database.prepare("DELETE FROM sessions WHERE token_hash = ? AND user_id = ?").run(target.token_hash, req.user.id);
     logEvent(req.user.id, "SESSION_REVOKED", req, { sessionId });

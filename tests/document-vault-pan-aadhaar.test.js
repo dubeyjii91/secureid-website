@@ -9,7 +9,7 @@ const styles = readFileSync(new URL("../src/document-vault.css", import.meta.url
 test("PAN and Aadhaar have explicit upload categories and saved-state feedback", () => {
   assert.match(ui, /value="aadhaar"/);
   assert.match(ui, /value="pan"/);
-  assert.match(backend, /ALLOWED_DOCUMENT_CATEGORIES = new Set\(\["general","aadhaar","pan","passport","voter_id","driving_licence"\]\)/);
+  assert.match(backend, /ALLOWED_DOCUMENT_CATEGORIES = new Set\(\["general","aadhaar","pan","passport","voter_id","driving_licence","student_id","institution_proof"\]\)/);
   assert.match(ui, /Saved in vault/);
   assert.match(ui, /No Aadhaar file saved yet/);
   assert.match(ui, /No PAN file saved yet/);
