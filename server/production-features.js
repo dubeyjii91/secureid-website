@@ -7,7 +7,7 @@ import { enforceShareRateLimit } from "./share-rate-limit.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
-const ALLOWED_DOCUMENT_CATEGORIES = new Set(["general","aadhaar","pan","passport","voter_id","driving_licence"]);
+const ALLOWED_DOCUMENT_CATEGORIES = new Set(["general","aadhaar","pan","passport","voter_id","driving_licence","student_id","institution_proof"]);
 
 function createCryptoKey(isProduction){
   const raw = process.env.DOCUMENT_ENCRYPTION_KEY || "";
