@@ -99,7 +99,13 @@ jobs:
                     if (payload.success !== true || payload.status !== "ready" || payload.database !== "ok") {
                       throw new Error("Health endpoint did not confirm a ready API and healthy database");
                     }
-                    if (payload.backup?.enabled !== true || !Number.isFinite(Number(payload.backup?.lastSuccessAt)) || Number(payload.backup.lastSuccessAt) <= 0) {
+                    const backupSuccess = payload.backup?.lastSuccessAt;
+                    const backupSuccessTime = typeof backupSuccess === "number"
+                      ? backupSuccess
+                      : (typeof backupSuccess === "string" && backupSuccess.trim() !== "" && Number.isFinite(Number(backupSuccess))
+                        ? Number(backupSuccess)
+                        : Date.parse(backupSuccess));
+                    if (payload.backup?.enabled !== true || !Number.isFinite(backupSuccessTime) || backupSuccessTime <= 0) {
                       throw new Error("Encrypted backup has not yet completed successfully in this server process");
                     }
                     if (payload.backup?.alertingConfigured !== true) {
