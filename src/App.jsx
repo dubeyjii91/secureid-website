@@ -116,6 +116,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionUser, setSessionUser] = useState("");
+  const [sessionRole, setSessionRole] = useState("user");
   const [wallet, setWallet] = useState(defaultWallet);
   const [authMode, setAuthMode] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
@@ -190,6 +191,7 @@ function App() {
   const applySession = useCallback((result) => {
     setIsAuthenticated(true);
     setSessionUser(result.user.email);
+    setSessionRole(result.user.role === "owner" ? "owner" : "user");
     setMfaVerified(Boolean(result.user.mfaVerified));
     setMfaRequired(!result.user.mfaVerified);
     if (result.wallet) setWallet(result.wallet);
@@ -424,6 +426,7 @@ function App() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     setIsAuthenticated(false);
     setSessionUser("");
+    setSessionRole("user");
     setWallet(defaultWallet);
     setAuthEmail("");
     setAuthPassword("");
@@ -875,7 +878,7 @@ function App() {
 
   return <div className="shell">
     <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => setPage(id)}><span>{icon}</span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div><button className="signOut" onClick={signOut}>Sign out</button></div></aside>
-    <main className="main"><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span></div></div></header>
+    <main className="main"><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span><span className={sessionRole === "owner" ? "verifiedBadge ownerRoleBadge" : "verifiedBadge"}>{sessionRole === "owner" ? "Owner" : "User"}</span></div></div></header>
 
       {page === "dashboard" && <SecurityDashboard />}
 
