@@ -103,9 +103,6 @@ jobs:
                     if (Object.prototype.hasOwnProperty.call(payload, "backup")) {
                       throw new Error("Public health endpoint must not expose backup operational details");
                     }
-                    if (payload.backup?.alertingConfigured !== true) {
-                      console.warn("WARN backup creation succeeded, but backup-failure email alerting is not fully configured");
-                    }
                   }
                   if (route.path === "/api/health/ready") {
                     if (payload.success !== true || payload.status !== "ready" || payload.database !== true || payload.storage !== true) {
