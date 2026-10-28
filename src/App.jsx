@@ -14,6 +14,7 @@ import "./secureid-redesign.css";
 import "./secureid-polish.css";
 import "./secureid-layout-fixes.css";
 import "./landing-page.css";
+import "./secureid-atmosphere.css";
 const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: true, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
 const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
 
