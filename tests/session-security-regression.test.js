@@ -18,7 +18,7 @@ test("production authentication cookies remain host-only, secure, HttpOnly and S
   assert.match(server, /const csrfCookieName = isProduction \? "__Host-secureid\.csrf"/);
   assert.match(server, /"HttpOnly", "SameSite=Strict"/);
   assert.match(server, /if \(isProduction\) parts\.push\("Secure"\)/);
-  assert.match(server, /"Path=\/", "Max-Age=28800", "SameSite=Strict"/);
+  assert.match(server, /"Path=\/", `Max-Age=\$\{Math\.floor\(maxAgeMs \/ 1000\)\}`, "HttpOnly", "SameSite=Strict"/);
 });
 
 test("state-changing requests require matching CSRF cookie and header and production origin", () => {
