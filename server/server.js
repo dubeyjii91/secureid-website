@@ -437,8 +437,11 @@ app.post("/api/security/sessions/revoke", enforceSameOrigin, requireAuth, requir
     const sessionId = String(req.body?.sessionId || "").trim();
     if (!sessionId || sessionId.length !== 16) return res.status(400).json({ success: false, message: "Invalid session." });
     const sessions = database.prepare("SELECT token_hash FROM sessions WHERE user_id = ?").all(req.user.id);
-    const target = sessions.find((session) => session.token_hash.startsWith(sessionId));
-    if (!target) return res.status(404).json({ success: false, message: "Session not found." });
+    const matches = sessions.filter((session) => session.token_hash.startsWith(sessionId));
+    if (matches.length === 0) return res.status(404).json({ success: false, message: "Session not found." });
+    // The UI sends a short prefix, so fail closed if a prefix ever matches more than one session.
+    if (matches.length > 1) return res.status(409).json({ success: false, message: "Session identifier is ambiguous. Refresh the session list and try again." });
+    const target = matches[0];
     if (target.token_hash === req.session.token_hash) return res.status(400).json({ success: false, message: "Use Sign out to end your current session." });
     database.prepare("DELETE FROM sessions WHERE token_hash = ? AND user_id = ?").run(target.token_hash, req.user.id);
     logEvent(req.user.id, "SESSION_REVOKED", req, { sessionId });
