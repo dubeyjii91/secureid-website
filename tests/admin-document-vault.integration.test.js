@@ -128,4 +128,24 @@ test("admin document vault enforces owner and MFA gates, filters deleted records
   assert.ok(audit.some((row) => row.action === "document_list" && row.outcome === "success"));
   assert.ok(audit.some((row) => row.action === "document_download" && row.outcome === "success" && row.document_id === documentId));
   assert.ok(audit.some((row) => row.action === "document_download" && row.outcome === "not_found" && row.document_id === "deleted-doc"));
+
+  const deniedAuditNonOwner = await fetch(base + "/api/admin/document-access-audit", {
+    headers: headers("user-1", "user", true)
+  });
+  assert.equal(deniedAuditNonOwner.status, 403);
+
+  const deniedAuditWithoutMfa = await fetch(base + "/api/admin/document-access-audit", {
+    headers: headers("owner-1", "owner", false)
+  });
+  assert.equal(deniedAuditWithoutMfa.status, 403);
+
+  const auditResponse = await fetch(base + "/api/admin/document-access-audit?limit=10", {
+    headers: headers("owner-1", "owner", true)
+  });
+  assert.equal(auditResponse.status, 200, await auditResponse.clone().text());
+  assert.equal(auditResponse.headers.get("cache-control"), "no-store");
+  const auditBody = await auditResponse.json();
+  assert.ok(Array.isArray(auditBody.events));
+  assert.ok(auditBody.events.length > 0);
+  assert.ok(auditBody.events.every((event) => !("encrypted_path" in event)));
 });
