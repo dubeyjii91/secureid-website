@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
 import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerProductionFeatures } from "../server/production-features.js";
@@ -32,7 +32,6 @@ test("admin document vault enforces owner and MFA gates, filters deleted records
       role: req.get("x-test-role") || "user",
       mfaVerified: req.get("x-test-mfa") !== "false"
     };
-    req.get = ((original) => (name) => name.toLowerCase() === "x-request-id" ? "admin-vault-test-request" : original(name))(req.get.bind(req));
     next();
   });
   registerProductionFeatures({
