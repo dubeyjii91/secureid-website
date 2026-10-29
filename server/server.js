@@ -30,6 +30,29 @@ if (existsSync(envFile)) {
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
+
+// Owner controls and audit history are additive migrations; existing account data is preserved.
+database.exec(`
+  CREATE TABLE IF NOT EXISTS admin_account_controls (
+    user_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('active','suspended')),
+    reason TEXT,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id TEXT PRIMARY KEY,
+    actor_user_id TEXT NOT NULL,
+    actor_email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_user_id TEXT,
+    target_email TEXT,
+    details_json TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit_log(created_at DESC);
+`);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, "..", "dist");
@@ -224,6 +247,12 @@ function requireAuth(req, res, next) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     clearSessionCookie(res);
     return res.status(401).json({ success: false, message: "Session expired. Please sign in again." });
+  }
+  const accountControl = database.prepare("SELECT status FROM admin_account_controls WHERE user_id = ?").get(row.id);
+  if (accountControl?.status === "suspended") {
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
+    clearSessionCookie(res);
+    return res.status(403).json({ success: false, code: "ACCOUNT_SUSPENDED", message: "This SecureID account is suspended. Contact support for assistance." });
   }
   req.session = row;
   database.prepare("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?").run(Date.now(), tokenHash);
@@ -890,21 +919,84 @@ app.get("/api/admin/users", requireAuth, requireMfa, requireOwner, (req, res, ne
     const limit = Math.min(200, Math.max(1, Number(req.query?.limit || 100)));
     const rows = database.prepare(`
       SELECT u.id, u.email, u.created_at AS createdAt, u.role,
-             CASE WHEN ev.verified_at IS NULL THEN 0 ELSE 1 END AS emailVerified
+             CASE WHEN ev.verified_at IS NULL THEN 0 ELSE 1 END AS emailVerified,
+             COALESCE(ac.status, 'active') AS accountStatus,
+             ac.reason AS suspensionReason,
+             ac.updated_at AS statusUpdatedAt
       FROM users u
       LEFT JOIN email_verification_state ev ON ev.user_id = u.id
+      LEFT JOIN admin_account_controls ac ON ac.user_id = u.id
       ORDER BY u.created_at DESC
       LIMIT ?
     `).all(limit);
     const total = Number(database.prepare("SELECT COUNT(*) AS total FROM users").get().total || 0);
+    const active = Number(database.prepare("SELECT COUNT(*) AS total FROM users u LEFT JOIN admin_account_controls ac ON ac.user_id=u.id WHERE COALESCE(ac.status,'active')='active'").get().total || 0);
+    const suspended = total - active;
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ success: true, total, users: rows.map((u) => ({
+    res.json({ success: true, total, active, suspended, users: rows.map((u) => ({
       id: u.id,
       email: u.email,
       createdAt: u.createdAt,
       role: u.role === "owner" ? "owner" : "user",
-      emailVerified: Boolean(u.emailVerified)
+      emailVerified: Boolean(u.emailVerified),
+      accountStatus: u.accountStatus,
+      suspensionReason: u.suspensionReason || null,
+      statusUpdatedAt: u.statusUpdatedAt || null
     }))});
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/admin/users/:userId/status", enforceSameOrigin, requireAuth, requireMfa, requireOwner, (req, res, next) => {
+  try {
+    const targetId = String(req.params.userId || "").trim();
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    const reason = String(req.body?.reason || "").trim().slice(0, 240);
+    if (!targetId || !["active", "suspended"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Choose a valid account status." });
+    }
+    const target = database.prepare("SELECT id, email, role FROM users WHERE id = ?").get(targetId);
+    if (!target) return res.status(404).json({ success: false, message: "User account was not found." });
+    if (target.role === "owner" || target.email.toLowerCase() === req.user.email.toLowerCase()) {
+      return res.status(403).json({ success: false, message: "The owner account cannot be suspended or changed here." });
+    }
+    const now = Date.now();
+    if (status === "active") {
+      database.prepare("DELETE FROM admin_account_controls WHERE user_id = ?").run(targetId);
+    } else {
+      database.prepare("INSERT INTO admin_account_controls (user_id, status, reason, updated_at, updated_by) VALUES (?, 'suspended', ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET status='suspended', reason=excluded.reason, updated_at=excluded.updated_at, updated_by=excluded.updated_by")
+        .run(targetId, reason || null, now, req.user.id);
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+    }
+    database.prepare("INSERT INTO admin_audit_log (id, actor_user_id, actor_email, action, target_user_id, target_email, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(randomUUID(), req.user.id, req.user.email, status === "suspended" ? "USER_SUSPENDED" : "USER_REACTIVATED", targetId, target.email, JSON.stringify({ reason: reason || null }), now);
+    logEvent(targetId, status === "suspended" ? "ACCOUNT_SUSPENDED_BY_OWNER" : "ACCOUNT_REACTIVATED_BY_OWNER", req, { reason: reason || null });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ success: true, userId: targetId, accountStatus: status, message: status === "suspended" ? "Account suspended and active sessions revoked." : "Account reactivated." });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/admin/activity", requireAuth, requireMfa, requireOwner, (req, res, next) => {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
+    const registrations = database.prepare(`
+      SELECT e.id, e.event_type AS action, e.created_at AS createdAt,
+             e.user_id AS targetUserId, u.email AS targetEmail, NULL AS actorEmail,
+             e.metadata_json AS details
+      FROM security_events e LEFT JOIN users u ON u.id=e.user_id
+      WHERE e.event_type IN ('ACCOUNT_CREATED','EMAIL_VERIFICATION_SENT','LOGIN_FAILED','MFA_FAILED','ACCOUNT_SUSPENDED_BY_OWNER','ACCOUNT_REACTIVATED_BY_OWNER')
+      ORDER BY e.created_at DESC LIMIT ?
+    `).all(limit);
+    const adminActions = database.prepare(`
+      SELECT id, action, created_at AS createdAt, target_user_id AS targetUserId,
+             target_email AS targetEmail, actor_email AS actorEmail, details_json AS details
+      FROM admin_audit_log ORDER BY created_at DESC LIMIT ?
+    `).all(limit);
+    const events = [...registrations, ...adminActions]
+      .map((event) => ({ ...event, details: event.details ? (() => { try { return JSON.parse(event.details); } catch { return null; } })() : null }))
+      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+      .slice(0, limit);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ success: true, events });
   } catch (error) { next(error); }
 });
 
