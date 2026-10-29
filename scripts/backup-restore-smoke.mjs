@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -42,6 +42,8 @@ try {
   const backupResult = JSON.parse(run(path.join(root, "scripts", "secure-backup.mjs")));
   assert.equal(backupResult.success, true);
   assert.ok(existsSync(backupResult.file), "encrypted backup file should exist");
+  assert.equal(readdirSync(backupDir).some((name) => name.startsWith(".secureid-") && name.endsWith(".sqlite")), false,
+    "plaintext SQLite snapshot must be removed after a successful backup");
 
   const changedDb = new DatabaseSync(dbPath);
   changedDb.prepare("UPDATE smoke_test SET value = ? WHERE id = ?").run("after-backup", "seed");
