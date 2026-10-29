@@ -1219,6 +1219,12 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
       if(retryAfter){res.setHeader("Retry-After",retryAfter);return res.status(429).json({success:false,message:"Too many failed sign-in attempts. Please try again later.",retryAfter});}
       return res.status(401).json({ success: false, message: "Email or password is incorrect." });
     }
+    const accountControl = database.prepare("SELECT status FROM admin_account_controls WHERE user_id = ?").get(row.id);
+    if (accountControl?.status === "suspended") {
+      logEvent(row.id, "LOGIN_BLOCKED_ACCOUNT_SUSPENDED", req);
+      return res.status(403).json({ success: false, code: "ACCOUNT_SUSPENDED", message: "This SecureID account is suspended. Contact support for assistance." });
+    }
+
     clearAuthFailureState(email);
 
     const emailState = database.prepare(
