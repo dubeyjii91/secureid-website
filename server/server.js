@@ -51,6 +51,18 @@ database.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit_log(created_at DESC);
+  CREATE TABLE IF NOT EXISTS owner_notifications (
+    id TEXT PRIMARY KEY,
+    notification_type TEXT NOT NULL,
+    recipient_email TEXT,
+    user_id TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending','sent','failed')),
+    error_code TEXT,
+    created_at INTEGER NOT NULL,
+    sent_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_owner_notifications_created_at ON owner_notifications(created_at DESC);
 `);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1000,6 +1012,59 @@ app.get("/api/admin/activity", requireAuth, requireMfa, requireOwner, (req, res,
   } catch (error) { next(error); }
 });
 
+app.get("/api/admin/notifications", requireAuth, requireMfa, requireOwner, (req, res, next) => {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
+    const notifications = database.prepare("SELECT id, notification_type AS type, recipient_email AS recipientEmail, user_id AS userId, user_email AS userEmail, status, error_code AS errorCode, created_at AS createdAt, sent_at AS sentAt FROM owner_notifications ORDER BY created_at DESC LIMIT ?").all(limit);
+    const totals = database.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN status='sent' THEN 1 ELSE 0 END) AS sent, SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed FROM owner_notifications").get();
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ success: true, totals: { total: Number(totals.total || 0), pending: Number(totals.pending || 0), sent: Number(totals.sent || 0), failed: Number(totals.failed || 0) }, notifications });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/admin/notifications/:notificationId/retry", enforceSameOrigin, requireAuth, requireMfa, requireOwner, async (req, res, next) => {
+  try {
+    const notificationId = String(req.params.notificationId || "").trim();
+    const row = database.prepare("SELECT id, notification_type AS type, recipient_email AS recipientEmail, user_id AS userId, user_email AS userEmail, status, created_at AS createdAt FROM owner_notifications WHERE id=?").get(notificationId);
+    if (!row) return res.status(404).json({ success: false, message: "Notification record was not found." });
+    if (row.status !== "failed") return res.status(409).json({ success: false, message: "Only failed notifications can be retried." });
+    if (!row.recipientEmail || !["resend", "smtp", "brevo"].includes(otpDelivery) || !emailDeliveryConfigured) {
+      return res.status(503).json({ success: false, message: "The owner email recipient or delivery provider is not configured." });
+    }
+    const claimed = database.prepare("UPDATE owner_notifications SET status='pending', error_code=NULL WHERE id=? AND status='failed'").run(notificationId);
+    if (!claimed.changes) return res.status(409).json({ success: false, message: "This notification is already being processed." });
+    try {
+      await sendConfiguredEmail({
+        to: row.recipientEmail,
+        subject: "SecureID: new user registration",
+        text: [
+          "A SecureID registration notification is being retried by the owner.",
+          "",
+          "User ID: " + row.userId,
+          "Email: " + row.userEmail,
+          "Registered at: " + new Date(Number(row.createdAt)).toISOString(),
+          "",
+          "This alert intentionally excludes passwords, verification tokens, and other secrets."
+        ].join("\\n"),
+        purpose: "owner_new_registration_retry"
+      });
+      const now = Date.now();
+      database.prepare("UPDATE owner_notifications SET status='sent', error_code=NULL, sent_at=? WHERE id=?").run(now, notificationId);
+      database.prepare("INSERT INTO admin_audit_log (id, actor_user_id, actor_email, action, target_user_id, target_email, details_json, created_at) VALUES (?, ?, ?, 'OWNER_NOTIFICATION_RETRIED', ?, ?, ?, ?)")
+        .run(randomUUID(), req.user.id, req.user.email, row.userId, row.userEmail, JSON.stringify({ notificationId, result: "sent" }), now);
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({ success: true, notificationId, status: "sent", message: "Email provider accepted the retry. This does not guarantee inbox delivery." });
+    } catch (deliveryError) {
+      const code = safeProviderCode(deliveryError?.providerCode || deliveryError?.code || "provider_rejected");
+      database.prepare("UPDATE owner_notifications SET status='failed', error_code=? WHERE id=?").run(code, notificationId);
+      const now = Date.now();
+      database.prepare("INSERT INTO admin_audit_log (id, actor_user_id, actor_email, action, target_user_id, target_email, details_json, created_at) VALUES (?, ?, ?, 'OWNER_NOTIFICATION_RETRY_FAILED', ?, ?, ?, ?)")
+        .run(randomUUID(), req.user.id, req.user.email, row.userId, row.userEmail, JSON.stringify({ notificationId, errorCode: code }), now);
+      return res.status(502).json({ success: false, message: "Email provider rejected the retry. Review the notification error code and provider configuration." });
+    }
+  } catch (error) { next(error); }
+});
+
 app.get("/api/admin/health", requireAuth, requireMfa, requireOwner, (req, res) => {
   const backup = getBackupStatus();
   res.setHeader("Cache-Control", "private, no-store");
@@ -1059,9 +1124,14 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
     logEvent(id, "ACCOUNT_CREATED", req);
     logEvent(id, "EMAIL_VERIFICATION_SENT", req);
 
-    // Notify the configured owner asynchronously; registration must not fail if alert email is unavailable.
+    // Persist an owner notification record even if email delivery is unavailable.
     const registrationAlertRecipient = String(securityAlertEmail || process.env.OWNER_EMAIL || "").trim();
-    if (registrationAlertRecipient && ["resend", "smtp", "brevo"].includes(otpDelivery)) {
+    const notificationId = randomUUID();
+    const canSendOwnerAlert = Boolean(registrationAlertRecipient && ["resend", "smtp", "brevo"].includes(otpDelivery) && emailDeliveryConfigured);
+    database.prepare("INSERT INTO owner_notifications (id, notification_type, recipient_email, user_id, user_email, status, error_code, created_at, sent_at) VALUES (?, 'new_registration', ?, ?, ?, ?, ?, ?, NULL)")
+      .run(notificationId, registrationAlertRecipient || null, id, email, canSendOwnerAlert ? "pending" : "failed", canSendOwnerAlert ? null : (registrationAlertRecipient ? "provider_not_configured" : "recipient_not_configured"), now);
+
+    if (canSendOwnerAlert) {
       void sendConfiguredEmail({
         to: registrationAlertRecipient,
         subject: "SecureID: new user registration",
@@ -1075,10 +1145,14 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
           "",
           "Review registered users in the authenticated Owner / Admin dashboard.",
           "This alert intentionally excludes passwords, verification tokens, and other secrets."
-        ].join("\n"),
+        ].join("\\n"),
         purpose: "owner_new_registration"
-      }).catch(() => {
-        console.error(JSON.stringify({ level: "error", event: "owner_registration_alert_failed", userId: id }));
+      }).then(() => {
+        database.prepare("UPDATE owner_notifications SET status='sent', error_code=NULL, sent_at=? WHERE id=?").run(Date.now(), notificationId);
+      }).catch((error) => {
+        const code = safeProviderCode(error?.providerCode || error?.code || "provider_rejected");
+        try { database.prepare("UPDATE owner_notifications SET status='failed', error_code=? WHERE id=?").run(code, notificationId); } catch {}
+        console.error(JSON.stringify({ level: "error", event: "owner_registration_alert_failed", userId: id, notificationId, errorCode: code }));
       });
     }
 
