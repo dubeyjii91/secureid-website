@@ -27,7 +27,7 @@ try {
   const databaseBytes=readFileSync(tmp);
   const documents=existsSync(documentDir)
     ? readdirSync(documentDir,{withFileTypes:true})
-        .filter(entry=>entry.isFile() && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.json$/i.test(entry.name))
+        .filter(entry=>entry.isFile() && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}[.]json$/i.test(entry.name))
         .map(entry=>({name:entry.name,data:readFileSync(path.join(documentDir,entry.name)).toString("base64")}))
     : [];
   // Version 2 snapshots include encrypted vault blobs as well as SQLite metadata.
