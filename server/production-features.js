@@ -757,12 +757,8 @@ export function registerProductionFeatures({
       const filters=["d.deleted_at IS NULL"];
       const params=[];
       if(search) {
-        filters.push("(u.email LIKE ? ESCAPE '\\' OR d.original_name LIKE ? ESCAPE '\\' OR d.id = ?)");
-        const escaped=search.replace(/[\\%_]/g,"\\  /*
-   * DOCUMENT DELETE
-   * Soft-delete DB row first, then physically remove encrypted object.
-   */");
-        params.push("%"+escaped+"%","%"+escaped+"%",search);
+        filters.push("(instr(lower(u.email), lower(?)) > 0 OR instr(lower(d.original_name), lower(?)) > 0 OR d.id = ?)");
+        params.push(search,search,search);
       }
       if(category && ALLOWED_DOCUMENT_CATEGORIES.has(category)) {
         filters.push("d.document_category = ?");
