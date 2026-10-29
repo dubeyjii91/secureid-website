@@ -1010,7 +1010,7 @@ app.get("/api/admin/health", requireAuth, requireMfa, requireOwner, (req, res) =
     database:"ok",
     emailDelivery:{provider:otpDelivery,configured:emailDeliveryConfigured,testSender:otpTestSender,options:emailDeliveryOptions},
     backup:{enabled:backup.enabled,lastSuccessAt:backup.lastSuccessAt,alertingConfigured:backup.alertingConfigured},
-    operationalAlerting:Boolean(securityAlertEmail && ["resend","smtp","brevo"].includes(otpDelivery)),
+    operationalAlerting:Boolean((securityAlertEmail || process.env.OWNER_EMAIL) && ["resend","smtp","brevo"].includes(otpDelivery)),
     timestamp:new Date().toISOString()
   });
 });
