@@ -107,7 +107,12 @@ export function runEncryptedBackup(){
     const payload={version:2,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
     writeFileSync(out,JSON.stringify(payload),{encoding:"utf8",mode:0o600,flag:"wx"});
     rmSync(tmp,{force:true});
-    const retention=Math.max(1,Number(process.env.BACKUP_RETENTION_COUNT||7));
+    const configuredRetention=Number(process.env.BACKUP_RETENTION_COUNT||7);
+    // Invalid values must never coerce to NaN: Array.slice(NaN) is slice(0),
+    // which would otherwise delete every existing backup during retention cleanup.
+    const retention=Number.isSafeInteger(configuredRetention)
+      ? Math.max(1,Math.min(1000,configuredRetention))
+      : 7;
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
     for(const file of files.slice(retention)) rmSync(path.join(backupDir,file.name),{force:true});
     status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out,alertingConfigured:isBackupAlertingConfigured()};
