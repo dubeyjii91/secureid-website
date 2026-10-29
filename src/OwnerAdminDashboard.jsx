@@ -13,6 +13,8 @@ function eventLabel(action) {
     EMAIL_VERIFICATION_SENT: "Verification email requested",
     LOGIN_FAILED: "Failed sign-in",
     MFA_FAILED: "Failed MFA attempt",
+    LOGIN_BLOCKED_ACCOUNT_SUSPENDED: "Sign-in blocked for suspended account",
+    EMAIL_VERIFIED: "Email address verified",
     USER_SUSPENDED: "Account suspended by owner",
     USER_REACTIVATED: "Account reactivated by owner",
     ACCOUNT_SUSPENDED_BY_OWNER: "Account suspension recorded",
