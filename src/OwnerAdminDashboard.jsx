@@ -57,7 +57,6 @@ export default function OwnerAdminDashboard() {
 
   async function setAccountStatus(user, status) {
     if (busyUser) return;
-    const action = status === "suspended" ? "suspend" : "reactivate";
     const confirmed = window.confirm(
       status === "suspended"
         ? "Suspend " + user.email + "? Their active sessions will be revoked and sign-in blocked until reactivated."
