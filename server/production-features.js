@@ -89,6 +89,20 @@ export function registerProductionFeatures({
    * SecureID installations can upgrade without destroying existing data.
    */
   database.exec(`
+    CREATE TABLE IF NOT EXISTS admin_document_access_audit (
+      id TEXT PRIMARY KEY,
+      actor_user_id TEXT,
+      actor_email TEXT,
+      action TEXT NOT NULL,
+      document_id TEXT,
+      owner_user_id TEXT,
+      outcome TEXT NOT NULL CHECK (outcome IN ('success','denied','not_found','error')),
+      request_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_document_audit_created ON admin_document_access_audit(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_admin_document_audit_document ON admin_document_access_audit(document_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS identity_profiles (
       user_id TEXT PRIMARY KEY,
       encrypted_data TEXT NOT NULL,
@@ -696,6 +710,121 @@ export function registerProductionFeatures({
     }catch(error){
       next(error);
     }
+  });
+
+
+  /*
+   * OWNER DOCUMENT VAULT
+   * Owner-only cross-user access. Every listing/download attempt is audited.
+   * Documents remain encrypted at rest; no public storage URLs are exposed.
+   */
+  function recordAdminDocumentAudit(req,{action,documentId=null,ownerUserId=null,outcome}) {
+    database.prepare(`
+      INSERT INTO admin_document_access_audit
+      (id,actor_user_id,actor_email,action,document_id,owner_user_id,outcome,request_id,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `).run(
+      crypto.randomUUID(),
+      req.user?.id || null,
+      String(req.user?.email || "").slice(0,320) || null,
+      action,
+      documentId,
+      ownerUserId,
+      outcome,
+      String(req.get("X-Request-Id") || "").slice(0,100) || null,
+      Date.now()
+    );
+  }
+
+  function requireOwnerDocumentAccess(req,res,next) {
+    if(req.user?.role !== "owner") {
+      try { recordAdminDocumentAudit(req,{action:req.params?.id ? "document_download" : "document_list",documentId:req.params?.id || null,outcome:"denied"}); } catch {}
+      return res.status(403).json({success:false,code:"OWNER_REQUIRED",message:"Owner permissions are required."});
+    }
+    if(!req.user?.mfaVerified) {
+      try { recordAdminDocumentAudit(req,{action:req.params?.id ? "document_download" : "document_list",documentId:req.params?.id || null,outcome:"denied"}); } catch {}
+      return res.status(403).json({success:false,code:"MFA_REQUIRED",message:"MFA verification is required for Admin document access."});
+    }
+    next();
+  }
+
+  app.get("/api/admin/documents",requireAuth,requireOwnerDocumentAccess,(req,res,next)=>{
+    try {
+      const limit=Math.max(1,Math.min(100,Number.parseInt(req.query.limit,10)||50));
+      const offset=Math.max(0,Math.min(100000,Number.parseInt(req.query.offset,10)||0));
+      const search=String(req.query.search||"").trim().slice(0,160);
+      const category=String(req.query.category||"").trim().slice(0,40);
+      const filters=["d.deleted_at IS NULL"];
+      const params=[];
+      if(search) {
+        filters.push("(instr(lower(u.email), lower(?)) > 0 OR instr(lower(d.original_name), lower(?)) > 0 OR d.id = ?)");
+        params.push(search,search,search);
+      }
+      if(category && ALLOWED_DOCUMENT_CATEGORIES.has(category)) {
+        filters.push("d.document_category = ?");
+        params.push(category);
+      }
+      const where=filters.join(" AND ");
+      const total=Number(database.prepare(`SELECT COUNT(*) AS total FROM secure_documents d JOIN users u ON u.id=d.user_id WHERE ${where}`).get(...params).total||0);
+      const documents=database.prepare(`
+        SELECT d.id,d.user_id AS ownerUserId,u.email AS ownerEmail,
+          d.original_name AS name,d.mime_type AS mimeType,d.size_bytes AS sizeBytes,
+          d.document_category AS category,d.created_at AS createdAt
+        FROM secure_documents d JOIN users u ON u.id=d.user_id
+        WHERE ${where}
+        ORDER BY d.created_at DESC,d.id ASC LIMIT ? OFFSET ?
+      `).all(...params,limit,offset);
+      recordAdminDocumentAudit(req,{action:"document_list",outcome:"success"});
+      res.setHeader("Cache-Control","no-store");
+      res.json({success:true,documents,total,limit,offset});
+    } catch(error) {
+      try { recordAdminDocumentAudit(req,{action:"document_list",outcome:"error"}); } catch {}
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/documents/:id/download",requireAuth,requireOwnerDocumentAccess,(req,res,next)=>{
+    try {
+      const row=database.prepare(`
+        SELECT id,user_id,original_name,mime_type,encrypted_path
+        FROM secure_documents WHERE id=? AND deleted_at IS NULL LIMIT 1
+      `).get(req.params.id);
+      if(!row) {
+        recordAdminDocumentAudit(req,{action:"document_download",documentId:String(req.params.id||"").slice(0,100),outcome:"not_found"});
+        return res.status(404).json({success:false,message:"Document not found."});
+      }
+      if(!fs.existsSync(row.encrypted_path)) {
+        recordAdminDocumentAudit(req,{action:"document_download",documentId:row.id,ownerUserId:row.user_id,outcome:"not_found"});
+        return res.status(404).json({success:false,message:"Document storage object is unavailable."});
+      }
+      const encrypted=JSON.parse(fs.readFileSync(row.encrypted_path,"utf8"));
+      const plaintext=decryptBuffer(encrypted,key);
+      recordAdminDocumentAudit(req,{action:"document_download",documentId:row.id,ownerUserId:row.user_id,outcome:"success"});
+      res.setHeader("Content-Type",row.mime_type);
+      res.setHeader("Content-Disposition",`attachment; filename="${safeFilename(row.original_name)}"`);
+      res.setHeader("Cache-Control","no-store");
+      res.setHeader("Pragma","no-cache");
+      res.setHeader("X-Content-Type-Options","nosniff");
+      res.setHeader("Referrer-Policy","no-referrer");
+      res.send(plaintext);
+    } catch(error) {
+      try { recordAdminDocumentAudit(req,{action:"document_download",documentId:String(req.params.id||"").slice(0,100),outcome:"error"}); } catch {}
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/document-access-audit",requireAuth,requireOwnerDocumentAccess,(req,res,next)=>{
+    try {
+      const limit=Math.max(1,Math.min(100,Number.parseInt(req.query.limit,10)||50));
+      const events=database.prepare(`
+        SELECT id,actor_user_id AS actorUserId,actor_email AS actorEmail,action,
+          document_id AS documentId,owner_user_id AS ownerUserId,outcome,
+          request_id AS requestId,created_at AS createdAt
+        FROM admin_document_access_audit ORDER BY created_at DESC LIMIT ?
+      `).all(limit);
+      res.setHeader("Cache-Control","no-store");
+      res.json({success:true,events});
+    } catch(error) { next(error); }
   });
 
   /*
