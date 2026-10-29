@@ -1045,7 +1045,7 @@ app.post("/api/admin/notifications/:notificationId/retry", enforceSameOrigin, re
           "Registered at: " + new Date(Number(row.createdAt)).toISOString(),
           "",
           "This alert intentionally excludes passwords, verification tokens, and other secrets."
-        ].join("\\n"),
+        ].join("\n"),
         purpose: "owner_new_registration_retry"
       });
       const now = Date.now();
@@ -1145,7 +1145,7 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
           "",
           "Review registered users in the authenticated Owner / Admin dashboard.",
           "This alert intentionally excludes passwords, verification tokens, and other secrets."
-        ].join("\\n"),
+        ].join("\n"),
         purpose: "owner_new_registration"
       }).then(() => {
         database.prepare("UPDATE owner_notifications SET status='sent', error_code=NULL, sent_at=? WHERE id=?").run(Date.now(), notificationId);
