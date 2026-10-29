@@ -885,6 +885,29 @@ function requireOwner(req, res, next) {
   next();
 }
 
+app.get("/api/admin/users", requireAuth, requireMfa, requireOwner, (req, res, next) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query?.limit || 100)));
+    const rows = database.prepare(`
+      SELECT u.id, u.email, u.created_at AS createdAt, u.role,
+             CASE WHEN ev.verified_at IS NULL THEN 0 ELSE 1 END AS emailVerified
+      FROM users u
+      LEFT JOIN email_verification_state ev ON ev.user_id = u.id
+      ORDER BY u.created_at DESC
+      LIMIT ?
+    `).all(limit);
+    const total = Number(database.prepare("SELECT COUNT(*) AS total FROM users").get().total || 0);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ success: true, total, users: rows.map((u) => ({
+      id: u.id,
+      email: u.email,
+      createdAt: u.createdAt,
+      role: u.role === "owner" ? "owner" : "user",
+      emailVerified: Boolean(u.emailVerified)
+    }))});
+  } catch (error) { next(error); }
+});
+
 app.get("/api/admin/health", requireAuth, requireMfa, requireOwner, (req, res) => {
   const backup = getBackupStatus();
   res.setHeader("Cache-Control", "private, no-store");
@@ -943,6 +966,29 @@ app.post("/api/auth/register", enforceSameOrigin, perIpAuthLimit, perAccountAuth
 
     logEvent(id, "ACCOUNT_CREATED", req);
     logEvent(id, "EMAIL_VERIFICATION_SENT", req);
+
+    // Notify the configured owner asynchronously; registration must not fail if alert email is unavailable.
+    const registrationAlertRecipient = String(securityAlertEmail || process.env.OWNER_EMAIL || "").trim();
+    if (registrationAlertRecipient && ["resend", "smtp", "brevo"].includes(otpDelivery)) {
+      void sendConfiguredEmail({
+        to: registrationAlertRecipient,
+        subject: "SecureID: new user registration",
+        text: [
+          "A new SecureID account has been registered.",
+          "",
+          "User ID: " + id,
+          "Email: " + email,
+          "Registered at: " + new Date(now).toISOString(),
+          "Email verification: pending",
+          "",
+          "Review registered users in the authenticated Owner / Admin dashboard.",
+          "This alert intentionally excludes passwords, verification tokens, and other secrets."
+        ].join("\n"),
+        purpose: "owner_new_registration"
+      }).catch(() => {
+        console.error(JSON.stringify({ level: "error", event: "owner_registration_alert_failed", userId: id }));
+      });
+    }
 
     res.status(201).json({
       success: true,
