@@ -19,7 +19,12 @@ try {
   try {
     // VACUUM INTO creates a plaintext snapshot. Restrict its permissions immediately
     // and always remove it, including when encryption or document collection fails.
-    db.exec("VACUUM INTO '"+tmp.replaceAll("'","''")+"'");
+    const previousUmask = process.umask(0o077);
+    try {
+      db.exec("VACUUM INTO '"+tmp.replaceAll("'","''")+"'");
+    } finally {
+      process.umask(previousUmask);
+    }
   } finally {
     db.close();
   }
