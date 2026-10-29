@@ -983,7 +983,7 @@ app.get("/api/admin/activity", requireAuth, requireMfa, requireOwner, (req, res,
              e.user_id AS targetUserId, u.email AS targetEmail, NULL AS actorEmail,
              e.metadata_json AS details
       FROM security_events e LEFT JOIN users u ON u.id=e.user_id
-      WHERE e.event_type IN ('ACCOUNT_CREATED','EMAIL_VERIFICATION_SENT','LOGIN_FAILED','MFA_FAILED','ACCOUNT_SUSPENDED_BY_OWNER','ACCOUNT_REACTIVATED_BY_OWNER')
+      WHERE e.event_type IN ('ACCOUNT_CREATED','EMAIL_VERIFICATION_SENT','EMAIL_VERIFIED','LOGIN_FAILED','MFA_FAILED','LOGIN_BLOCKED_ACCOUNT_SUSPENDED','ACCOUNT_SUSPENDED_BY_OWNER','ACCOUNT_REACTIVATED_BY_OWNER')
       ORDER BY e.created_at DESC LIMIT ?
     `).all(limit);
     const adminActions = database.prepare(`
