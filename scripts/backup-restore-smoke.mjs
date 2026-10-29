@@ -62,7 +62,22 @@ try {
     restoredDb.close();
   }
   assert.equal(readFileSync(documentPath, "utf8"), originalDocument);
-  console.log("PASS: encrypted backup/restore round-trip, SQLite integrity, and dummy document restore");
+
+  // Force a failure after VACUUM INTO has created the plaintext snapshot.
+  // A regular file used as DOCUMENT_STORAGE_PATH makes readdirSync fail predictably.
+  const invalidDocumentPath = path.join(temp, "not-a-directory");
+  writeFileSync(invalidDocumentPath, "not a directory");
+  const failedBackup = spawnSync(process.execPath, [path.join(root, "scripts", "secure-backup.mjs")], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, DATABASE_PATH: dbPath, BACKUP_DIR: backupDir, DOCUMENT_STORAGE_PATH: invalidDocumentPath, BACKUP_ENCRYPTION_KEY: key },
+    timeout: 15000,
+  });
+  if (failedBackup.error) throw failedBackup.error;
+  assert.notEqual(failedBackup.status, 0, "invalid document storage path should fail the backup");
+  assert.equal(readdirSync(backupDir).some((name) => name.startsWith(".secureid-") && name.endsWith(".sqlite")), false,
+    "plaintext SQLite snapshot must be removed after a failed backup");
+  console.log("PASS: encrypted backup/restore round-trip, SQLite integrity, dummy document restore, and plaintext temp cleanup on success/failure");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
