@@ -30,6 +30,10 @@ export default function OwnerAdminDashboard() {
   const [activeUsers, setActiveUsers] = useState(0);
   const [suspendedUsers, setSuspendedUsers] = useState(0);
   const [events, setEvents] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationTotals, setNotificationTotals] = useState({ total: 0, pending: 0, sent: 0, failed: 0 });
+  const [notificationError, setNotificationError] = useState("");
+  const [busyNotification, setBusyNotification] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [usersError, setUsersError] = useState("");
@@ -38,11 +42,12 @@ export default function OwnerAdminDashboard() {
   const [busyUser, setBusyUser] = useState("");
 
   async function load() {
-    setLoading(true); setError(""); setUsersError(""); setActivityError(""); setNotice("");
+    setLoading(true); setError(""); setUsersError(""); setActivityError(""); setNotificationError(""); setNotice("");
     const results = await Promise.allSettled([
       api("/api/admin/health"),
       api("/api/admin/users?limit=100"),
-      api("/api/admin/activity?limit=50")
+      api("/api/admin/activity?limit=50"),
+      api("/api/admin/notifications?limit=50")
     ]);
     if (results[0].status === "fulfilled") setHealth(results[0].value);
     else setError(results[0].reason?.message || "Owner status could not be loaded.");
@@ -54,6 +59,10 @@ export default function OwnerAdminDashboard() {
     } else setUsersError(results[1].reason?.message || "User list could not be loaded.");
     if (results[2].status === "fulfilled") setEvents(results[2].value.events || []);
     else setActivityError(results[2].reason?.message || "Activity feed could not be loaded.");
+    if (results[3].status === "fulfilled") {
+      setNotifications(results[3].value.notifications || []);
+      setNotificationTotals(results[3].value.totals || { total: 0, pending: 0, sent: 0, failed: 0 });
+    } else setNotificationError(results[3].reason?.message || "Notification history could not be loaded.");
     setLoading(false);
   }
 
@@ -82,6 +91,24 @@ export default function OwnerAdminDashboard() {
       setUsersError(e?.message || "Could not change account status.");
     } finally {
       setBusyUser("");
+    }
+  }
+
+  async function retryNotification(notification) {
+    if (busyNotification || !window.confirm("Retry sending the registration alert for " + notification.userEmail + " to the configured owner email?")) return;
+    setBusyNotification(notification.id); setNotificationError(""); setNotice("");
+    try {
+      const result = await api("/api/admin/notifications/" + encodeURIComponent(notification.id) + "/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      await load();
+      setNotice(result.message || "Notification retry completed.");
+    } catch (e) {
+      setNotificationError(e?.message || "Could not retry the notification.");
+    } finally {
+      setBusyNotification("");
     }
   }
 
@@ -114,6 +141,19 @@ export default function OwnerAdminDashboard() {
       {users.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Email / ID</th><th style={{padding:"10px 8px"}}>Registered</th><th style={{padding:"10px 8px"}}>Email</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{users.map((user)=><tr key={user.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><strong>{user.email}</strong><br/><small>{user.id}</small></td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(user.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.emailVerified ? "Verified" : "Pending"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Owner" : user.accountStatus === "suspended" ? "Suspended" : "Active"}{user.suspensionReason ? <><br/><small>Reason: {user.suspensionReason}</small></> : null}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Protected" : <button className="primary" disabled={Boolean(busyUser)} onClick={() => setAccountStatus(user, user.accountStatus === "suspended" ? "active" : "suspended")}>{busyUser === user.id ? "Saving…" : user.accountStatus === "suspended" ? "Reactivate" : "Suspend"}</button>}</td></tr>)}</tbody></table></div>}
       <button className="primary" onClick={load} disabled={loading || Boolean(busyUser)}>{loading ? "Refreshing…" : "Refresh dashboard"}</button>
       <p><small>Only account metadata is displayed. Suspending an account revokes its current sessions. Owner accounts cannot be suspended from this console.</small></p>
+    </div>
+    <div className="panel">
+      <div className="eyebrow dark">OWNER EMAIL NOTIFICATION HISTORY</div>
+      <h3>Registration alerts · {notificationTotals.total}</h3>
+      <div className="dashboardGrid">
+        <article className="panel"><div className="eyebrow dark">PENDING</div><h3>{notificationTotals.pending}</h3></article>
+        <article className="panel"><div className="eyebrow dark">PROVIDER ACCEPTED</div><h3>{notificationTotals.sent}</h3></article>
+        <article className="panel"><div className="eyebrow dark">FAILED</div><h3>{notificationTotals.failed}</h3></article>
+      </div>
+      <p>Provider acceptance is not proof that the message reached the inbox. Failed alerts can be retried after checking email configuration.</p>
+      {notificationError && <p role="alert">{notificationError}</p>}
+      {!notificationError && notifications.length === 0 && !loading && <p>No registration notifications recorded yet.</p>}
+      {notifications.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Created</th><th style={{padding:"10px 8px"}}>Registered user</th><th style={{padding:"10px 8px"}}>Delivery status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{notifications.map((notification)=><tr key={notification.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(notification.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{notification.userEmail}<br/><small>{notification.userId}</small></td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{notification.status === "sent" ? "Provider accepted" : notification.status === "pending" ? "Sending" : "Failed" + (notification.errorCode ? " · " + notification.errorCode : "")}{notification.sentAt ? <><br/><small>Accepted: {formatDate(notification.sentAt)}</small></> : null}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{notification.status === "failed" ? <button className="primary" disabled={Boolean(busyNotification)} onClick={() => retryNotification(notification)}>{busyNotification === notification.id ? "Retrying…" : "Retry email"}</button> : "—"}</td></tr>)}</tbody></table></div>}
     </div>
     <div className="panel">
       <div className="eyebrow dark">SECURITY & REGISTRATION ACTIVITY</div>
