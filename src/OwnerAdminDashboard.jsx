@@ -75,8 +75,8 @@ export default function OwnerAdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, reason })
       });
-      setNotice("Account " + action + "d successfully. Audit entry recorded.");
       await load();
+      setNotice("Account " + (status === "suspended" ? "suspended" : "reactivated") + " successfully. Audit entry recorded.");
     } catch (e) {
       setUsersError(e?.message || "Could not change account status.");
     } finally {
