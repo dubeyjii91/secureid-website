@@ -18,8 +18,27 @@ test("admin downloads decrypt server-side and are no-store with access auditing"
   assert.ok(backend.includes('app.get("/api/admin/documents/:id/download",requireAuth,requireOwnerDocumentAccess'));
   assert.ok(backend.includes("decryptBuffer(encrypted,key)"));
   assert.ok(backend.includes('res.setHeader("Cache-Control","no-store")'));
+  assert.ok(backend.includes('res.setHeader("X-Content-Type-Options","nosniff")'));
   assert.ok(backend.includes('action:"document_download"'));
   assert.ok(backend.includes("admin_document_access_audit"));
+});
+
+test("denied owner/MFA checks are audited without granting access", () => {
+  assert.ok(backend.includes('outcome:"denied"'));
+  assert.ok(backend.includes('return res.status(403).json({success:false,code:"OWNER_REQUIRED"'));
+  assert.ok(backend.includes('return res.status(403).json({success:false,code:"MFA_REQUIRED"'));
+});
+
+test("missing and deleted documents return not-found and are audited", () => {
+  assert.ok(backend.includes('FROM secure_documents WHERE id=? AND deleted_at IS NULL LIMIT 1'));
+  assert.ok(backend.includes('outcome:"not_found"'));
+  assert.ok(backend.includes('return res.status(404).json({success:false,message:"Document not found."})'));
+});
+
+test("listing and download failures create error audit events", () => {
+  assert.ok(backend.includes('action:"document_list",outcome:"error"'));
+  assert.ok(backend.includes('action:"document_download",documentId:String(req.params.id||"").slice(0,100),outcome:"error"'));
+  assert.ok(backend.includes('app.get("/api/admin/document-access-audit",requireAuth,requireOwnerDocumentAccess'));
 });
 
 test("owner-only navigation exposes the admin document vault", () => {
