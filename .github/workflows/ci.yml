@@ -70,7 +70,7 @@ jobs:
           test "$login_status" = "403"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
-        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feature/native-account-deletion' && github.event.pull_request.head.repo.full_name == github.repository)
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'release/android-store-ready' && github.event.pull_request.head.repo.full_name == github.repository)
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -103,7 +103,7 @@ jobs:
           retention-days: 14
       - name: Build and download signed Android production AAB with EAS
         id: eas_production
-        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'feature/native-account-deletion') && github.event.pull_request.head.repo.full_name == github.repository)
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-store-ready') && github.event.pull_request.head.repo.full_name == github.repository)
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
