@@ -1,4 +1,6 @@
 import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 export const API_BASE_URL = "https://secureid-production-b732.up.railway.app";
 const TOKEN_KEY = "secureid.native.session.v1";
@@ -145,4 +147,26 @@ export async function revokeSession(sessionId: string) {
   return request<{ success: boolean }>("/api/security/sessions/revoke", {
     method: "POST", body: JSON.stringify({ sessionId }),
   });
+}
+
+export async function downloadDocument(id: string, name: string, mimeType: string) {
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  if (!token) throw new Error("Sign in to download this document.");
+  if (!FileSystem.cacheDirectory) throw new Error("Device storage is unavailable.");
+  const safeName = name.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 100) || "secureid-document";
+  const destination = `${FileSystem.cacheDirectory}${Date.now()}-${safeName}`;
+  const result = await FileSystem.downloadAsync(
+    `${API_BASE_URL}/api/documents/${encodeURIComponent(id)}`,
+    destination,
+    { headers: { [CLIENT_HEADER]: "native", Authorization: `Bearer ${token}` } },
+  );
+  if (result.status !== 200) {
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+    if (result.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
+    throw new Error(result.status === 403 ? "MFA verification is required to download documents." : "SecureID could not download this document.");
+  }
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error("No compatible app is available to open or share this document.");
+  }
+  await Sharing.shareAsync(result.uri, { mimeType, dialogTitle: `Open ${name}` });
 }
