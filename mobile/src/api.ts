@@ -99,6 +99,15 @@ export async function signOut() {
   finally { await SecureStore.deleteItemAsync(TOKEN_KEY); }
 }
 
+export async function deleteAccount(password: string) {
+  const result = await request<{ success: boolean; message: string }>("/api/account", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+  });
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  return result;
+}
+
 export async function listDocuments() {
   return request<{ success: boolean; documents: DocumentRecord[] }>("/api/documents");
 }
