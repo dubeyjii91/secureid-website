@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      build_android_production_aab:
+        description: "Build a signed Android production App Bundle for Play Console (consumes Expo build quota)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -44,8 +49,10 @@ jobs:
         run: npm run lint
       - name: Run security unit tests
         run: npm test
+      - name: Install native Android dependencies and generate lockfile
+        run: npm install --package-lock-only --prefix mobile --ignore-scripts --no-audit --no-fund && npm ci --prefix mobile --no-audit --no-fund
       - name: Run native Android app TypeScript checks
-        run: npm install --no-package-lock --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
+        run: npm --prefix mobile run typecheck
       - name: Smoke test deployed native authentication bootstrap
         if: (github.event_name == 'pull_request' && github.head_ref == 'ci/prod-native-smoke') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
@@ -63,7 +70,7 @@ jobs:
           test "$login_status" = "403"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
-        if: github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feature/native-account-deletion' && github.event.pull_request.head.repo.full_name == github.repository)
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -92,6 +99,45 @@ jobs:
         with:
           name: secureid-android-preview-apk
           path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'feature/native-account-deletion') && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_url="$(node -e 'const v=JSON.parse(process.argv[1]); const b=Array.isArray(v)?v[0]:v; const u=b?.artifacts?.buildUrl; if(!u || !/^https:\/\//.test(u)) process.exit(1); process.stdout.write(u);' "$build_json")"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          curl --fail --location --silent --show-error "$build_url" --output "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          test -s "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -t "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -Z1 "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab" | grep -qx 'BundleConfig.pb'
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated mobile dependency lockfile
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
           if-no-files-found: error
           retention-days: 14
       - name: Test encrypted backup and restore in isolated temporary storage
