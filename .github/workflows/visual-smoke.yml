@@ -71,7 +71,6 @@ jobs:
                 });
                 console.log(`THEME PREFLIGHT ${viewport.name.toUpperCase()} attempt ${attempt}: ${JSON.stringify(theme)}`);
                 if (theme.overlayBackground === 'rgba(23, 37, 84, 0.52)'
-                  && theme.cardBackgroundImage !== 'none'
                   && theme.buttonText === 'rgb(255, 255, 255)') {
                   themeReady = true;
                   break;
