@@ -11,6 +11,14 @@ SecureCloud is integrated into the existing SecureID application. The existing R
 - SecureCloud controls embedded in the existing SecureID owner console.
 - Deployment requests fail closed until an isolated worker is configured.
 
+## Terminology: SecureCloud projects vs hosting infrastructure
+
+A SecureCloud project is currently a logical workspace record stored in SecureID's SQLite database. It groups service metadata such as a website repository and an API repository. It is not a Railway project, cloud account, virtual machine, database, public website, or paid hosting resource.
+
+Adding a GitHub repository currently stores its HTTPS URL, branch, and selected runtime as metadata. It does not install a GitHub App, verify that SecureCloud can read the repository, fetch source code, build an image, or deploy a workload. The owner UI must continue to state these limitations until those integrations exist.
+
+Creating a workspace or registering repository metadata does not provision external infrastructure or intentionally create a new hosting charge.
+
 ## Not yet production-enabled
 
 The current control plane does not execute repository code and does not yet build or run customer workloads. A deployment request returns `DEPLOYMENT_WORKER_NOT_CONFIGURED` unless a future worker integration is installed. Do not set `SECURECLOUD_WORKER_ENABLED=true` until the worker is implemented, isolated, tested, and connected to the durable queue.
