@@ -225,8 +225,8 @@ app.get("/api/auth/csrf", (req, res) => {
   if (isProduction && req.get("origin") && req.get("origin") !== appOrigin) {
     return res.status(403).json({ success: false, message: "Request origin is not allowed." });
   }
-  ensureCsrfCookie(req, res, req.query.rotate === "1");
-  return res.json({ success: true });
+  const csrfToken = ensureCsrfCookie(req, res, req.query.rotate === "1");
+  return res.json({ success: true, ...(req.get("X-SecureID-Client") === "native" ? { csrfToken } : {}) });
 });
 
 function hashSessionToken(token) { return createHmac("sha256", sessionPepper).update(token).digest("hex"); }
