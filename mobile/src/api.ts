@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-const API_BASE_URL = "https://secureid-production-b732.up.railway.app";
+export const API_BASE_URL = "https://secureid-production-b732.up.railway.app";
 const TOKEN_KEY = "secureid.native.session.v1";
 const CLIENT_HEADER = "X-SecureID-Client";
 
