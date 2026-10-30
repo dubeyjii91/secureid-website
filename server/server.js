@@ -182,8 +182,11 @@ app.use(express.static(distPath));
 
 function enforceSameOrigin(req, res, next) {
   ensureCsrfCookie(req,res);
-  if (isProduction && req.get("origin") !== appOrigin) return res.status(403).json({ success: false, message: "Request origin is not allowed." });
-  if (["POST","PUT","PATCH","DELETE"].includes(req.method)) {
+  const nativeClient = req.get("X-SecureID-Client") === "native";
+  const nativeBearer = nativeClient && /^Bearer [A-Za-z0-9_-]{40,}$/.test(String(req.get("authorization") || ""));
+  const nativeBootstrap = nativeClient && !req.get("origin");
+  if (isProduction && req.get("origin") !== appOrigin && !nativeBootstrap && !nativeBearer) return res.status(403).json({ success: false, message: "Request origin is not allowed." });
+  if (["POST","PUT","PATCH","DELETE"].includes(req.method) && !nativeBearer) {
     const cookieToken=getCookie(req,csrfCookieName);
     const headerToken=String(req.get("X-CSRF-Token") || "");
     if(!cookieToken || !headerToken || cookieToken !== headerToken){
@@ -247,11 +250,15 @@ function createSession(userId, req, res) {
   const ipHash = ip ? createHmac("sha256", sessionPepper).update(ip).digest("hex") : null;
   database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, mfa_verified_until, trusted_until, user_agent, ip_hash, last_seen_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)").run(tokenHash, userId, now + sessionTtlMs, now, userAgent, ipHash, now);
   setSessionCookie(res, token);
-  return tokenHash;
+  return token;
 }
 
 function requireAuth(req, res, next) {
-  const token = getCookie(req, sessionCookieName);
+  const authorization = String(req.get("authorization") || "");
+  const nativeToken = req.get("X-SecureID-Client") === "native" && /^Bearer [A-Za-z0-9_-]{40,}$/.test(authorization)
+    ? authorization.slice(7)
+    : "";
+  const token = nativeToken || getCookie(req, sessionCookieName);
   if (!token || token.length < 20 || token.length > 200) return res.status(401).json({ success: false, message: "Sign in to continue." });
   const tokenHash = hashSessionToken(token);
   const row = database.prepare(`SELECT s.token_hash, s.expires_at, s.mfa_verified_until, s.trusted_until, s.last_seen_at, u.id, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? LIMIT 1`).get(tokenHash);
@@ -1322,10 +1329,10 @@ app.post("/api/auth/login", enforceSameOrigin, perIpAuthLimit, perAccountAuthLim
       ).run(row.id, now, now, now);
     }
 
-    createSession(row.id, req, res);
+    const nativeSessionToken = createSession(row.id, req, res);
     logEvent(row.id, "LOGIN_SUCCESS", req);
     ensureSecurityNotification(row.id,"LOGIN_SUCCESS","New sign-in","A new SecureID sign-in was completed. Review Active sessions if this was not you.");
-    res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false } });
+    res.json({ success: true, mfaRequired: true, user: { email: row.email, mfaVerified: false }, ...(req.get("X-SecureID-Client") === "native" ? { nativeSessionToken } : {}) });
   } catch (error) { next(error); }
 });
 
