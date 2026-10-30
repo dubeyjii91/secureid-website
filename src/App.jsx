@@ -187,6 +187,7 @@ function App() {
     const syncOwnerRoute = () => {
       const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
       if (pathname === "/admin" || pathname === "/owner") setPage("admin");
+      else if (pathname === "/") setPage("dashboard");
     };
     syncOwnerRoute();
     window.addEventListener("popstate", syncOwnerRoute);
