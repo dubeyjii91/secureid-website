@@ -35,6 +35,7 @@ jobs:
             { path: "/manifest.webmanifest", type: "manifest-json" },
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
+            { path: "/delete-account.html", type: "text/html", expectedText: "Delete your SecureID account" },
             { path: "/api/health", type: "json" },
             { path: "/api/health/ready", type: "json" },
             { path: "/api/__smoke_unknown_route__", type: "json", expectedStatus: 404 },
@@ -93,6 +94,9 @@ jobs:
                   throw new Error(`Expected ${route.type}, got ${contentType || "missing"}`);
                 }
                 if (!body.trim()) throw new Error("Empty response body");
+                if (route.expectedText && !body.includes(route.expectedText)) {
+                  throw new Error("Public page is missing expected account-deletion instructions");
+                }
                 if (route.type === "json") {
                   let payload;
                   try { payload = JSON.parse(body); } catch { throw new Error("Expected valid JSON response"); }
