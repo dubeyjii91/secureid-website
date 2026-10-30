@@ -45,7 +45,8 @@ Productivity (confirm in Play Console)
 - Feature graphic: 1024 × 500 [REQUIRED]
 - Phone screenshots: at least 2, captured from the final release build on real devices [REQUIRED]
 - Data safety form: complete from verified SDK/network behavior [REQUIRED]
-- Ads declaration, app access instructions, content rating, and account deletion URL/process: [REQUIRED]
+- Ads declaration, app access instructions, and content rating: [REQUIRED]
+- Account deletion URL: `https://secureid-production-b732.up.railway.app/delete-account.html` (verify after deployment).
 
 ## Screenshot plan (capture real app screens; do not use mock UI)
 1. SecureID biometric lock / sign-in.
