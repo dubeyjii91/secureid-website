@@ -136,3 +136,13 @@ export async function getSecurityDashboard() {
 export async function deleteDocument(id: string) {
   return request<{ success: boolean }>(`/api/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+export async function listSessions() {
+  return request<{ success: boolean; sessions: Array<{ id: string; current: boolean; createdAt: number; lastSeenAt: number; expiresAt: number; trustedUntil?: number | null; userAgent: string }> }>("/api/security/sessions");
+}
+
+export async function revokeSession(sessionId: string) {
+  return request<{ success: boolean }>("/api/security/sessions/revoke", {
+    method: "POST", body: JSON.stringify({ sessionId }),
+  });
+}
