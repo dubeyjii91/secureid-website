@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
-import { deleteDocument, listDocuments, uploadDocument, type DocumentRecord } from "../src/api";
+import { deleteDocument, downloadDocument, listDocuments, uploadDocument, type DocumentRecord } from "../src/api";
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -18,6 +18,7 @@ export default function VaultScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState("");
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -55,6 +56,13 @@ export default function VaultScreen() {
     }
   }
 
+  async function openDocument(document: DocumentRecord) {
+    setDownloadingId(document.id);
+    try { await downloadDocument(document.id, document.name, document.mimeType); }
+    catch (error: any) { Alert.alert("Download failed",error?.message||"The document could not be downloaded."); }
+    finally { setDownloadingId(""); }
+  }
+
   function removeDocument(document: DocumentRecord) {
     Alert.alert("Delete document?", `Delete ${document.name} from your vault? This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
@@ -82,7 +90,8 @@ export default function VaultScreen() {
           <View key={document.id} style={styles.document}>
             <View style={styles.fileIcon}><Ionicons name={document.mimeType === "application/pdf" ? "document-text-outline" : "image-outline"} size={22} color={colors.accent}/></View>
             <View style={styles.fileCopy}><Text style={styles.fileName} numberOfLines={1}>{document.name}</Text><Text style={styles.fileMeta}>{formatSize(document.sizeBytes)} · {document.category || "Private document"}</Text></View>
-            <Pressable onPress={() => removeDocument(document)} accessibilityLabel={`Delete ${document.name}`} style={styles.delete}><Ionicons name="trash-outline" size={19} color={colors.danger}/></Pressable>
+            <Pressable onPress={() => openDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Download ${document.name}`} style={styles.delete}>{downloadingId===document.id?<ActivityIndicator color={colors.accent}/>:<Ionicons name="download-outline" size={19} color={colors.accent}/>}</Pressable>
+            <Pressable onPress={() => removeDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Delete ${document.name}`} style={styles.delete}><Ionicons name="trash-outline" size={19} color={colors.danger}/></Pressable>
           </View>
         ))}
         <View style={styles.securityNote}><Ionicons name="lock-closed-outline" size={18} color={colors.accent}/><Text style={styles.noteText}>Files are validated by content type, encrypted by the server and protected by account ownership and MFA checks.</Text></View>
