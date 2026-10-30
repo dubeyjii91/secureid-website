@@ -52,3 +52,10 @@ test("owner dashboard has a bookmarkable, access-controlled entry URL", () => {
   assert.match(server, /OWNER_EMAIL/);
   assert.match(server, /function requireOwner/);
 });
+
+test("hosting project and repository records are clearly described as metadata, not deployed infrastructure", () => {
+  assert.match(dashboard, /workspace inside SecureCloud/);
+  assert.match(dashboard, /does not create a Railway project, server, database/);
+  assert.match(dashboard, /does not install a GitHub App, verify repository permissions, fetch source code/);
+  assert.match(dashboard, /no build has run/);
+});
