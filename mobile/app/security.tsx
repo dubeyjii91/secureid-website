@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
-import { getSecurityDashboard, listSessions, revokeSession, signOut } from "../src/api";
-import { disableBiometricLock, enableBiometricLock, isBiometricLockEnabled } from "../src/biometric";
+import { deleteAccount, getSecurityDashboard, listSessions, revokeSession, signOut } from "../src/api";
+import { clearBiometricLock, disableBiometricLock, enableBiometricLock, isBiometricLockEnabled } from "../src/biometric";
 
 type SessionRecord = { id: string; current: boolean; createdAt: number; lastSeenAt: number; expiresAt: number; userAgent: string };
 
@@ -19,6 +19,8 @@ export default function SecurityScreen() {
   const [loading,setLoading]=useState(true);
   const [busyId,setBusyId]=useState("");
   const [biometricEnabled,setBiometricEnabled]=useState(false);
+  const [deletePassword,setDeletePassword]=useState("");
+  const [deleteBusy,setDeleteBusy]=useState(false);
 
   const load=useCallback(async()=>{
     try {
@@ -61,6 +63,39 @@ export default function SecurityScreen() {
     ]);
   }
 
+  function confirmDeleteAccount() {
+    if (!deletePassword) {
+      Alert.alert("Password required", "Enter your current password to confirm account deletion.");
+      return;
+    }
+    Alert.alert(
+      "Permanently delete account?",
+      "This permanently deletes your SecureID account, stored documents, identity profile, shares, sessions and security history. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: async () => {
+            setDeleteBusy(true);
+            try {
+              const result = await deleteAccount(deletePassword);
+              await clearBiometricLock();
+              setDeletePassword("");
+              Alert.alert("Account deleted", result.message || "Your SecureID account and stored data were deleted.");
+              router.replace("/login");
+            } catch (error: any) {
+              if (error?.status === 403) router.replace("/mfa");
+              else Alert.alert("Account not deleted", error?.message || "SecureID could not delete your account. Please try again.");
+            } finally {
+              setDeleteBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   async function logout() {
     Alert.alert("Sign out of SecureID?","This ends your current server session on this device.",[
       {text:"Cancel",style:"cancel"},
@@ -92,6 +127,36 @@ export default function SecurityScreen() {
         <Text style={styles.sectionTitle}>Active sessions</Text>
         {sessions.map(session=><View key={session.id} style={styles.session}><View style={styles.sessionIcon}><Ionicons name="phone-portrait-outline" size={20} color={colors.accent}/></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>{session.current?"This device":(session.userAgent||"Other device").slice(0,38)}</Text><Text style={styles.actionDetail}>{session.current?"Current trusted session":`Last active ${new Date(session.lastSeenAt).toLocaleString()}`}</Text></View>{session.current?<Text style={styles.current}>CURRENT</Text>:<Pressable disabled={!!busyId} onPress={()=>confirmRevoke(session)} style={styles.revoke}><Text style={styles.revokeText}>{busyId===session.id?"…":"Revoke"}</Text></Pressable>}</View>)}
         <Pressable onPress={logout} style={styles.logout}><Ionicons name="log-out-outline" size={19} color={colors.danger}/><Text style={styles.logoutText}>Sign out</Text></Pressable>
+        <Text style={styles.sectionTitle}>Account deletion</Text>
+        <View style={styles.deleteCard}>
+          <Text style={styles.deleteTitle}>Permanently delete your account</Text>
+          <Text style={styles.deleteDetail}>Your account, identity profile, uploaded documents, shares, sessions and security history will be deleted. This action cannot be undone.</Text>
+          <TextInput
+            value={deletePassword}
+            onChangeText={setDeletePassword}
+            placeholder="Enter your current password"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!deleteBusy}
+            accessibilityLabel="Current password to confirm account deletion"
+            style={styles.deleteInput}
+          />
+          <Pressable
+            onPress={confirmDeleteAccount}
+            disabled={deleteBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Permanently delete SecureID account"
+            style={[styles.deleteButton,deleteBusy&&{opacity:0.6}]}
+          >
+            {deleteBusy?<ActivityIndicator color="#fff"/>:<Text style={styles.deleteButtonText}>Delete account permanently</Text>}
+          </Pressable>
+          <Pressable onPress={()=>Linking.openURL("https://secureid-production-b732.up.railway.app/delete-account.html")} style={styles.deleteHelp}>
+            <Text style={styles.deleteHelpText}>Account deletion help and web request</Text>
+            <Ionicons name="open-outline" size={15} color={colors.accent}/>
+          </Pressable>
+        </View>
         <View style={styles.notice}><Ionicons name="lock-closed-outline" size={18} color={colors.accent}/><Text style={styles.noticeText}>Authentication, MFA, document ownership, share expiry and session revocation are enforced by the SecureID server. Biometric verification is performed locally by Android.</Text></View>
       </ScrollView>
     </SafeAreaView>
@@ -106,5 +171,6 @@ const styles=StyleSheet.create({
  sectionTitle:{color:colors.text,fontSize:16,fontWeight:"800",marginTop:26,marginBottom:11},action:{flexDirection:"row",alignItems:"center",padding:13,borderRadius:15,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},actionIcon:{width:42,height:42,borderRadius:12,backgroundColor:"#153444",alignItems:"center",justifyContent:"center"},actionCopy:{flex:1,marginHorizontal:11},actionTitle:{color:colors.text,fontSize:13,fontWeight:"700"},actionDetail:{color:colors.muted,fontSize:11,lineHeight:16,marginTop:4},
  session:{flexDirection:"row",alignItems:"center",padding:12,borderRadius:14,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,marginBottom:8},sessionIcon:{width:38,height:38,borderRadius:11,backgroundColor:"#153444",alignItems:"center",justifyContent:"center"},current:{color:colors.accent,fontSize:9,fontWeight:"900"},revoke:{paddingHorizontal:10,paddingVertical:7,borderWidth:1,borderColor:"#704040",borderRadius:8},revokeText:{color:colors.danger,fontSize:10,fontWeight:"800"},
  logout:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,padding:15,borderRadius:13,borderWidth:1,borderColor:"#704040",marginTop:24},logoutText:{color:colors.danger,fontSize:14,fontWeight:"800"},
+ deleteCard:{padding:15,borderRadius:15,borderWidth:1,borderColor:"#704040",backgroundColor:colors.surface},deleteTitle:{color:colors.danger,fontSize:14,fontWeight:"800"},deleteDetail:{color:colors.muted,fontSize:12,lineHeight:18,marginTop:7,marginBottom:12},deleteInput:{borderWidth:1,borderColor:colors.border,borderRadius:10,paddingHorizontal:12,paddingVertical:12,color:colors.text,fontSize:13,backgroundColor:colors.background},deleteButton:{alignItems:"center",justifyContent:"center",padding:13,borderRadius:10,backgroundColor:colors.danger,marginTop:10,minHeight:44},deleteButtonText:{color:"#fff",fontSize:12,fontWeight:"900"},deleteHelp:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:6,marginTop:12},deleteHelpText:{color:colors.accent,fontSize:11,fontWeight:"700"},
  notice:{flexDirection:"row",alignItems:"flex-start",gap:10,backgroundColor:colors.surface,borderRadius:14,borderWidth:1,borderColor:colors.border,padding:14,marginTop:18},noticeText:{flex:1,color:colors.muted,fontSize:12,lineHeight:18}
 });
