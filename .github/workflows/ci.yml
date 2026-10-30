@@ -4,6 +4,13 @@ on:
   pull_request:
   push:
     branches: [main, 'security/**']
+  workflow_dispatch:
+    inputs:
+      build_android_preview_apk:
+        description: "Use the existing EAS project for a cloud APK build (may consume Expo build quota)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -56,7 +63,7 @@ jobs:
           test "$login_status" = "403"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
-        if: (github.event_name == 'pull_request' && github.head_ref == 'ci/eas-apk-build') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
