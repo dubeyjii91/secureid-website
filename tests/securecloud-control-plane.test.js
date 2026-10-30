@@ -6,6 +6,7 @@ const controlPlane = readFileSync(new URL("../server/securecloud-control-plane.j
 const server = readFileSync(new URL("../server/server.js", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../src/SecureCloudPanel.jsx", import.meta.url), "utf8");
 const ownerDashboard = readFileSync(new URL("../src/OwnerAdminDashboard.jsx", import.meta.url), "utf8");
+const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
 
 test("SecureCloud control plane is registered in the existing SecureID API", () => {
   assert.match(server, /registerSecureCloudControlPlane\(\{ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin \}\)/);
@@ -42,4 +43,12 @@ test("existing owner dashboard embeds SecureCloud controls", () => {
   assert.match(ownerDashboard, /import SecureCloudPanel from "\.\/SecureCloudPanel\.jsx"/);
   assert.match(ownerDashboard, /<SecureCloudPanel \/>/);
   assert.match(dashboard, /\/api\/securecloud\/projects/);
+});
+
+test("owner dashboard has a bookmarkable, access-controlled entry URL", () => {
+  assert.match(app, /pathname === "\/admin" \|\| pathname === "\/owner"/);
+  assert.match(app, /id === "admin" \? "\/admin" : "\/"/);
+  assert.match(app, /page === "admin" && sessionRole === "owner"/);
+  assert.match(server, /OWNER_EMAIL/);
+  assert.match(server, /function requireOwner/);
 });
