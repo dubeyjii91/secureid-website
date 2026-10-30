@@ -37,6 +37,8 @@ jobs:
         run: npm run lint
       - name: Run security unit tests
         run: npm test
+      - name: Run native Android app TypeScript checks
+        run: npm install --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
       - name: Test encrypted backup and restore in isolated temporary storage
         run: node scripts/backup-restore-smoke.mjs
 
