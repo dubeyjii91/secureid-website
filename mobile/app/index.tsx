@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
 import { getSession } from "../src/api";
+import { requireBiometricUnlock } from "../src/biometric";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -30,15 +31,24 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     let active = true;
-    getSession().then((result) => {
-      if (!active) return;
-      setUserEmail(result.user?.email || "");
-      if (!result.user?.mfaVerified) router.replace("/mfa");
-    }).catch(() => {
-      if (active) router.replace("/login");
-    }).finally(() => {
-      if (active) setAuthChecking(false);
-    });
+    void (async () => {
+      try {
+        const biometricOk = await requireBiometricUnlock();
+        if (!active) return;
+        if (!biometricOk) {
+          router.replace("/locked");
+          return;
+        }
+        const result = await getSession();
+        if (!active) return;
+        setUserEmail(result.user?.email || "");
+        if (!result.user?.mfaVerified) router.replace("/mfa");
+      } catch {
+        if (active) router.replace("/login");
+      } finally {
+        if (active) setAuthChecking(false);
+      }
+    })();
     return () => { active = false; };
   }, []);
 
