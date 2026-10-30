@@ -1,9 +1,10 @@
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
+import { getSession } from "../src/api";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -24,6 +25,24 @@ function ActionCard({ icon, title, description, onPress }: {
 
 export default function DashboardScreen() {
   const [activeTab, setActiveTab] = useState("Home");
+  const [authChecking, setAuthChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getSession().then((result) => {
+      if (!active) return;
+      if (!result.user?.mfaVerified) router.replace("/mfa");
+    }).catch(() => {
+      if (active) router.replace("/login");
+    }).finally(() => {
+      if (active) setAuthChecking(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  if (authChecking) {
+    return <SafeAreaView style={styles.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><Ionicons name="shield-checkmark" size={34} color={colors.accent}/><Text style={{color:colors.muted,marginTop:12}}>Connecting securely…</Text></View></SafeAreaView>;
+  }
   const tabs: { label: string; icon: IconName; route: "/" | "/vault" | "/share" | "/security" }[] = [
     { label: "Home", icon: "grid-outline", route: "/" },
     { label: "Vault", icon: "folder-outline", route: "/vault" },
