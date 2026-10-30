@@ -13,6 +13,7 @@ The production build uses the existing EAS project and remote Android signing cr
 ## Release gates before Play Console submission
 
 - Complete and approve `docs/PRIVACY-POLICY-RELEASE-DRAFT.md`; publish a public HTTPS privacy URL. The current file is a draft and is not a public policy.
+- Verify the in-app account deletion flow and the public request page at `https://secureid-production-b732.up.railway.app/delete-account.html` after deployment; enter this URL in Play Console.
 - Confirm the legal operator, monitored support/privacy contact, privacy request channel, retention schedule, backup expiry, age/target-audience position, and relevant Indian DPDP / other market compliance with qualified counsel.
 - Reconcile the Play Console Data safety form with the actual production SDKs, network behavior, hosting/email providers, and data retention.
 - Complete `docs/PLAY-STORE-LISTING-DRAFT.md`: final icon, feature graphic, screenshots from the final app on real devices, support contact, app access instructions, content rating, ads declaration, and account deletion details.
