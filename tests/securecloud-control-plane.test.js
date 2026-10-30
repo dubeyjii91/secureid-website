@@ -27,12 +27,14 @@ test("mutating SecureCloud routes enforce same-origin CSRF protection", () => {
 test("repository connections accept HTTPS GitHub URLs only", () => {
   assert.match(controlPlane, /url\.protocol === "https:"/);
   assert.match(controlPlane, /url\.hostname === "github\.com"/);
-  assert.match(controlPlane, /!url\.username && !url\.password/);
+  assert.match(controlPlane, /!url\.username && !url\.password && !url\.port && !url\.search && !url\.hash/);
+  assert.match(controlPlane, /parts\.length === 2/);
 });
 
 test("deployment requests fail closed while no isolated worker is enabled", () => {
-  assert.match(controlPlane, /SECURECLOUD_WORKER_ENABLED !== "true"/);
-  assert.match(controlPlane, /DEPLOYMENT_WORKER_NOT_CONFIGURED/);
+  assert.match(controlPlane, /workerConfigured: false/);
+  assert.doesNotMatch(controlPlane, /SECURECLOUD_WORKER_ENABLED/);
+  assert.match(controlPlane, /return res\.status\(503\).*DEPLOYMENT_WORKER_NOT_CONFIGURED/);
   assert.match(controlPlane, /no build has been started/);
 });
 
