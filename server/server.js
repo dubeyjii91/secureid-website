@@ -1,4 +1,5 @@
 ﻿import { registerProductionFeatures } from "./production-features.js";
+import { registerSecureCloudControlPlane } from "./securecloud-control-plane.js";
 import path from "node:path";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -788,6 +789,7 @@ registerProductionFeatures({
   logEvent,
   ensureSecurityNotification
 });
+registerSecureCloudControlPlane({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin });
 startAutomaticBackup();
 // Optional live URL reputation lookup. Keep the API key server-side only.
 const googleSafeBrowsingApiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY || "";
