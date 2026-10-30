@@ -50,7 +50,7 @@ jobs:
       - name: Run security unit tests
         run: npm test
       - name: Run native Android app TypeScript checks
-        run: npm install --no-package-lock --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
+        run: npm install --package-lock-only --prefix mobile --ignore-scripts --no-audit --no-fund && npm ci --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
       - name: Smoke test deployed native authentication bootstrap
         if: (github.event_name == 'pull_request' && github.head_ref == 'ci/prod-native-smoke') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
@@ -129,6 +129,14 @@ jobs:
         with:
           name: secureid-android-production-aab
           path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload mobile dependency lockfile used for release
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
           if-no-files-found: error
           retention-days: 14
       - name: Test encrypted backup and restore in isolated temporary storage
