@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -8,6 +8,12 @@ import { colors } from "../src/theme";
 
 export default function LockedScreen() {
   const [busy,setBusy]=useState(false);
+
+  useEffect(() => {
+    // Never let Android's system Back action reveal a screen underneath the lock.
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => subscription.remove();
+  }, []);
   async function unlock() {
     setBusy(true);
     try {
