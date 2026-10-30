@@ -80,10 +80,11 @@ export default function SecurityScreen() {
             setDeleteBusy(true);
             try {
               const result = await deleteAccount(deletePassword);
-              await clearBiometricLock();
+              await clearBiometricLock().catch(() => {});
               setDeletePassword("");
-              Alert.alert("Account deleted", result.message || "Your SecureID account and stored data were deleted.");
-              router.replace("/login");
+              Alert.alert("Account deleted", result.message || "Your SecureID account and stored data were deleted.", [
+                { text: "OK", onPress: () => router.replace("/login") },
+              ]);
             } catch (error: any) {
               if (error?.status === 403) router.replace("/mfa");
               else Alert.alert("Account not deleted", error?.message || "SecureID could not delete your account. Please try again.");
