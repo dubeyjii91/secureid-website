@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500" role="img" aria-labelledby="title desc">
+  <title id="title">SecureID — Your documents. Your control.</title>
+  <desc id="desc">SecureID document vault, biometric app lock, time-limited sharing and session controls.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071323"/>
+      <stop offset=".58" stop-color="#0c2138"/>
+      <stop offset="1" stop-color="#102c48"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#142d45"/>
+      <stop offset="1" stop-color="#0d2034"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <circle cx="880" cy="70" r="245" fill="#38bdf8" opacity=".07"/>
+  <circle cx="735" cy="460" r="250" fill="#818cf8" opacity=".08"/>
+  <path d="M0 405C190 350 330 470 520 420s310-95 504-28v108H0Z" fill="#38bdf8" opacity=".045"/>
+  <g transform="translate(64 55)">
+    <rect width="64" height="64" rx="18" fill="#fff"/>
+    <path d="M32 8 51 15v15c0 14-8 23-19 30-11-7-19-16-19-30V15Z" fill="none" stroke="url(#accent)" stroke-width="4.5" stroke-linejoin="round"/>
+    <path d="m23 32 7 7 13-14" fill="none" stroke="#071323" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="82" y="43" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="38" font-weight="800" letter-spacing="-.8">SecureID</text>
+  </g>
+  <g transform="translate(64 180)">
+    <text x="0" y="0" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="45" font-weight="800" letter-spacing="-1.4">Your documents.</text>
+    <text x="0" y="55" fill="#7dd3fc" font-family="Inter,Arial,sans-serif" font-size="45" font-weight="800" letter-spacing="-1.4">Your control.</text>
+    <text x="2" y="100" fill="#c2d3e3" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="500">Store, access and share important files</text>
+    <text x="2" y="127" fill="#c2d3e3" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="500">with account security controls.</text>
+    <g transform="translate(0 164)">
+      <rect width="202" height="42" rx="21" fill="#16354e" stroke="#2e617d"/>
+      <circle cx="22" cy="21" r="10" fill="none" stroke="#7dd3fc" stroke-width="2.5"/>
+      <path d="M18 21h8m-4-4v8" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round"/>
+      <text x="42" y="27" fill="#eff8ff" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">Biometric app lock</text>
+      <rect x="214" width="164" height="42" rx="21" fill="#16354e" stroke="#2e617d"/>
+      <path d="M232 13h17v17h-17z" fill="none" stroke="#7dd3fc" stroke-width="2"/>
+      <path d="M236 18h9m-9 5h9" stroke="#7dd3fc" stroke-width="1.7" stroke-linecap="round"/>
+      <text x="258" y="27" fill="#eff8ff" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">Document vault</text>
+      <rect y="54" width="202" height="42" rx="21" fill="#16354e" stroke="#2e617d"/>
+      <path d="M14 75h17m-6-6 6 6-6 6" fill="none" stroke="#7dd3fc" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="42" y="81" fill="#eff8ff" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">Time-limited sharing</text>
+      <rect x="214" y="54" width="164" height="42" rx="21" fill="#16354e" stroke="#2e617d"/>
+      <path d="M232 67v15m-5-10 5-5 5 5" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="258" y="81" fill="#eff8ff" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">Session controls</text>
+    </g>
+  </g>
+  <g transform="translate(665 42)" filter="url(#shadow)">
+    <rect x="38" y="0" width="258" height="426" rx="36" fill="#050d17" stroke="#52728d" stroke-width="2"/>
+    <rect x="49" y="13" width="236" height="400" rx="27" fill="#f8fbff"/>
+    <rect x="130" y="20" width="74" height="7" rx="3.5" fill="#c5d1dd"/>
+    <text x="69" y="65" fill="#10253b" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="800">My Vault</text>
+    <text x="69" y="87" fill="#71859a" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="600">YOUR DOCUMENTS</text>
+    <rect x="66" y="103" width="202" height="64" rx="13" fill="#edf6ff" stroke="#d5e8f7"/>
+    <rect x="79" y="117" width="35" height="36" rx="8" fill="#d7efff"/>
+    <path d="M89 124h15v21H89z" fill="none" stroke="#1685bc" stroke-width="2"/>
+    <path d="M92 130h9m-9 5h9" stroke="#1685bc" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="123" y="130" fill="#16344e" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="800">Identity document</text>
+    <text x="123" y="147" fill="#71859a" font-family="Inter,Arial,sans-serif" font-size="9">PDF • Stored securely</text>
+    <rect x="66" y="178" width="202" height="64" rx="13" fill="#f4f1ff" stroke="#e4defb"/>
+    <rect x="79" y="192" width="35" height="36" rx="8" fill="#e7e2ff"/>
+    <path d="M89 199h15v21H89z" fill="none" stroke="#6f61c8" stroke-width="2"/>
+    <path d="M92 205h9m-9 5h9" stroke="#6f61c8" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="123" y="205" fill="#16344e" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="800">Certificate</text>
+    <text x="123" y="222" fill="#71859a" font-family="Inter,Arial,sans-serif" font-size="9">PDF • Stored securely</text>
+    <rect x="66" y="255" width="202" height="91" rx="14" fill="#102d45"/>
+    <circle cx="91" cy="281" r="12" fill="#1c5875"/>
+    <path d="M86 281h10m-5-5v10" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round"/>
+    <text x="111" y="278" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="11" font-weight="800">Secure sharing</text>
+    <text x="111" y="294" fill="#b9d1e2" font-family="Inter,Arial,sans-serif" font-size="9">Choose what to share</text>
+    <rect x="80" y="310" width="174" height="23" rx="11.5" fill="url(#accent)"/>
+    <text x="167" y="325" fill="#071323" font-family="Inter,Arial,sans-serif" font-size="9" font-weight="800" text-anchor="middle">CREATE EXPIRING LINK</text>
+    <rect x="66" y="360" width="202" height="34" rx="10" fill="#e8f5ff"/>
+    <path d="M81 377h12m-6-6v12" stroke="#1685bc" stroke-width="2" stroke-linecap="round"/>
+    <text x="102" y="381" fill="#31546e" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700">Security center</text>
+  </g>
+  <g transform="translate(615 80)">
+    <circle cx="0" cy="0" r="31" fill="#102f49" stroke="#4a8bb2" stroke-width="1.5"/>
+    <path d="M0-18 17-12v13c0 12-7 19-17 26C-10 20-17 13-17 1v-13Z" fill="none" stroke="url(#accent)" stroke-width="3"/>
+    <path d="m-8 1 6 6 11-13" fill="none" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
