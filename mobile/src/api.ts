@@ -166,7 +166,13 @@ export async function downloadDocument(id: string, name: string, mimeType: strin
     throw new Error(result.status === 403 ? "MFA verification is required to download documents." : "SecureID could not download this document.");
   }
   if (!(await Sharing.isAvailableAsync())) {
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
     throw new Error("No compatible app is available to open or share this document.");
   }
-  await Sharing.shareAsync(result.uri, { mimeType, dialogTitle: `Open ${name}` });
+  try {
+    await Sharing.shareAsync(result.uri, { mimeType, dialogTitle: `Open ${name}` });
+  } finally {
+    // Remove the temporary plaintext copy after the Android share sheet closes.
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+  }
 }
