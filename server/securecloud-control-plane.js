@@ -7,6 +7,20 @@ function cleanText(value, max) {
   return String(value ?? "").trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, max);
 }
 
+export function runSecureCloudTransaction(database, work) {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const result = work();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    if (database.isTransaction) {
+      try { database.exec("ROLLBACK"); } catch {}
+    }
+    throw error;
+  }
+}
+
 function validGitUrl(value) {
   try {
     const url = new URL(value);
@@ -74,10 +88,10 @@ export function registerSecureCloudControlPlane({ app, database, requireAuth, re
     const description = cleanText(req.body?.description, MAX_DESCRIPTION);
     if (name.length < 2) return res.status(400).json({ success: false, message: "Project name must contain at least 2 characters." });
     const id = randomUUID(); const now = Date.now();
-    database.transaction(() => {
+    runSecureCloudTransaction(database, () => {
       database.prepare("INSERT INTO securecloud_projects (id, owner_user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(id, req.user.id, name, description, now, now);
       audit.run(randomUUID(), req.user.id, "PROJECT_CREATED", "project", id, JSON.stringify({ name }), now);
-    })();
+    });
     res.status(201).json({ success: true, project: { id, name, description, createdAt: now, serviceCount: 0 } });
   });
 
@@ -101,10 +115,10 @@ export function registerSecureCloudControlPlane({ app, database, requireAuth, re
     if (!/^[A-Za-z0-9._/-]{1,120}$/.test(branch)) return res.status(400).json({ success: false, message: "Branch name is invalid." });
     if (!runtime) return res.status(400).json({ success: false, message: "Choose Node.js or Docker runtime." });
     const id = randomUUID(); const now = Date.now();
-    database.transaction(() => {
+    runSecureCloudTransaction(database, () => {
       database.prepare("INSERT INTO securecloud_services (id, project_id, owner_user_id, name, repository_url, branch, runtime, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, project.id, req.user.id, name, repositoryUrl, branch, runtime, now, now);
       audit.run(randomUUID(), req.user.id, "SERVICE_CREATED", "service", id, JSON.stringify({ projectId: project.id, runtime }), now);
-    })();
+    });
     res.status(201).json({ success: true, service: { id, projectId: project.id, name, repositoryUrl, branch, runtime, createdAt: now } });
   });
 
