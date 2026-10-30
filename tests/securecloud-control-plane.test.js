@@ -6,6 +6,7 @@ const controlPlane = readFileSync(new URL("../server/securecloud-control-plane.j
 const server = readFileSync(new URL("../server/server.js", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../src/SecureCloudPanel.jsx", import.meta.url), "utf8");
 const ownerDashboard = readFileSync(new URL("../src/OwnerAdminDashboard.jsx", import.meta.url), "utf8");
+const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
 
 test("SecureCloud control plane is registered in the existing SecureID API", () => {
   assert.match(server, /registerSecureCloudControlPlane\(\{ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin \}\)/);
@@ -15,11 +16,7 @@ test("SecureCloud control plane is registered in the existing SecureID API", () 
 test("all SecureCloud management routes require authenticated owner MFA", () => {
   const routeLines = controlPlane.split("\n").filter((line) => /app\.(get|post)\(/.test(line));
   assert.ok(routeLines.length >= 6);
-  for (const line of routeLines) {
-    assert.match(line, /requireAuth/);
-    assert.match(line, /requireMfa/);
-    assert.match(line, /requireOwner/);
-  }
+  for (const line of routeLines) { assert.match(line, /requireAuth/); assert.match(line, /requireMfa/); assert.match(line, /requireOwner/); }
 });
 
 test("mutating SecureCloud routes enforce same-origin CSRF protection", () => {
@@ -31,12 +28,14 @@ test("mutating SecureCloud routes enforce same-origin CSRF protection", () => {
 test("repository connections accept HTTPS GitHub URLs only", () => {
   assert.match(controlPlane, /url\.protocol === "https:"/);
   assert.match(controlPlane, /url\.hostname === "github\.com"/);
-  assert.match(controlPlane, /!url\.username && !url\.password/);
+  assert.match(controlPlane, /!url\.username && !url\.password && !url\.port && !url\.search && !url\.hash/);
+  assert.match(controlPlane, /parts\.length === 2/);
 });
 
 test("deployment requests fail closed while no isolated worker is enabled", () => {
-  assert.match(controlPlane, /SECURECLOUD_WORKER_ENABLED !== "true"/);
-  assert.match(controlPlane, /DEPLOYMENT_WORKER_NOT_CONFIGURED/);
+  assert.match(controlPlane, /workerConfigured: false/);
+  assert.doesNotMatch(controlPlane, /SECURECLOUD_WORKER_ENABLED/);
+  assert.match(controlPlane, /return res\.status\(503\).*DEPLOYMENT_WORKER_NOT_CONFIGURED/);
   assert.match(controlPlane, /no build has been started/);
 });
 
@@ -44,4 +43,12 @@ test("existing owner dashboard embeds SecureCloud controls", () => {
   assert.match(ownerDashboard, /import SecureCloudPanel from "\.\/SecureCloudPanel\.jsx"/);
   assert.match(ownerDashboard, /<SecureCloudPanel \/>/);
   assert.match(dashboard, /\/api\/securecloud\/projects/);
+});
+
+test("owner dashboard has a bookmarkable, access-controlled entry URL", () => {
+  assert.match(app, /pathname === "\/admin" \|\| pathname === "\/owner"/);
+  assert.match(app, /id === "admin" \? "\/admin" : "\/"/);
+  assert.match(app, /page === "admin" && sessionRole === "owner"/);
+  assert.match(server, /OWNER_EMAIL/);
+  assert.match(server, /function requireOwner/);
 });

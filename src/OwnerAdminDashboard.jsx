@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "./api.js";
+import SecureCloudPanel from "./SecureCloudPanel.jsx";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -163,5 +164,6 @@ export default function OwnerAdminDashboard() {
       {!activityError && events.length === 0 && !loading && <p>No activity events found yet.</p>}
       {events.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Time</th><th style={{padding:"10px 8px"}}>Event</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Actor</th></tr></thead><tbody>{events.map((event)=><tr key={event.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(event.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{eventLabel(event.action)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail || event.targetUserId || "—"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.actorEmail || "System"}</td></tr>)}</tbody></table></div>}
     </div>
+    <SecureCloudPanel />
   </section>;
 }
