@@ -48,3 +48,14 @@ test("owner-only navigation exposes the admin document vault", () => {
   assert.ok(ui.includes("/api/admin/document-access-audit"));
   assert.ok(ui.includes("/api/admin/documents/"));
 });
+
+
+test("admin document pagination has clear spacing and responsive layout", () => {
+  const styles = readFileSync(new URL("../src/secureid-layout-fixes.css", import.meta.url), "utf8");
+  assert.match(ui, /className="formActions documentPagination"/);
+  assert.match(ui, /aria-label="Document pages"/);
+  assert.match(styles, /\.documentPagination\s*\{[^}]*display:\s*grid/s);
+  assert.match(styles, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /#root \.formGrid\s*\{[^}]*gap:\s*14px/s);
+  assert.match(styles, /#root \.tableWrap\s*\{[^}]*overflow-x:\s*auto/s);
+});
