@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { runSecureCloudTransaction } from "../server/securecloud-control-plane.js";
+import { registerSecureCloudControlPlane, runSecureCloudTransaction } from "../server/securecloud-control-plane.js";
 import { readFileSync } from "node:fs";
 
 const controlPlane = readFileSync(new URL("../server/securecloud-control-plane.js", import.meta.url), "utf8");
@@ -100,4 +100,81 @@ test("SecureCloud control plane does not call a nonexistent DatabaseSync transac
   assert.match(controlPlane, /database\.exec\("BEGIN IMMEDIATE"\)/);
   assert.match(controlPlane, /database\.exec\("COMMIT"\)/);
   assert.match(controlPlane, /database\.exec\("ROLLBACK"\)/);
+});
+
+test("SecureCloud owner routes create projects and services with atomic audit records", () => {
+  const database = new DatabaseSync(":memory:");
+  const routes = new Map();
+  const app = {
+    get(path, ...handlers) { routes.set(`GET ${path}`, handlers.at(-1)); },
+    post(path, ...handlers) { routes.set(`POST ${path}`, handlers.at(-1)); },
+  };
+  const pass = (_req, _res, next) => next();
+  try {
+    registerSecureCloudControlPlane({
+      app,
+      database,
+      requireAuth: pass,
+      requireMfa: pass,
+      requireOwner: pass,
+      enforceSameOrigin: pass,
+    });
+
+    const projectResponse = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+    routes.get("POST /api/securecloud/projects")(
+      { body: { name: "Integration workspace", description: "Test only" }, user: { id: "owner-1" } },
+      projectResponse,
+      (error) => { throw error; },
+    );
+    assert.equal(projectResponse.statusCode, 201);
+    assert.equal(projectResponse.body.success, true);
+    const projectId = projectResponse.body.project.id;
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM securecloud_projects WHERE owner_user_id = ?").get("owner-1").count, 1);
+    assert.equal(database.prepare("SELECT action FROM securecloud_audit_events WHERE resource_id = ?").get(projectId).action, "PROJECT_CREATED");
+
+    const serviceResponse = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+    routes.get("POST /api/securecloud/projects/:projectId/services")(
+      { params: { projectId }, body: { name: "Web", repositoryUrl: "https://github.com/example/secureid-demo", branch: "main", runtime: "node" }, user: { id: "owner-1" } },
+      serviceResponse,
+      (error) => { throw error; },
+    );
+    assert.equal(serviceResponse.statusCode, 201);
+    assert.equal(serviceResponse.body.success, true);
+    const serviceId = serviceResponse.body.service.id;
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM securecloud_services WHERE project_id = ?").get(projectId).count, 1);
+    assert.equal(database.prepare("SELECT action FROM securecloud_audit_events WHERE resource_id = ?").get(serviceId).action, "SERVICE_CREATED");
+  } finally {
+    database.close();
+  }
+});
+
+test("SecureCloud project creation rolls back when its audit write fails", () => {
+  const database = new DatabaseSync(":memory:");
+  const routes = new Map();
+  const app = {
+    get(path, ...handlers) { routes.set(`GET ${path}`, handlers.at(-1)); },
+    post(path, ...handlers) { routes.set(`POST ${path}`, handlers.at(-1)); },
+  };
+  const pass = (_req, _res, next) => next();
+  try {
+    registerSecureCloudControlPlane({
+      app,
+      database,
+      requireAuth: pass,
+      requireMfa: pass,
+      requireOwner: pass,
+      enforceSameOrigin: pass,
+    });
+    database.exec("CREATE TRIGGER reject_securecloud_audit BEFORE INSERT ON securecloud_audit_events BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END;");
+    const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+    assert.throws(() => routes.get("POST /api/securecloud/projects")(
+      { body: { name: "Must roll back" }, user: { id: "owner-2" } },
+      response,
+      (error) => { throw error; },
+    ), /audit unavailable/);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM securecloud_projects WHERE owner_user_id = ?").get("owner-2").count, 0);
+    assert.equal(database.isTransaction, false);
+  } finally {
+    database.close();
+  }
 });
