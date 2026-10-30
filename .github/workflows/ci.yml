@@ -38,7 +38,7 @@ jobs:
       - name: Run security unit tests
         run: npm test
       - name: Run native Android app TypeScript checks
-        run: npm install --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
+        run: npm install --no-package-lock --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
       - name: Smoke test deployed native authentication bootstrap
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
