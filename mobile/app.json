@@ -2,15 +2,37 @@
   "expo": {
     "name": "SecureID",
     "slug": "secureid-mobile",
-    "version": "1.0.0",
+    "scheme": "secureid",
+    "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.secureid.mobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "SecureID can use Face ID to unlock the app after account security is configured."
+      }
+    },
     "android": {
-      "package": "com.secureid.wallet",
-      "versionCode": 1,
-      "permissions": ["INTERNET", "CAMERA"],
-      "adaptiveIcon": { "backgroundColor": "#07172f" }
+      "package": "com.secureid.mobile",
+      "edgeToEdgeEnabled": true,
+      "permissions": []
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow SecureID to use Face ID to unlock the app."
+        }
+      ],
+      "expo-document-picker",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
