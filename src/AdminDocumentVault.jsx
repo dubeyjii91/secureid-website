@@ -109,7 +109,7 @@ export default function AdminDocumentVault() {
         </tr>)}
         {!documents.length && <tr><td colSpan="6">{loading ? "Loading documents…" : "No documents found."}</td></tr>}</tbody>
       </table></div>
-      <div className="formActions"><button type="button" className="secondaryButton" disabled={loading || offset <= 0} onClick={() => load(Math.max(0, offset - 50))}>Previous</button><span>Showing {total ? offset + 1 : 0}–{Math.min(offset + documents.length, total)} of {total}</span><button type="button" className="secondaryButton" disabled={loading || offset + documents.length >= total} onClick={() => load(offset + 50)}>Next</button></div>
+      <nav className="formActions documentPagination" aria-label="Document pages"><button type="button" className="secondaryButton" disabled={loading || offset <= 0} onClick={() => load(Math.max(0, offset - 50))}>Previous</button><span aria-live="polite">Showing {total ? offset + 1 : 0}–{Math.min(offset + documents.length, total)} of {total}</span><button type="button" className="secondaryButton" disabled={loading || offset + documents.length >= total} onClick={() => load(offset + 50)}>Next</button></nav>
     </section>
     <section className="panel">
       <div className="sectionHeading"><div><div className="eyebrow">SECURITY AUDIT</div><h2>Recent document access history</h2></div><button type="button" className="secondaryButton" disabled={loading} onClick={() => load(offset)}>Refresh</button></div>
