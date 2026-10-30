@@ -15,11 +15,7 @@ test("SecureCloud control plane is registered in the existing SecureID API", () 
 test("all SecureCloud management routes require authenticated owner MFA", () => {
   const routeLines = controlPlane.split("\n").filter((line) => /app\.(get|post)\(/.test(line));
   assert.ok(routeLines.length >= 6);
-  for (const line of routeLines) {
-    assert.match(line, /requireAuth/);
-    assert.match(line, /requireMfa/);
-    assert.match(line, /requireOwner/);
-  }
+  for (const line of routeLines) { assert.match(line, /requireAuth/); assert.match(line, /requireMfa/); assert.match(line, /requireOwner/); }
 });
 
 test("mutating SecureCloud routes enforce same-origin CSRF protection", () => {
