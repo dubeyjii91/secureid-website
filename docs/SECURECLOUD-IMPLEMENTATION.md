@@ -1,6 +1,6 @@
 # SecureCloud implementation status
 
-SecureCloud is being integrated into the existing SecureID application. The existing React/Vite interface, Express API, authentication, owner authorization, and SQLite account data remain the application foundation.
+SecureCloud is integrated into the existing SecureID application. The existing React/Vite interface, Express API, authentication, owner authorization, and SQLite account data remain the application foundation.
 
 ## Implemented in the control-plane foundation
 
