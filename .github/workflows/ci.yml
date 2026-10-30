@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      build_android_production_aab:
+        description: "Build a signed Android production AAB for Play Console (consumes Expo build quota)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -92,6 +97,38 @@ jobs:
         with:
           name: secureid-android-preview-apk
           path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_id="$(node -e 'const b=JSON.parse(process.argv[1]); const id=Array.isArray(b)?b[0]?.id:b?.id; if(!id) process.exit(1); process.stdout.write(id);' "$build_json")"
+          download_json="$(npx --yes eas-cli build:download --build-id "$build_id" --non-interactive --json)"
+          aab_path="$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.path) process.exit(1); process.stdout.write(d.path);' "$download_json")"
+          test "${aab_path##*.}" = "aab"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          cp "$aab_path" "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
           if-no-files-found: error
           retention-days: 14
       - name: Test encrypted backup and restore in isolated temporary storage
