@@ -185,7 +185,7 @@ function App() {
   // authentication, MFA and OWNER_EMAIL; this route never grants privileges.
   useEffect(() => {
     const syncOwnerRoute = () => {
-      const pathname = window.location.pathname.replace(/\\/+$/, "") || "/";
+      const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
       if (pathname === "/admin" || pathname === "/owner") setPage("admin");
     };
     syncOwnerRoute();
