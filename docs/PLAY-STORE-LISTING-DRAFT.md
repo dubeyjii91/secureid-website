@@ -41,8 +41,8 @@ Productivity (confirm in Play Console)
 - Target audience and age rating: [REQUIRED]
 - Support email and website: [REQUIRED]
 - Privacy policy URL: [REQUIRED]
-- App icon: 512 × 512 PNG, no transparency, final branded asset [REQUIRED]
-- Feature graphic: 1024 × 500 [REQUIRED]
+- App icon: `mobile/assets/secureid-icon.png` is rendered and validated as a 512 × 512 PNG in the `secureid-play-store-assets` CI artifact; review it before submission.
+- Feature graphic: `public/play-store-feature-graphic.svg`, rendered and validated as a 1024 × 500 PNG in the `secureid-play-store-assets` CI artifact; review it before submission.
 - Phone screenshots: at least 2, captured from the final release build on real devices [REQUIRED]
 - Data safety form: complete from verified SDK/network behavior [REQUIRED]
 - Ads declaration, app access instructions, and content rating: [REQUIRED]
