@@ -370,7 +370,7 @@ export default function DocumentVault(){
               </div>
 
               <div className="documentActions">
-                {["pan","aadhaar"].includes(doc.category) && <button type="button" onClick={()=>verifyDocument(doc)} disabled={verifyingDocumentId===doc.id}>{verifyingDocumentId===doc.id ? "Checking…" : "Verify document"}</button>}
+                {["pan","aadhaar"].includes(doc.category) && <button type="button" onClick={()=>verifyDocument(doc)} disabled={verifyingDocumentId===doc.id}>{verifyingDocumentId===doc.id ? "Checking…" : "Run file checks"}</button>}
                 <button onClick={()=>download(doc.id,doc.name)}>Download</button>
                 {!documentShares[doc.id] ? <button onClick={()=>shareDocument(doc)}>Share</button> : <button onClick={()=>revokeDocumentShare(doc.id)}>Revoke share</button>}
                 <button onClick={()=>remove(doc.id)}>
