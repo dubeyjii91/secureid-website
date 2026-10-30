@@ -30,6 +30,7 @@
 
 - **Railway:** production API hosting, SQLite database, persistent document storage, and operational infrastructure. The production volume is configured in the SFO region in the United States. Confirm the active contract, subprocessors, support/log access, and data processing terms.
 - **Brevo:** transactional email delivery. Email addresses, message content, and delivery metadata may be processed for the messages listed above. Confirm the active account entity, data region, DPA, and enabled email features.
+- **Google Safe Browsing (conditional):** the server's URL-reputation feature accepts a user-submitted HTTP/HTTPS URL. If `GOOGLE_SAFE_BROWSING_API_KEY` is configured, that URL is sent to Google's Safe Browsing API for reputation checking. If no key is configured, the server downloads the public OpenPhish feed and compares the URL locally; the submitted URL is not sent to OpenPhish. Verify the production key setting before completing Data safety answers. Google documentation: https://developers.google.com/safe-browsing.
 - **Recipients selected by a user:** when a user creates a document share, the selected recipient can access the document through the generated share link until it expires or is revoked. This is user-directed sharing, not advertising.
 - Expo/EAS is used for build-time Android packaging and is not identified as a runtime recipient of users' documents by the current architecture.
 
@@ -62,9 +63,10 @@ Official provider notices:
 2. Are any user documents or profile fields processed by additional integrations or manually accessed by support staff?
 3. Which exact account/profile fields are collected in the deployed registration flow?
 4. What are the actual production backup interval and retention count?
-5. What retention periods apply to Railway logs, Brevo messages, and delivery metadata?
-6. Confirm whether the developer account is personal or organization, and whether any special declarations apply.
-7. Review the final answers against the current Google Play Data safety form and privacy-policy requirements.
+5. Is Google Safe Browsing enabled in production, and what retention/processing terms apply to submitted URL reputation checks?
+6. What retention periods apply to Railway logs, Brevo messages, and delivery metadata?
+7. Confirm whether the developer account is personal or organization, and whether any special declarations apply.
+8. Review the final answers against the current Google Play Data safety form and privacy-policy requirements.
 
 ## Important
 
