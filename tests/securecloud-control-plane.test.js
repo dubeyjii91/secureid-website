@@ -7,6 +7,7 @@ const server = readFileSync(new URL("../server/server.js", import.meta.url), "ut
 const dashboard = readFileSync(new URL("../src/SecureCloudPanel.jsx", import.meta.url), "utf8");
 const ownerDashboard = readFileSync(new URL("../src/OwnerAdminDashboard.jsx", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+const formStyles = readFileSync(new URL("../src/secureid-layout-fixes.css", import.meta.url), "utf8");
 
 test("SecureCloud control plane is registered in the existing SecureID API", () => {
   assert.match(server, /registerSecureCloudControlPlane\(\{ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin \}\)/);
@@ -53,9 +54,19 @@ test("owner dashboard has a bookmarkable, access-controlled entry URL", () => {
   assert.match(server, /function requireOwner/);
 });
 
-test("hosting project and repository records are clearly described as metadata, not deployed infrastructure", () => {
-  assert.match(dashboard, /workspace inside SecureCloud/);
-  assert.match(dashboard, /does not create a Railway project, server, database/);
-  assert.match(dashboard, /does not install a GitHub App, verify repository permissions, fetch source code/);
-  assert.match(dashboard, /no build has run/);
+test("SecureCloud dashboard keeps the project form concise without the hosting-project explainer panel", () => {
+  assert.match(dashboard, /Create hosting project/);
+  assert.doesNotMatch(dashboard, /What is a hosting project\?/);
+  assert.doesNotMatch(dashboard, /does not create a Railway project/);
+  assert.match(dashboard, /Builds and deployments remain unavailable/);
+});
+
+test("site-wide form styles separate labels, inputs, fields and submit actions", () => {
+  assert.match(formStyles, /row-gap: 18px/);
+  assert.match(formStyles, /gap: 9px/);
+  assert.match(formStyles, /min-height: 44px/);
+  assert.match(formStyles, /form > button\[type="submit"\]/);
+  assert.match(formStyles, /@media \(max-width: 760px\)/);
+  assert.match(formStyles, /\.collegeCheck/);
+  assert.match(formStyles, /\.claimGrid \.claim/);
 });

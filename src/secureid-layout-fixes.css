@@ -109,3 +109,99 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .topbar h1 { overflow-wrap: anywhere; }
   .lockFacts { flex-wrap: wrap; gap: 18px; }
 }
+
+
+/* Site-wide form rhythm: keep field names, controls and actions clearly separated. */
+#root form:not(.urlForm):not(.studentProofForm) {
+  display: grid;
+  align-items: stretch;
+  row-gap: 18px;
+  column-gap: 18px;
+  min-width: 0;
+}
+#root form label:has(> input:not([type="checkbox"]):not([type="radio"])),
+#root form label:has(> select),
+#root form label:has(> textarea),
+#root form label:has(> span + input:not([type="checkbox"]):not([type="radio"])) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  line-height: 1.5;
+}
+#root form input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+#root form select,
+#root form textarea,
+#root .documentCategoryField select,
+#root .documentShareContext input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 11px 13px;
+  line-height: 1.45;
+}
+#root form textarea { min-height: 104px; resize: vertical; }
+#root form input[type="file"] { min-height: 46px; padding: 9px 11px; }
+#root form input[type="checkbox"],
+#root form input[type="radio"] {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+#root form fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+}
+#root form legend { padding: 0 6px; }
+#root form > button[type="submit"],
+#root form > .primary { justify-self: start; min-height: 44px; }
+#root .authCard form { gap: 16px; }
+#root .authCard form > label { margin: 0; }
+#root .identityForm { gap: 18px; }
+#root .identityForm label { display: grid; min-width: 0; }
+#root .identityProfileFields { gap: 16px; }
+#root .collegePilotForm { gap: 16px; }
+#root .collegePilotForm .collegeCheck,
+#root .claimGrid .claim,
+#root .trustDeviceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#root .collegePilotForm .collegeCheck { margin: 0; }
+#root .securecloudPanel { display: grid; gap: 18px; }
+#root .securecloudPanel > h3,
+#root .securecloudPanel > .eyebrow,
+#root .securecloudPanel > p,
+#root .securecloudPanel > button { margin: 0; }
+#root .securecloudFormPanel { display: grid; gap: 16px; }
+#root .securecloudFormPanel > h3,
+#root .securecloudFormPanel > p { margin: 0; }
+#root .securecloudFormHint,
+#root .securecloudSecurityNote { color: #bdc9da; line-height: 1.6; }
+#root .securecloudForm .formOptional { color: #bdc9da; font-size: .85em; font-weight: 500; }
+#root .securecloudServiceList { display: grid; gap: 14px; min-width: 0; }
+#root .securecloudService { display: grid; gap: 10px; min-width: 0; }
+#root .securecloudService > * { margin: 0; min-width: 0; }
+#root .urlForm { gap: 14px; align-items: stretch; }
+#root .urlForm input { min-height: 46px; }
+@media (max-width: 760px) {
+  #root form:not(.urlForm):not(.studentProofForm) { row-gap: 16px; }
+  #root form > button[type="submit"],
+  #root form > .primary { width: 100%; justify-self: stretch; }
+  #root .urlForm { display: grid; grid-template-columns: minmax(0, 1fr); }
+  #root .urlForm .primary { width: 100%; }
+}
