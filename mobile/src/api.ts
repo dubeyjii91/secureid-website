@@ -104,7 +104,7 @@ export async function deleteAccount(password: string) {
     method: "DELETE",
     body: JSON.stringify({ password }),
   });
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
   return result;
 }
 
