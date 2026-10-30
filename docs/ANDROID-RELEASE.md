@@ -22,6 +22,18 @@ The production build uses the existing EAS project and remote Android signing cr
 - Test a clean install and upgrade from the current preview APK on real Android devices. Exercise login, email MFA, biometric lock/unlock, app background/foreground, Android Back handling, vault upload/download/delete, share creation/expiry/revocation, and session revocation.
 - Run an independent security/privacy review and an operational backup-restore drill before onboarding real users. The current encrypted backups are stored on the same Railway volume as the live database, so configure and test a separately protected off-site backup before real-user onboarding.
 
+## Expo SDK maintenance status
+
+The Android app currently uses Expo SDK 54 with React Native 0.81. Expo SDK 54 targets Android 16 / API 36, which meets Google Play's current API 36 submission requirement. Expo's SDK 57 release notes stated that SDK 54 would receive critical fixes until the next SDK release around September/October 2026; SDK 58 is now the latest SDK as of 30 October 2026. Treat SDK 54 as at/past its maintenance window.
+
+Do not silently upgrade the release candidate: the app has been tested on a physical Android device with SDK 54. Plan a separate, incremental SDK migration (55 → 56 → 57 → 58), run native type checks and EAS builds, and repeat physical-device tests before relying on the newer SDK for long-term maintenance.
+
+References:
+- Expo SDK 54 release notes: https://expo.dev/changelog/sdk-54
+- Expo SDK 57 maintenance-window note: https://expo.dev/changelog/sdk-57
+- Expo SDK upgrade guide: https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/
+- Google Play target API requirement: https://developer.android.com/google/play/requirements/target-sdk
+
 ## Infrastructure constraints
 
 The current backend is a single-instance SQLite deployment on persistent Railway storage. Do not horizontally scale it until migrating to managed PostgreSQL and shared/distributed rate limiting. Monitor database capacity, disk usage, backup success, email delivery, HTTP 5xx, and restore readiness.
