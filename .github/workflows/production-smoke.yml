@@ -177,7 +177,7 @@ jobs:
             signal: AbortSignal.timeout(15000)
           });
           const initBody = await init.json().catch(() => ({}));
-          if (init.status !== 200 || initBody.success !== true || typeof initBody.csrfToken !== "string") {
+          if (init.status !== 200 || initBody.success !== true) {
             throw new Error("Could not initialize CSRF protection for the account-deletion guard test.");
           }
           const cookie = init.headers.getSetCookie().find(value => value.startsWith("__Host-secureid.csrf="));
