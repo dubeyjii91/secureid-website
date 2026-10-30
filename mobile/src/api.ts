@@ -132,3 +132,7 @@ export async function revokeShare(type: "identity" | "document", id: string) {
 export async function getSecurityDashboard() {
   return request<any>("/api/security/dashboard");
 }
+
+export async function deleteDocument(id: string) {
+  return request<{ success: boolean }>(`/api/documents/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
