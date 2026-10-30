@@ -26,11 +26,13 @@ function ActionCard({ icon, title, description, onPress }: {
 export default function DashboardScreen() {
   const [activeTab, setActiveTab] = useState("Home");
   const [authChecking, setAuthChecking] = useState(true);
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
     let active = true;
     getSession().then((result) => {
       if (!active) return;
+      setUserEmail(result.user?.email || "");
       if (!result.user?.mfaVerified) router.replace("/mfa");
     }).catch(() => {
       if (active) router.replace("/login");
@@ -57,7 +59,7 @@ export default function DashboardScreen() {
           <View style={styles.brandMark}><Ionicons name="shield-checkmark" size={24} color={colors.background} /></View>
           <View style={styles.brandCopy}>
             <Text style={styles.brand}>SecureID</Text>
-            <Text style={styles.brandSub}>YOUR IDENTITY, IN YOUR CONTROL</Text>
+            <Text style={styles.brandSub}>{userEmail || "YOUR IDENTITY, IN YOUR CONTROL"}</Text>
           </View>
           <Pressable accessibilityLabel="Security center" onPress={() => router.push("/security")} style={styles.headerButton}>
             <Ionicons name="notifications-outline" size={22} color={colors.text} />
@@ -71,7 +73,7 @@ export default function DashboardScreen() {
           <Text style={styles.heroBody}>A private space for your documents and the identity details you choose to share.</Text>
           <View style={styles.previewBadge}>
             <View style={styles.statusDot} />
-            <Text style={styles.previewText}>APP FOUNDATION · BACKEND NOT CONNECTED</Text>
+            <Text style={styles.previewText}>SECURE SESSION · MFA VERIFIED</Text>
           </View>
         </View>
 
@@ -85,7 +87,7 @@ export default function DashboardScreen() {
 
         <View style={styles.notice}>
           <Ionicons name="information-circle-outline" size={20} color={colors.warning} />
-          <Text style={styles.noticeText}>This first mobile build is a UI foundation. No real account, document upload, or share link is connected yet.</Text>
+          <Text style={styles.noticeText}>Your SecureID account is connected. Documents, shares and session controls use authenticated server APIs.</Text>
         </View>
         <Text style={styles.footer}>Secure by design. Built for your control.</Text>
       </ScrollView>
