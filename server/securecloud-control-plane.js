@@ -10,7 +10,15 @@ function cleanText(value, max) {
 function validGitUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && (url.hostname === "github.com" || url.hostname === "www.github.com") && !url.username && !url.password;
+    const parts = url.pathname.split("/").filter(Boolean);
+    const owner = parts[0] || "";
+    const repository = (parts[1] || "").replace(/\\.git$/i, "");
+    return url.protocol === "https:"
+      && (url.hostname === "github.com" || url.hostname === "www.github.com")
+      && !url.username && !url.password && !url.port && !url.search && !url.hash
+      && parts.length === 2
+      && /^[A-Za-z0-9_.-]{1,100}$/.test(owner) && owner !== "." && owner !== ".."
+      && /^[A-Za-z0-9_.-]{1,100}$/.test(repository) && repository !== "." && repository !== "..";
   } catch {
     return false;
   }
@@ -52,7 +60,7 @@ export function registerSecureCloudControlPlane({ app, database, requireAuth, re
     const deployments = Number(database.prepare("SELECT COUNT(*) AS count FROM securecloud_deployments WHERE owner_user_id=?").get(req.user.id).count);
     const latest = database.prepare("SELECT d.id, d.status, d.created_at AS createdAt, s.name AS serviceName, p.name AS projectName FROM securecloud_deployments d JOIN securecloud_services s ON s.id=d.service_id JOIN securecloud_projects p ON p.id=d.project_id WHERE d.owner_user_id=? ORDER BY d.created_at DESC LIMIT 10").all(req.user.id);
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ success: true, platform: "SecureCloud", phase: "control-plane-foundation", workerConfigured: process.env.SECURECLOUD_WORKER_ENABLED === "true", projects, services, deployments, latest });
+    res.json({ success: true, platform: "SecureCloud", phase: "control-plane-foundation", workerConfigured: false, projects, services, deployments, latest });
   });
 
   app.get("/api/securecloud/projects", requireAuth, requireMfa, requireOwner, (req, res) => {
@@ -103,13 +111,7 @@ export function registerSecureCloudControlPlane({ app, database, requireAuth, re
   app.post("/api/securecloud/services/:serviceId/deployments", enforceSameOrigin, requireAuth, requireMfa, requireOwner, (req, res) => {
     const service = database.prepare("SELECT id, project_id AS projectId FROM securecloud_services WHERE id=? AND owner_user_id=?").get(req.params.serviceId, req.user.id);
     if (!service) return res.status(404).json({ success: false, message: "Service not found." });
-    if (process.env.SECURECLOUD_WORKER_ENABLED !== "true") return res.status(503).json({ success: false, code: "DEPLOYMENT_WORKER_NOT_CONFIGURED", message: "Deployment worker is not connected yet. The service is saved; no build has been started." });
-    const id = randomUUID(); const now = Date.now();
-    database.transaction(() => {
-      database.prepare("INSERT INTO securecloud_deployments (id, service_id, project_id, owner_user_id, status, commit_ref, created_at, updated_at) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)").run(id, service.id, service.projectId, req.user.id, cleanText(req.body?.commitRef, 80), now, now);
-      audit.run(randomUUID(), req.user.id, "DEPLOYMENT_QUEUED", "deployment", id, JSON.stringify({ serviceId: service.id }), now);
-    })();
-    res.status(202).json({ success: true, deployment: { id, status: "queued", createdAt: now } });
+    return res.status(503).json({ success: false, code: "DEPLOYMENT_WORKER_NOT_CONFIGURED", message: "Deployment worker is not connected yet. The service is saved; no build has been started." });
   });
 
   app.get("/api/securecloud/deployments/:deploymentId", requireAuth, requireMfa, requireOwner, (req, res) => {
