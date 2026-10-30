@@ -22,7 +22,10 @@ test("production authentication cookies remain host-only, secure, HttpOnly and S
 });
 
 test("state-changing requests require matching CSRF cookie and header and production origin", () => {
-  assert.match(server, /if \(isProduction && req\.get\("origin"\) !== appOrigin\)/);
+  assert.match(server, /if \(isProduction && req\.get\("origin"\) !== appOrigin && !nativeBootstrap && !nativeBearer\)/);
+  assert.match(server, /const nativeBootstrap = nativeClient && !req\.get\("origin"\)/);
+  assert.match(server, /const nativeBearer = Boolean\(bearerToken && database\.prepare/);
+  assert.match(server, /req\.get\("X-SecureID-Client"\) === "native"/);
   assert.match(server, /const cookieToken=getCookie\(req,csrfCookieName\)/);
   assert.match(server, /const headerToken=String\(req\.get\("X-CSRF-Token"\) \|\| ""\)/);
   assert.match(server, /cookieToken !== headerToken/);
