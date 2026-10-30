@@ -17,7 +17,11 @@
     "android": {
       "package": "com.secureid.mobile",
       "edgeToEdgeEnabled": true,
-      "permissions": []
+      "permissions": [],
+      "adaptiveIcon": {
+        "backgroundColor": "#071323",
+        "foregroundImage": "./assets/secureid-icon.png"
+      }
     },
     "plugins": [
       "expo-router",
@@ -38,6 +42,7 @@
       "eas": {
         "projectId": "95abc66d-901c-4a15-aa86-b11200934001"
       }
-    }
+    },
+    "icon": "./assets/secureid-icon.png"
   }
 }
