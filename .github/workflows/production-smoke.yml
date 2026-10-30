@@ -36,6 +36,7 @@ jobs:
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
             { path: "/delete-account.html", type: "text/html", expectedText: "Delete your SecureID account" },
+            { path: "/play-store-feature-graphic.svg", type: "image/svg+xml", expectedText: "Your documents." },
             { path: "/api/health", type: "json" },
             { path: "/api/health/ready", type: "json" },
             { path: "/api/__smoke_unknown_route__", type: "json", expectedStatus: 404 },
