@@ -183,7 +183,9 @@ app.use(express.static(distPath));
 function enforceSameOrigin(req, res, next) {
   ensureCsrfCookie(req,res);
   const nativeClient = req.get("X-SecureID-Client") === "native";
-  const nativeBearer = nativeClient && /^Bearer [A-Za-z0-9_-]{40,}$/.test(String(req.get("authorization") || ""));
+  const bearerMatch = String(req.get("authorization") || "").match(/^Bearer ([A-Za-z0-9_-]{40,})$/);
+  const bearerToken = nativeClient && bearerMatch ? bearerMatch[1] : "";
+  const nativeBearer = Boolean(bearerToken && database.prepare("SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ? AND (last_seen_at IS NULL OR last_seen_at = 0 OR last_seen_at > ?) LIMIT 1").get(hashSessionToken(bearerToken), Date.now(), Date.now() - sessionIdleTtlMs));
   const nativeBootstrap = nativeClient && !req.get("origin");
   if (isProduction && req.get("origin") !== appOrigin && !nativeBootstrap && !nativeBearer) return res.status(403).json({ success: false, message: "Request origin is not allowed." });
   if (["POST","PUT","PATCH","DELETE"].includes(req.method) && !nativeBearer) {
