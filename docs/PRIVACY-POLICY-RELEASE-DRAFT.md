@@ -35,9 +35,14 @@ The server is configured to encrypt document content at rest using an operator-m
 
 ## 5. Service providers and disclosures
 
-SecureID relies on infrastructure and service providers to host the API/database/files, deliver verification and security email, and build/distribute the Android application. The exact legal names, roles, processing locations, and applicable transfer safeguards must be added here after the operator confirms the production Railway and email-provider configuration.
+The production environment observed on 30 October 2026 uses:
 
-**[REQUIRED BEFORE PUBLICATION]** List each production provider, its purpose, processing location, and link to its privacy notice. Do not include Expo/EAS as a recipient of user documents unless that is actually part of runtime processing.
+- **Railway** for the API, SQLite database, and encrypted document storage. The production service and its persistent volume are configured in Railway's SFO region in the United States. Railway's current privacy notice is available at https://railway.com/legal/privacy. Confirm the applicable Railway contracting entity, service terms, data-processing agreement, and any subprocessors before publication.
+- **Brevo** for transactional email delivery. Production startup logs report Brevo as the selected email provider. Email addresses, verification/MFA/recovery/security message content, and delivery metadata may be processed to send those messages. Brevo's privacy notice is https://www.brevo.com/legal/privacypolicy/ and its DPA is included in its terms at https://www.brevo.com/legal/termsofuse/#appendix-3-data-processing-agreement-dpa. Confirm the active Brevo account entity, processing region, enabled features, and signed DPA before publication.
+
+Expo/EAS is used to build the Android application; it is not identified as a runtime recipient of users' documents by the current app architecture. Do not list build infrastructure as a user-data processor unless runtime telemetry or another data flow is later enabled.
+
+**[REQUIRED BEFORE PUBLICATION]** The service operator must verify the exact provider legal entities, active contracts/DPAs, subprocessors, processing locations, international-transfer safeguards, and any other provider that receives personal data. The Railway region describes the configured production volume, not necessarily every provider's processing or support location.
 
 SecureID may disclose information where required by law, to protect users or the service from abuse, or as part of a business transfer subject to appropriate safeguards. The final wording must be reviewed for the operator's jurisdiction.
 
@@ -45,7 +50,9 @@ SecureID may disclose information where required by law, to protect users or the
 
 Account, session, document, share, security-event, email-provider, and encrypted-backup retention periods must be defined and disclosed before launch. The application includes account deletion and document deletion workflows, but the operator must verify what is removed immediately, what remains in encrypted backups, how long backups are retained, and when provider logs expire.
 
-**[REQUIRED BEFORE PUBLICATION]** Add concrete retention periods for each data category, backup expiry, and the process for deletion requests.
+The current backup implementation's code defaults are an encrypted backup every 24 hours and retention of the 7 most recent backup files. These defaults can be overridden by `BACKUP_INTERVAL_HOURS` and `BACKUP_RETENTION_COUNT`; the operator must confirm the actual production values before stating a maximum retention period. Backups are stored under the Railway persistent volume's `/data/secureid-backups` directory alongside the production service, so this is not an independent off-site disaster-recovery copy. Account deletion removes the active account records and attempts to remove active encrypted document files; historical encrypted backups may continue to contain a prior copy until those backups expire or are securely destroyed.
+
+**[REQUIRED BEFORE PUBLICATION]** Add concrete retention periods for each data category, verify production override values, specify the deletion/backup-expiry process and provider-log retention, and arrange a separately protected off-site backup if required by the operator's recovery objectives.
 
 ## 7. Your choices and rights
 
