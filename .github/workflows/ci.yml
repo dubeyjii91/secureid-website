@@ -56,7 +56,7 @@ jobs:
           test "$login_status" = "403"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'pull_request' && github.head_ref == 'ci/eas-apk-build') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
