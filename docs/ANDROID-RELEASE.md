@@ -16,7 +16,8 @@ The production build uses the existing EAS project and remote Android signing cr
 - Confirm the legal operator, monitored support/privacy contact, privacy request channel, retention schedule, backup expiry, age/target-audience position, and relevant Indian DPDP / other market compliance with qualified counsel.
 - Reconcile the Play Console Data safety form with the actual production SDKs, network behavior, hosting/email providers, and data retention.
 - Complete `docs/PLAY-STORE-LISTING-DRAFT.md`: final icon, feature graphic, screenshots from the final app on real devices, support contact, app access instructions, content rating, ads declaration, and account deletion details.
-- Verify package ID `com.secureid.mobile`, release version, version code, signing identity, and target API requirements.
+- Verify package ID `com.secureid.mobile`, release version, version code, signing identity, and target API requirements. Google Play requires new apps and app updates submitted from 31 August 2026 to target Android 16 / API 36 or higher. Expo SDK 54 (used by this app) targets API 36 by default; verify the final generated AAB manifest before submission.
+- If the Play developer account is a personal account created after 13 November 2023, plan for a closed test with at least 12 testers continuously opted in for the preceding 14 days before applying for production access. Confirm the exact requirement and eligibility shown in Play Console for the account.
 - Test a clean install and upgrade from the current preview APK on real Android devices. Exercise login, email MFA, biometric lock/unlock, app background/foreground, Android Back handling, vault upload/download/delete, share creation/expiry/revocation, and session revocation.
 - Run an independent security/privacy review and an operational backup-restore drill before onboarding real users.
 
