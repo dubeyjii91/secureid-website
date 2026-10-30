@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
+import { runSecureCloudTransaction } from "../server/securecloud-control-plane.js";
 import { readFileSync } from "node:fs";
 
 const controlPlane = readFileSync(new URL("../server/securecloud-control-plane.js", import.meta.url), "utf8");
@@ -69,4 +71,33 @@ test("site-wide form styles separate labels, inputs, fields and submit actions",
   assert.match(formStyles, /@media \(max-width: 760px\)/);
   assert.match(formStyles, /\.collegeCheck/);
   assert.match(formStyles, /\.claimGrid \.claim/);
+});
+
+test("SecureCloud writes use native SQLite transactions and roll back partial writes", () => {
+  const database = new DatabaseSync(":memory:");
+  try {
+    database.exec("CREATE TABLE transaction_probe (id TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    runSecureCloudTransaction(database, () => {
+      database.prepare("INSERT INTO transaction_probe (id, value) VALUES (?, ?)").run("committed", "yes");
+    });
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM transaction_probe").get().count, 1);
+    assert.equal(database.isTransaction, false);
+
+    assert.throws(() => runSecureCloudTransaction(database, () => {
+      database.prepare("INSERT INTO transaction_probe (id, value) VALUES (?, ?)").run("rolled-back", "no");
+      throw new Error("force rollback");
+    }), /force rollback/);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM transaction_probe").get().count, 1);
+    assert.equal(database.prepare("SELECT value FROM transaction_probe WHERE id = ?").get("committed").value, "yes");
+    assert.equal(database.isTransaction, false);
+  } finally {
+    database.close();
+  }
+});
+
+test("SecureCloud control plane does not call a nonexistent DatabaseSync transaction helper", () => {
+  assert.doesNotMatch(controlPlane, /database\.transaction\(/);
+  assert.match(controlPlane, /database\.exec\("BEGIN IMMEDIATE"\)/);
+  assert.match(controlPlane, /database\.exec\("COMMIT"\)/);
+  assert.match(controlPlane, /database\.exec\("ROLLBACK"\)/);
 });
