@@ -34,6 +34,9 @@ The current storage is single-instance SQLite. For a horizontally scaled deploym
 - [Security policy and responsible disclosure](SECURITY.md)
 - [Production security test plan and release evidence checklist](docs/SECURITY-TEST-PLAN.md)
 - [Threat model and residual risks](docs/THREAT-MODEL.md)
+- [Android production release runbook](docs/ANDROID-RELEASE.md)
+- [Google Play listing draft](docs/PLAY-STORE-LISTING-DRAFT.md)
+- [Privacy policy release draft — not yet approved for publication](docs/PRIVACY-POLICY-RELEASE-DRAFT.md)
 
 ## Project checks
 
