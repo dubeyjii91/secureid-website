@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import * as LocalAuthentication from "expo-local-authentication";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
 import { getSecurityDashboard, listSessions, revokeSession, signOut } from "../src/api";
+import { disableBiometricLock, enableBiometricLock, isBiometricLockEnabled } from "../src/biometric";
 
 type SessionRecord = { id: string; current: boolean; createdAt: number; lastSeenAt: number; expiresAt: number; userAgent: string };
 
@@ -18,12 +18,14 @@ export default function SecurityScreen() {
   const [sessions,setSessions]=useState<SessionRecord[]>([]);
   const [loading,setLoading]=useState(true);
   const [busyId,setBusyId]=useState("");
+  const [biometricEnabled,setBiometricEnabled]=useState(false);
 
   const load=useCallback(async()=>{
     try {
-      const [summary,active]=await Promise.all([getSecurityDashboard(),listSessions()]);
+      const [summary,active,biometric]=await Promise.all([getSecurityDashboard(),listSessions(),isBiometricLockEnabled()]);
       setDashboard(summary);
       setSessions(active.sessions||[]);
+      setBiometricEnabled(biometric);
     } catch(error:any) {
       if(error?.status===401) router.replace("/login");
       else if(error?.status===403) router.replace("/mfa");
@@ -33,17 +35,18 @@ export default function SecurityScreen() {
 
   useEffect(()=>{void load();},[load]);
 
-  async function verifyBiometric() {
+  async function toggleBiometricLock() {
     try {
-      const hardware=await LocalAuthentication.hasHardwareAsync();
-      const enrolled=await LocalAuthentication.isEnrolledAsync();
-      if(!hardware||!enrolled) {
-        Alert.alert("Biometrics unavailable","Set up fingerprint or face unlock in your Android device settings first.");
-        return;
+      if (biometricEnabled) {
+        const disabled = await disableBiometricLock();
+        if (disabled) setBiometricEnabled(false);
+      } else {
+        const enabled = await enableBiometricLock();
+        if (enabled) setBiometricEnabled(true);
       }
-      const result=await LocalAuthentication.authenticateAsync({promptMessage:"Verify your identity for SecureID",cancelLabel:"Cancel",disableDeviceFallback:false});
-      if(result.success) Alert.alert("Biometric verified","Your device verified this biometric locally. Server authentication and MFA remain required for account actions.");
-    } catch {Alert.alert("Biometric check failed","Your device could not complete biometric verification.");}
+    } catch (error: any) {
+      Alert.alert("Biometric lock unavailable",error?.message||"Set up fingerprint or face unlock in Android settings first.");
+    }
   }
 
   function confirmRevoke(session:SessionRecord) {
@@ -85,7 +88,7 @@ export default function SecurityScreen() {
           </View>
         </>:null}
         <Text style={styles.sectionTitle}>Device protection</Text>
-        <Pressable onPress={verifyBiometric} style={styles.action}><View style={styles.actionIcon}><Ionicons name="finger-print-outline" size={22} color={colors.accent}/></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Verify with biometrics</Text><Text style={styles.actionDetail}>Test fingerprint or face authentication on this device</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></Pressable>
+        <Pressable onPress={toggleBiometricLock} style={styles.action}><View style={styles.actionIcon}><Ionicons name="finger-print-outline" size={22} color={colors.accent}/></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>{biometricEnabled?"Disable biometric app lock":"Enable biometric app lock"}</Text><Text style={styles.actionDetail}>{biometricEnabled?"SecureID asks for biometrics on launch and when returning from background":"Require fingerprint, face or device screen lock before opening the wallet"}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></Pressable>
         <Text style={styles.sectionTitle}>Active sessions</Text>
         {sessions.map(session=><View key={session.id} style={styles.session}><View style={styles.sessionIcon}><Ionicons name="phone-portrait-outline" size={20} color={colors.accent}/></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>{session.current?"This device":(session.userAgent||"Other device").slice(0,38)}</Text><Text style={styles.actionDetail}>{session.current?"Current trusted session":`Last active ${new Date(session.lastSeenAt).toLocaleString()}`}</Text></View>{session.current?<Text style={styles.current}>CURRENT</Text>:<Pressable disabled={!!busyId} onPress={()=>confirmRevoke(session)} style={styles.revoke}><Text style={styles.revokeText}>{busyId===session.id?"…":"Revoke"}</Text></Pressable>}</View>)}
         <Pressable onPress={logout} style={styles.logout}><Ionicons name="log-out-outline" size={19} color={colors.danger}/><Text style={styles.logoutText}>Sign out</Text></Pressable>
