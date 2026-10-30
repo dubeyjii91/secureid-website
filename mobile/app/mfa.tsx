@@ -11,14 +11,14 @@ export default function MfaScreen() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [expiresIn, setExpiresIn] = useState(0);
+  const [resendIn, setResendIn] = useState(0);
 
   async function sendCode() {
     setLoading(true);
     try {
       const result = await requestMfaCode();
       setChallengeId(result.challengeId);
-      setExpiresIn(result.expiresIn);
+      setResendIn(result.resendAvailableIn);
     } catch (error: any) {
       Alert.alert("Could not send code", error?.message || "Please try again.");
     } finally {
@@ -27,6 +27,12 @@ export default function MfaScreen() {
   }
 
   useEffect(() => { void sendCode(); }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn(value => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
 
   async function submit() {
     if (!challengeId || !/^\d{6}$/.test(code.trim())) {
@@ -56,7 +62,7 @@ export default function MfaScreen() {
           <Pressable onPress={submit} disabled={busy || !challengeId} style={[styles.button,(busy || !challengeId) && {opacity:0.6}]}>
             {busy ? <ActivityIndicator color={colors.background}/> : <Text style={styles.buttonText}>Verify and continue</Text>}
           </Pressable>
-          <Pressable onPress={sendCode} disabled={loading} style={styles.resend}><Text style={styles.resendText}>Request another code</Text></Pressable>
+          <Pressable onPress={sendCode} disabled={loading || resendIn > 0} style={[styles.resend,(loading || resendIn > 0) && {opacity:0.55}]}><Text style={styles.resendText}>{resendIn > 0 ? `Request another code in ${resendIn}s` : "Request another code"}</Text></Pressable>
         </>}
         <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={18} color={colors.accent}/><Text style={styles.noticeText}>This device will be marked as trusted after successful verification. The server still controls session expiry and access.</Text></View>
         <Pressable onPress={() => router.replace("/login")} style={styles.back}><Text style={styles.backText}>Back to sign in</Text></Pressable>
