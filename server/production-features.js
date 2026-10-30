@@ -428,7 +428,7 @@ export function registerProductionFeatures({
    * This re-checks encrypted-file integrity only. It deliberately cannot
    * determine whether a PAN/Aadhaar was issued by a government authority.
    */
-  app.post("/api/documents/:id/verify",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+  app.post("/api/documents/:id/verify",enforceSameOrigin,requireAuth,requireMfaProduction,async (req,res,next)=>{
     res.setHeader("Cache-Control","private, no-store");
     try{
       assertWalletUnlocked(req.user.id);
@@ -450,20 +450,18 @@ export function registerProductionFeatures({
         const buffer=decryptBuffer(payload,key);
         if(buffer.length===Number(row.size_bytes) && ALLOWED_MIME.has(row.mime_type)){
           // Verify the file signature against the stored MIME, not the filename.
-          fileTypeFromBuffer(buffer).then((actual)=>{
-            const passed=Boolean(actual && actual.mime===row.mime_type && ALLOWED_MIME.has(actual.mime));
-            const status=passed?"passed":"failed";
-            const message=passed
-              ?"File integrity and file-type checks passed. Document authenticity is NOT verified."
-              :"The file content does not match its stored file type. Document authenticity is NOT verified.";
-            const checkId=crypto.randomUUID();
-            const now=Date.now();
-            database.prepare("INSERT INTO identity_document_checks (id,user_id,document_id,document_category,file_integrity_status,authenticity_status,checked_at) VALUES (?,?,?,?,?,'not_verified',?)")
-              .run(checkId,req.user.id,row.id,row.document_category,status,now);
-            logEvent(req.user.id,"IDENTITY_DOCUMENT_CHECKED",req,{documentCategory:row.document_category,fileIntegrityStatus:status,authenticityVerified:false});
-            res.json({success:true,check:{id:checkId,documentId:row.id,category:row.document_category,fileIntegrityStatus:status,authenticityStatus:"not_verified",checkedAt:now,message}});
-          }).catch(next);
-          return;
+          const actual = await fileTypeFromBuffer(buffer);
+          const passed = Boolean(actual && actual.mime === row.mime_type && ALLOWED_MIME.has(actual.mime));
+          const status = passed ? "passed" : "failed";
+          const message = passed
+            ? "File integrity and file-type checks passed. Document authenticity is NOT verified."
+            : "The file content does not match its stored file type. Document authenticity is NOT verified.";
+          const checkId = crypto.randomUUID();
+          const now = Date.now();
+          database.prepare("INSERT INTO identity_document_checks (id,user_id,document_id,document_category,file_integrity_status,authenticity_status,checked_at) VALUES (?,?,?,?,?,'not_verified',?)")
+            .run(checkId, req.user.id, row.id, row.document_category, status, now);
+          logEvent(req.user.id, "IDENTITY_DOCUMENT_CHECKED", req, { documentCategory: row.document_category, fileIntegrityStatus: status, authenticityVerified: false });
+          return res.json({ success: true, check: { id: checkId, documentId: row.id, category: row.document_category, fileIntegrityStatus: status, authenticityStatus: "not_verified", checkedAt: now, message } });
         }
       }catch{}
       const checkId=crypto.randomUUID();
