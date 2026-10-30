@@ -22,12 +22,17 @@
 
 **Credential handling:** Users submit passwords for authentication. The server stores password hashes rather than plaintext passwords. Native session tokens are returned to the native client and stored in Android SecureStore; the server stores token hashes. Do not interpret hashing as meaning credentials are not collected.
 
+**Analytics review:** The repository contains an optional analytics preference flag that defaults to off in the database and Privacy Center. A repository-wide search found no Firebase Analytics, Sentry, Mixpanel, Amplitude, PostHog, AdMob, or equivalent analytics SDK/event pipeline. Treat this as a codebase finding only; verify the final release binary, hosting-side integrations, and any manually enabled provider before answering the Play Console question.
+
 **Email content:** Transactional messages may contain verification codes, MFA codes, recovery links, or security notifications. Production startup logs identify Brevo as the selected email-delivery provider.
 
 ## Data sharing and service providers
 
 - **Railway:** production API hosting, SQLite database, persistent document storage, and operational infrastructure. The production volume is configured in the SFO region in the United States. Confirm the active contract, subprocessors, support/log access, and data processing terms.
 - **Brevo:** transactional email delivery. Email addresses, message content, and delivery metadata may be processed for the messages listed above. Confirm the active account entity, data region, DPA, and enabled email features.
+- **Resend (conditional):** backup-alert or transactional email may use Resend if the relevant production variables select it. Email addresses, message content, and delivery metadata would be processed. Privacy notice: https://resend.com/legal/privacy-policy ; DPA: https://resend.com/legal/dpa.
+- **SMTP provider (conditional):** backup-alert email can use the configured SMTP host if no API provider is selected. Identify the actual provider and its processing region before submission.
+- **Google Safe Browsing (conditional):** the server's URL-reputation feature accepts a user-submitted HTTP/HTTPS URL. If `GOOGLE_SAFE_BROWSING_API_KEY` is configured, that URL is sent to Google's Safe Browsing API for reputation checking. If no key is configured, the server downloads the public OpenPhish feed and compares the URL locally; the submitted URL is not sent to OpenPhish. Verify the production key setting before completing Data safety answers. Google documentation: https://developers.google.com/safe-browsing.
 - **Recipients selected by a user:** when a user creates a document share, the selected recipient can access the document through the generated share link until it expires or is revoked. This is user-directed sharing, not advertising.
 - Expo/EAS is used for build-time Android packaging and is not identified as a runtime recipient of users' documents by the current architecture.
 
@@ -56,13 +61,14 @@ Official provider notices:
 
 ## Questions that must be answered before submission
 
-1. Does the production app or website enable any analytics, crash reporting, marketing pixels, session replay, or other tracking not covered above?
+1. Confirm the optional analytics preference is not connected to any external analytics/event collection, and verify no analytics, crash reporting, marketing pixels, session replay, or other tracking is enabled outside this repository.
 2. Are any user documents or profile fields processed by additional integrations or manually accessed by support staff?
 3. Which exact account/profile fields are collected in the deployed registration flow?
 4. What are the actual production backup interval and retention count?
-5. What retention periods apply to Railway logs, Brevo messages, and delivery metadata?
-6. Confirm whether the developer account is personal or organization, and whether any special declarations apply.
-7. Review the final answers against the current Google Play Data safety form and privacy-policy requirements.
+5. Is Google Safe Browsing enabled in production, and what retention/processing terms apply to submitted URL reputation checks?
+6. What retention periods apply to Railway logs, Brevo messages, and delivery metadata?
+7. Confirm whether the developer account is personal or organization, and whether any special declarations apply.
+8. Review the final answers against the current Google Play Data safety form and privacy-policy requirements.
 
 ## Important
 
