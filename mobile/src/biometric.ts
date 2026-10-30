@@ -59,3 +59,8 @@ export async function requireBiometricUnlock() {
 export function lockBiometricSession() {
   unlockedInProcess = false;
 }
+
+export async function clearBiometricLock() {
+  await SecureStore.deleteItemAsync(BIOMETRIC_LOCK_KEY);
+  unlockedInProcess = false;
+}
