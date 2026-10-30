@@ -165,6 +165,44 @@ jobs:
           console.log("Production route, security-header, and unauthenticated-access smoke tests passed.");
           NODE
 
+      - name: Verify account deletion rejects unauthenticated requests
+        env:
+          BASE_URL: https://secureid-production-b732.up.railway.app
+        run: |
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.BASE_URL);
+          const origin = base.origin;
+          const init = await fetch(new URL("/api/auth/csrf", base), {
+            headers: { Origin: origin, "User-Agent": "SecureID-account-deletion-smoke/1.0" },
+            signal: AbortSignal.timeout(15000)
+          });
+          const initBody = await init.json().catch(() => ({}));
+          if (init.status !== 200 || initBody.success !== true) {
+            throw new Error("Could not initialize CSRF protection for the account-deletion guard test.");
+          }
+          const cookie = init.headers.getSetCookie().find(value => value.startsWith("__Host-secureid.csrf="));
+          if (!cookie) throw new Error("CSRF bootstrap did not issue its secure cookie.");
+          const cookiePair = cookie.split(";", 1)[0];
+          const csrfToken = decodeURIComponent(cookiePair.slice(cookiePair.indexOf("=") + 1));
+          const response = await fetch(new URL("/api/account", base), {
+            method: "DELETE",
+            headers: {
+              Origin: origin,
+              Cookie: cookiePair,
+              "X-CSRF-Token": csrfToken,
+              "Content-Type": "application/json",
+              "User-Agent": "SecureID-account-deletion-smoke/1.0"
+            },
+            body: JSON.stringify({ password: "invalid-smoke-password" }),
+            signal: AbortSignal.timeout(15000)
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (response.status !== 401 || payload.success !== false) {
+            throw new Error("Unauthenticated account deletion must return HTTP 401 without mutating data; got HTTP " + response.status + ".");
+          }
+          console.log("PASS account deletion endpoint rejects unauthenticated requests after valid CSRF validation.");
+          NODE
+
       - name: Verify public login endpoint accepts the production origin and CSRF protection
         env:
           BASE_URL: https://secureid-production-b732.up.railway.app
