@@ -36,3 +36,12 @@ test("production refuses console-only OTP delivery and non-HTTPS origins", () =>
   assert.match(server, /if \(isProduction && !\["resend", "smtp", "brevo"\]\.includes\(otpDelivery\)\)/);
   assert.match(server, /if \(isProduction && !appOrigin\.startsWith\("https:\/\/"\)\)/);
 });
+
+test("native sessions use a server-issued bearer token and keep browser cookie auth intact", () => {
+  assert.match(server, /const nativeSessionToken = createSession\(row\.id, req, res\)/);
+  assert.match(server, /req\.get\("X-SecureID-Client"\) === "native" \? \{ nativeSessionToken \} : \{\}/);
+  assert.match(server, /const nativeToken = req\.get\("X-SecureID-Client"\) === "native"/);
+  assert.match(server, /authorization\.slice\(7\)/);
+  assert.match(server, /csrfToken \} : \{\}/);
+  assert.match(server, /nativeBearer = Boolean\(bearerToken && database\.prepare/);
+});
