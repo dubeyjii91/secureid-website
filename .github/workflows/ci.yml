@@ -4,6 +4,13 @@ on:
   pull_request:
   push:
     branches: [main, 'security/**']
+  workflow_dispatch:
+    inputs:
+      build_android_preview_apk:
+        description: "Use the existing EAS project for a cloud APK build (may consume Expo build quota)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -56,13 +63,19 @@ jobs:
           test "$login_status" = "403"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
-        if: (github.event_name == 'pull_request' && github.head_ref == 'ci/eas-apk-build') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk
         working-directory: mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::notice::EXPO_TOKEN is not configured; skipping the EAS APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::notice::A valid existing EAS project ID is not configured; skipping the APK build."
             echo "apk_ready=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

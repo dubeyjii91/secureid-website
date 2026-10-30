@@ -1,6 +1,7 @@
 name: SecureID visual appearance smoke test
 
 on:
+  pull_request:
   push:
     branches: [main]
     paths:
@@ -69,10 +70,8 @@ jobs:
                   };
                 });
                 console.log(`THEME PREFLIGHT ${viewport.name.toUpperCase()} attempt ${attempt}: ${JSON.stringify(theme)}`);
-                if (theme.overlayBackground === 'rgb(255, 255, 255)'
-                  && theme.cardBackgroundImage === 'none'
-                  && theme.buttonBackground === 'rgb(255, 255, 255)'
-                  && theme.buttonText === 'rgb(0, 0, 0)') {
+                if (theme.overlayBackground === 'rgba(23, 37, 84, 0.52)'
+                  && theme.buttonText === 'rgb(255, 255, 255)') {
                   themeReady = true;
                   break;
                 }
@@ -81,7 +80,7 @@ jobs:
                   await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
                 }
               }
-              if (!themeReady) failures.push(`${viewport.name}: latest white/black theme was not live after deployment wait`);
+              if (!themeReady) failures.push(`${viewport.name}: SecureID warm ivory / teal theme was not live after deployment wait`);
               await page.waitForTimeout(1000);
               await page.screenshot({ path: `artifacts/secureid-${viewport.name}.png`, fullPage: true, animations: 'disabled' });
 
@@ -123,16 +122,24 @@ jobs:
                   backgroundIssueCount: backgrounds.length,
                   textColorIssues: textColors.slice(0, 40),
                   textColorIssueCount: textColors.length,
+                  headingColor: getComputedStyle(document.querySelector('.authShell h1') || document.querySelector('h1')).color,
+                  bodyTextColor: getComputedStyle(document.querySelector('.authShell p') || document.querySelector('p')).color,
+                  primaryButtonTextColor: getComputedStyle(document.querySelector('.authShell button.primary') || document.querySelector('button.primary')).color,
+                  primaryButtonBackgroundImage: getComputedStyle(document.querySelector('.authShell button.primary') || document.querySelector('button.primary')).backgroundImage,
                   horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
                 };
               });
 
               console.log(`VISUAL ${viewport.name.toUpperCase()} ${JSON.stringify(result)}`);
-              if (result.rootBackground !== 'rgb(255, 255, 255)' || result.bodyBackground !== 'rgb(255, 255, 255)') {
-                failures.push(`${viewport.name}: root/body background is not white`);
+              if (result.rootBackground !== 'rgb(255, 248, 237)') {
+                failures.push(`${viewport.name}: warm ivory page background is missing`);
               }
-              if (result.backgroundIssueCount > 0) failures.push(`${viewport.name}: ${result.backgroundIssueCount} visible non-white/gradient backgrounds found`);
-              if (result.textColorIssueCount > 0) failures.push(`${viewport.name}: ${result.textColorIssueCount} visible text color exceptions found`);
+              if (result.headingColor !== 'rgb(23, 37, 84)' || result.bodyTextColor !== 'rgb(54, 81, 107)') {
+                failures.push(`${viewport.name}: primary text colors do not match the readable navy/blue palette`);
+              }
+              if (result.primaryButtonTextColor !== 'rgb(255, 255, 255)' || !result.primaryButtonBackgroundImage.includes('linear-gradient')) {
+                failures.push(`${viewport.name}: primary action button lost its high-contrast teal gradient treatment`);
+              }
               if (result.horizontalOverflow) failures.push(`${viewport.name}: horizontal overflow detected`);
               await page.close();
             }
@@ -152,7 +159,7 @@ jobs:
             console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
             process.exit(1);
           }
-          console.log('PASS: desktop and mobile backgrounds are white, text is black (links blue), no gradient backgrounds or horizontal overflow.');
+          console.log('PASS: desktop and mobile warm ivory theme, readable navy/blue text, high-contrast teal actions, and no horizontal overflow.');
           NODE
       - name: Upload desktop and mobile screenshots
         if: always()
