@@ -39,6 +39,12 @@ jobs:
         run: npm test
       - name: Run native Android app TypeScript checks
         run: npm install --prefix mobile --no-audit --no-fund && npm --prefix mobile run typecheck
+      - name: Start Android preview APK build with EAS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.EXPO_TOKEN != ''
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx --yes eas-cli build --platform android --profile preview --non-interactive --no-wait
       - name: Test encrypted backup and restore in isolated temporary storage
         run: node scripts/backup-restore-smoke.mjs
 
