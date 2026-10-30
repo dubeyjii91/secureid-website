@@ -22,6 +22,8 @@
 
 **Credential handling:** Users submit passwords for authentication. The server stores password hashes rather than plaintext passwords. Native session tokens are returned to the native client and stored in Android SecureStore; the server stores token hashes. Do not interpret hashing as meaning credentials are not collected.
 
+**Analytics review:** The repository contains an optional analytics preference flag that defaults to off in the database and Privacy Center. A repository-wide search found no Firebase Analytics, Sentry, Mixpanel, Amplitude, PostHog, AdMob, or equivalent analytics SDK/event pipeline. Treat this as a codebase finding only; verify the final release binary, hosting-side integrations, and any manually enabled provider before answering the Play Console question.
+
 **Email content:** Transactional messages may contain verification codes, MFA codes, recovery links, or security notifications. Production startup logs identify Brevo as the selected email-delivery provider.
 
 ## Data sharing and service providers
@@ -56,7 +58,7 @@ Official provider notices:
 
 ## Questions that must be answered before submission
 
-1. Does the production app or website enable any analytics, crash reporting, marketing pixels, session replay, or other tracking not covered above?
+1. Confirm the optional analytics preference is not connected to any external analytics/event collection, and verify no analytics, crash reporting, marketing pixels, session replay, or other tracking is enabled outside this repository.
 2. Are any user documents or profile fields processed by additional integrations or manually accessed by support staff?
 3. Which exact account/profile fields are collected in the deployed registration flow?
 4. What are the actual production backup interval and retention count?
