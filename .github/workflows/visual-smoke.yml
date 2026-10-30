@@ -80,7 +80,8 @@ jobs:
               canvas.width = 512;
               canvas.height = 512;
               const context = canvas.getContext('2d');
-              context.clearRect(0, 0, 512, 512);
+              context.fillStyle = '#ffffff';
+              context.fillRect(0, 0, 512, 512);
               context.drawImage(element, 0, 0, 512, 512);
               return canvas.toDataURL('image/png');
             });
