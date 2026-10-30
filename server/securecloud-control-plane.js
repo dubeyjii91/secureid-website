@@ -12,7 +12,7 @@ function validGitUrl(value) {
     const url = new URL(value);
     const parts = url.pathname.split("/").filter(Boolean);
     const owner = parts[0] || "";
-    const repository = (parts[1] || "").replace(/\\.git$/i, "");
+    const repository = (parts[1] || "").replace(/\.git$/i, "");
     return url.protocol === "https:"
       && (url.hostname === "github.com" || url.hostname === "www.github.com")
       && !url.username && !url.password && !url.port && !url.search && !url.hash
