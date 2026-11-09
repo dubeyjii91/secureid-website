@@ -190,13 +190,24 @@ export async function revokeSession(sessionId: string) {
   });
 }
 
+// Clean up a previous OCR temp file if Android terminated the app before its finally block ran.
+export async function cleanupLocalOcrCache() {
+  if (!FileSystem.cacheDirectory) return;
+  try {
+    const entries = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
+    await Promise.all(entries
+      .filter((entry) => entry.startsWith("secureid-local-ocr-"))
+      .map((entry) => FileSystem.deleteAsync(`${FileSystem.cacheDirectory}${entry}`, { idempotent: true }).catch(() => {})));
+  } catch {}
+}
+
 // Downloads a user's already-stored image into a temporary private cache file for on-device OCR.
 // The caller must delete the returned plaintext cache file in a finally block.
 export async function downloadDocumentForLocalOcr(id: string) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!token) throw new Error("Sign in to scan this document.");
   if (!FileSystem.cacheDirectory) throw new Error("Device storage is unavailable.");
-  const destination = `${FileSystem.cacheDirectory}${Date.now()}-secureid-local-ocr`;
+  const destination = `${FileSystem.cacheDirectory}secureid-local-ocr-${Date.now()}`;
   const result = await FileSystem.downloadAsync(
     `${API_BASE_URL}/api/documents/${encodeURIComponent(id)}`,
     destination,
