@@ -116,7 +116,7 @@ jobs:
             echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
             exit 1
           fi
-          npx --yes eas-cli update --channel preview --message "SecureID preview OTA update" --non-interactive
+          npx --yes eas-cli update --platform android --channel preview --message "SecureID preview OTA update" --non-interactive
       - name: Build and download signed Android production AAB with EAS
         id: eas_production
         if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
