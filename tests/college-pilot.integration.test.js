@@ -64,6 +64,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   );
   database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
     .run("doc-c", "user-c", "student-card.pdf", "application/pdf", 2048, "encrypted/test-path", "student_id", Date.now());
+  database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
+    .run("doc-c2", "user-c", "old-student-card.pdf", "application/pdf", 1024, "encrypted/test-path-2", "student_id", Date.now());
 
   app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ success: false, message: "Request failed." }));
 
@@ -197,6 +199,18 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const submission = (await studentSubmission.json()).submission;
   assert.equal(submission.status, "submitted");
   assert.equal(submission.documentName, "student-card.pdf");
+
+  const secondSubmissionResponse = await fetch(base + "/api/institutions/review-submissions", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ institutionId: "college-a", documentId: "doc-c2", purpose: "Student identity record", consent: true })
+  });
+  assert.equal(secondSubmissionResponse.status, 201);
+  const secondSubmission = (await secondSubmissionResponse.json()).submission;
+  const deletedDocument = await fetch(base + "/api/documents/doc-c2", { method: "DELETE", headers: headers("user-c") });
+  assert.equal(deletedDocument.status, 200);
+  const afterDelete = await fetch(base + "/api/institutions/my-review-submissions", { headers: headers("user-c") });
+  const afterDeleteData = await afterDelete.json();
+  assert.equal(afterDeleteData.submissions.find(item => item.id === secondSubmission.id).status, "withdrawn");
 
   const reviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-a") });
   assert.equal(reviewerQueue.status, 200);
