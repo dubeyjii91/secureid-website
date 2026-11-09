@@ -93,6 +93,11 @@ export async function syncDocumentExpiryReminder(document: DocumentRecord) {
 
 export async function syncAllDocumentExpiryReminders(documents: DocumentRecord[]) {
   if (!(await areExpiryRemindersEnabled())) return;
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") {
+    await disableExpiryReminders();
+    return;
+  }
   const activeIds = new Set(documents.map((document) => document.id));
   const ids = await readIds();
   for (const staleId of Object.keys(ids)) {
@@ -102,5 +107,5 @@ export async function syncAllDocumentExpiryReminders(documents: DocumentRecord[]
     }
   }
   await writeIds(ids);
-  for (const document of documents) await syncDocumentExpiryReminder(document);
+  for (const document of documents) await syncDocumentExpiryReminder(document).catch(() => {});
 }
