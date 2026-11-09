@@ -26,8 +26,13 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
       share_identity_id INTEGER DEFAULT 0, share_college INTEGER DEFAULT 0, share_student_id INTEGER DEFAULT 0,
       share_government_id INTEGER DEFAULT 0, share_verification_status INTEGER DEFAULT 0
     );
-    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test');
-    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b');
+    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test');
+    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c');
+    CREATE TABLE secure_documents (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL, encrypted_path TEXT NOT NULL, document_category TEXT NOT NULL DEFAULT 'general',
+      created_at INTEGER NOT NULL, deleted_at INTEGER
+    );
   `);
 
   const app = express();
@@ -54,6 +59,11 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     "membership-a", "college-a", "user-a", "reviewer", "active", new Date().toISOString(), new Date().toISOString()
   );
+  database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    "membership-c", "college-a", "user-c", "student", "active", new Date().toISOString(), new Date().toISOString()
+  );
+  database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
+    .run("doc-c", "user-c", "student-card.pdf", "application/pdf", 2048, "encrypted/test-path", "student_id", Date.now());
 
   app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ success: false, message: "Request failed." }));
 
@@ -135,6 +145,57 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     method: "POST", headers: headers("user-b"), body: JSON.stringify({ institutionId: "college-a", role: "institution_admin" })
   });
   assert.equal(noSelfGrantRoute.status, 404);
+
+  const missingConsent = await fetch(base + "/api/institutions/review-submissions", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ institutionId: "college-a", documentId: "doc-c", purpose: "College enrollment", consent: false })
+  });
+  assert.equal(missingConsent.status, 400);
+
+  const studentSubmission = await fetch(base + "/api/institutions/review-submissions", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ institutionId: "college-a", documentId: "doc-c", purpose: "College enrollment review", consent: true })
+  });
+  assert.equal(studentSubmission.status, 201, await studentSubmission.clone().text());
+  const submission = (await studentSubmission.json()).submission;
+  assert.equal(submission.status, "submitted");
+  assert.equal(submission.documentName, "student-card.pdf");
+
+  const reviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-a") });
+  assert.equal(reviewerQueue.status, 200);
+  const queue = await reviewerQueue.json();
+  assert.equal(queue.submissions.length, 1);
+  assert.equal(queue.submissions[0].id, submission.id);
+  assert.equal("encrypted_path" in queue.submissions[0], false);
+
+  const unrelatedQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-b") });
+  assert.equal(unrelatedQueue.status, 403);
+
+  const reviewerDecision = await fetch(base + `/api/institutions/review-submissions/${submission.id}`, {
+    method: "PATCH", headers: headers("user-a"),
+    body: JSON.stringify({ status: "approved", reviewNote: "Enrollment document reviewed by the institution." })
+  });
+  assert.equal(reviewerDecision.status, 200);
+  assert.equal((await reviewerDecision.json()).submission.status, "approved");
+
+  const studentHistory = await fetch(base + "/api/institutions/my-review-submissions", { headers: headers("user-c") });
+  assert.equal(studentHistory.status, 200);
+  const studentRecords = await studentHistory.json();
+  assert.equal(studentRecords.submissions[0].status, "approved");
+  assert.equal(studentRecords.submissions[0].reviewNote, "Enrollment document reviewed by the institution.");
+
+  const auditHistory = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-c") });
+  assert.equal(auditHistory.status, 200);
+  assert.deepEqual((await auditHistory.json()).audit.map(item => item.action), ["student_submitted", "review_queue_viewed", "review_status_changed"]);
+
+  const unrelatedAudit = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-b") });
+  assert.equal(unrelatedAudit.status, 403);
+
+  const studentCannotReview = await fetch(base + `/api/institutions/review-submissions/${submission.id}`, {
+    method: "PATCH", headers: headers("user-c"),
+    body: JSON.stringify({ status: "rejected", reviewNote: "self-review attempt" })
+  });
+  assert.equal(studentCannotReview.status, 403);
 
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
