@@ -142,7 +142,10 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
 
   const otherMembershipResponse = await fetch(base + "/api/institutions/memberships", { headers: headers("user-b") });
   assert.equal(otherMembershipResponse.status, 200);
-  assert.deepEqual((await otherMembershipResponse.json()).memberships, []);
+  const otherMemberships = await otherMembershipResponse.json();
+  assert.equal(otherMemberships.memberships.length, 1);
+  assert.equal(otherMemberships.memberships[0].role, "read_only");
+  assert.equal(otherMemberships.memberships[0].institutionId, "college-a");
 
   const noMfaMembershipResponse = await fetch(base + "/api/institutions/memberships", { headers: headers("user-a", false) });
   assert.equal(noMfaMembershipResponse.status, 403);
