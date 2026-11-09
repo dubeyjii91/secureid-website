@@ -208,6 +208,10 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const submission = (await studentSubmission.json()).submission;
   assert.equal(submission.status, "submitted");
   assert.equal(submission.documentName, "student-card.pdf");
+  assert.equal(submission.consentVersion, "college-review-v1");
+  const consentEvidence = database.prepare("SELECT consented_at, consent_version FROM institution_review_submissions WHERE id=?").get(submission.id);
+  assert.ok(consentEvidence.consented_at);
+  assert.equal(consentEvidence.consent_version, "college-review-v1");
 
   const secondSubmissionResponse = await fetch(base + "/api/institutions/review-submissions", {
     method: "POST", headers: headers("user-c"),
