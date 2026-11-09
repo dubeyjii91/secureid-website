@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
 import { areExpiryRemindersEnabled, disableExpiryReminders, enableExpiryReminders, syncAllDocumentExpiryReminders, syncDocumentExpiryReminder } from "../src/expiry-reminders";
-import { deleteDocument, downloadDocument, downloadDocumentForLocalOcr, listDocuments, updateDocumentExpiry, uploadDocument, type DocumentRecord } from "../src/api";
+import { cleanupLocalOcrCache, deleteDocument, downloadDocument, downloadDocumentForLocalOcr, listDocuments, updateDocumentExpiry, uploadDocument, type DocumentRecord } from "../src/api";
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -80,6 +80,7 @@ export default function VaultScreen() {
   }, []);
 
   useEffect(() => {
+    void cleanupLocalOcrCache();
     void areExpiryRemindersEnabled().then(setRemindersEnabled).catch(() => setRemindersEnabled(false));
     void loadDocuments();
   }, [loadDocuments]);
