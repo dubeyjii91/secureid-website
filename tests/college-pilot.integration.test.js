@@ -26,8 +26,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
       share_identity_id INTEGER DEFAULT 0, share_college INTEGER DEFAULT 0, share_student_id INTEGER DEFAULT 0,
       share_government_id INTEGER DEFAULT 0, share_verification_status INTEGER DEFAULT 0
     );
-    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test');
-    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c');
+    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test'),('user-d','d@example.test');
+    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c'),('user-d');
     CREATE TABLE secure_documents (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL, encrypted_path TEXT NOT NULL, document_category TEXT NOT NULL DEFAULT 'general',
@@ -61,6 +61,9 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   );
   database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     "membership-c", "college-a", "user-c", "student", "active", new Date().toISOString(), new Date().toISOString()
+  );
+  database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    "membership-readonly", "college-a", "user-b", "read_only", "active", new Date().toISOString(), new Date().toISOString()
   );
   database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
     .run("doc-c", "user-c", "student-card.pdf", "application/pdf", 2048, "encrypted/test-path", "student_id", Date.now());
@@ -219,7 +222,19 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(queue.submissions[0].id, submission.id);
   assert.equal("encrypted_path" in queue.submissions[0], false);
 
-  const unrelatedQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-b") });
+  const noMfaQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-a", false) });
+  assert.equal(noMfaQueue.status, 403);
+
+  const readOnlyQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-b") });
+  assert.equal(readOnlyQueue.status, 200);
+  assert.equal((await readOnlyQueue.json()).submissions.length, 1);
+  const readOnlyDecision = await fetch(base + `/api/institutions/review-submissions/${submission.id}`, {
+    method: "PATCH", headers: headers("user-b"),
+    body: JSON.stringify({ status: "rejected", reviewNote: "read-only must not change status" })
+  });
+  assert.equal(readOnlyDecision.status, 403);
+
+  const unrelatedQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-d") });
   assert.equal(unrelatedQueue.status, 403);
 
   const reviewerDecision = await fetch(base + `/api/institutions/review-submissions/${submission.id}`, {
@@ -240,7 +255,9 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(auditHistory.status, 200);
   assert.deepEqual((await auditHistory.json()).audit.map(item => item.action).sort(), ["student_submitted", "review_queue_viewed", "review_status_changed"].sort());
 
-  const unrelatedAudit = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-b") });
+  const readOnlyAudit = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-b") });
+  assert.equal(readOnlyAudit.status, 200);
+  const unrelatedAudit = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-d") });
   assert.equal(unrelatedAudit.status, 403);
 
   const studentCannotReview = await fetch(base + `/api/institutions/review-submissions/${submission.id}`, {
