@@ -175,6 +175,33 @@ export function registerProductionFeatures({
 
     CREATE INDEX IF NOT EXISTS idx_institution_memberships_institution
       ON institution_memberships(institution_id, status);
+
+    CREATE TABLE IF NOT EXISTS institution_review_submissions (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      student_user_id TEXT NOT NULL REFERENCES users(id),
+      document_id TEXT NOT NULL REFERENCES secure_documents(id),
+      purpose TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','needs_correction','approved','rejected','withdrawn')),
+      encrypted_review_note TEXT,
+      consented_at TEXT NOT NULL,
+      reviewed_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_review_institution_status ON institution_review_submissions(institution_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_institution_review_student ON institution_review_submissions(student_user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS institution_review_audit (
+      id TEXT PRIMARY KEY,
+      submission_id TEXT NOT NULL REFERENCES institution_review_submissions(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_review_audit_submission ON institution_review_audit(submission_id, created_at DESC);
   `);
 
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
@@ -1458,6 +1485,138 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         request: { id, ...payload, status: "received", createdAt: now }
       });
     } catch (error) { next(error); }
+  });
+
+
+  // Trusted SecureID operator provisioning. No public self-enrollment or self-role assignment.
+  function requireTrustedInstitutionOperator(req, res, next) {
+    if (req.user?.role !== "owner") return res.status(403).json({ success: false, code: "OWNER_REQUIRED", message: "Trusted SecureID operator access is required." });
+    if (!req.user?.mfaVerified) return res.status(403).json({ success: false, code: "MFA_REQUIRED", message: "MFA verification is required." });
+    next();
+  }
+  function getInstitutionMembership(userId, institutionId) {
+    return database.prepare("SELECT institution_id, role, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
+  }
+  function addInstitutionReviewAudit(submissionId, institutionId, actorUserId, action, fromStatus = null, toStatus = null) {
+    database.prepare("INSERT INTO institution_review_audit (id,submission_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES (?,?,?,?,?,?,?,?)")
+      .run(crypto.randomUUID(), submissionId, institutionId, actorUserId, action, fromStatus, toStatus, new Date().toISOString());
+  }
+  app.post("/api/admin/institutions", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const name=String(req.body?.name||"").trim();
+      if(!name||name.length>160) return res.status(400).json({success:false,message:"Institution name must be 1–160 characters."});
+      const id=crypto.randomUUID(), now=new Date().toISOString();
+      database.prepare("INSERT INTO institutions(id,name,created_at) VALUES(?,?,?)").run(id,name,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_CREATED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,institution:{id,name,createdAt:now}});
+    } catch(error){next(error);}
+  });
+  app.post("/api/admin/institutions/:institutionId/memberships", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||""), userId=String(req.body?.userId||""), role=String(req.body?.role||"");
+      if(!userId||userId.length>128||!["student","reviewer","institution_admin","read_only"].includes(role)) return res.status(400).json({success:false,message:"Choose a valid account and role."});
+      const institution=database.prepare("SELECT id,name FROM institutions WHERE id=?").get(institutionId);
+      const user=database.prepare("SELECT id FROM users WHERE id=?").get(userId);
+      if(!institution||!user) return res.status(404).json({success:false,message:"Institution or user account was not found."});
+      if(database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId)) return res.status(409).json({success:false,message:"Membership already exists."});
+      const id=crypto.randomUUID(), now=new Date().toISOString();
+      database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)").run(id,institutionId,userId,role,now,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_MEMBERSHIP_PROVISIONED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,membership:{id,institutionId,institutionName:institution.name,userId,role,status:"active",joinedAt:now}});
+    } catch(error){next(error);}
+  });
+  app.get("/api/institutions/my-review-submissions", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const rows=database.prepare(`
+        SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.document_id AS documentId,
+          d.original_name AS documentName,d.document_category AS documentCategory,s.purpose,s.status,
+          s.encrypted_review_note AS encryptedReviewNote,s.created_at AS createdAt,s.updated_at AS updatedAt
+        FROM institution_review_submissions s
+        JOIN institutions i ON i.id=s.institution_id
+        JOIN secure_documents d ON d.id=s.document_id AND d.user_id=s.student_user_id
+        WHERE s.student_user_id=? ORDER BY s.created_at DESC LIMIT 100
+      `).all(req.user.id);
+      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(row.encryptedReviewNote,key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,submissions});
+    } catch(error){next(error);}
+  });
+  app.post("/api/institutions/review-submissions", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.body?.institutionId||""), documentId=String(req.body?.documentId||""), purpose=String(req.body?.purpose||"").trim();
+      if(req.body?.consent!==true) return res.status(400).json({success:false,message:"Explicit consent is required before submitting a document for review."});
+      if(!institutionId||institutionId.length>128||!documentId||documentId.length>128||purpose.length<3||purpose.length>160) return res.status(400).json({success:false,message:"Choose an institution, one of your documents and a purpose up to 160 characters."});
+      const membership=getInstitutionMembership(req.user.id,institutionId);
+      if(!membership||membership.status!=="active"||membership.role!=="student") return res.status(403).json({success:false,code:"ACTIVE_STUDENT_MEMBERSHIP_REQUIRED",message:"An active student membership is required."});
+      const doc=database.prepare("SELECT id,original_name,document_category FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
+      if(!doc) return res.status(404).json({success:false,message:"Document was not found in your active Document Vault."});
+      const id=crypto.randomUUID(),now=new Date().toISOString();
+      database.prepare("INSERT INTO institution_review_submissions(id,institution_id,student_user_id,document_id,purpose,status,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,'submitted',?,?,?)").run(id,institutionId,req.user.id,documentId,purpose,now,now,now);
+      addInstitutionReviewAudit(id,institutionId,req.user.id,"student_submitted",null,"submitted");
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_DOCUMENT_SUBMITTED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,submission:{id,institutionId,documentId,documentName:doc.original_name,documentCategory:doc.document_category,purpose,status:"submitted",consentedAt:now,createdAt:now}});
+    } catch(error){next(error);}
+  });
+  app.delete("/api/institutions/review-submissions/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
+      if(!row||row.student_user_id!==req.user.id) return res.status(404).json({success:false,message:"Review submission was not found."});
+      if(!["submitted","needs_correction"].includes(row.status)) return res.status(409).json({success:false,message:"This review can no longer be withdrawn."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE institution_review_submissions SET status='withdrawn',updated_at=? WHERE id=? AND student_user_id=?").run(now,row.id,req.user.id);
+      addInstitutionReviewAudit(row.id,row.institution_id,req.user.id,"student_withdrew",row.status,"withdrawn");
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,status:"withdrawn"});
+    } catch(error){next(error);}
+  });
+  app.get("/api/institutions/review-queue", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const memberships=database.prepare("SELECT institution_id FROM institution_memberships WHERE user_id=? AND status='active' AND role IN ('reviewer','institution_admin','read_only')").all(req.user.id);
+      const ids=memberships.map(row=>row.institution_id);
+      if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
+      const requested=String(req.query.institutionId||"");
+      if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
+      const visible=requested?[requested]:ids, placeholders=visible.map(()=>"?").join(",");
+      const rows=database.prepare(`
+        SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.student_user_id AS studentUserId,
+          s.document_id AS documentId,d.original_name AS documentName,d.document_category AS documentCategory,
+          d.size_bytes AS documentSizeBytes,s.purpose,s.status,s.created_at AS createdAt,s.updated_at AS updatedAt,
+          s.encrypted_review_note AS encryptedReviewNote
+        FROM institution_review_submissions s JOIN institutions i ON i.id=s.institution_id
+        JOIN secure_documents d ON d.id=s.document_id AND d.user_id=s.student_user_id
+        WHERE s.institution_id IN (${placeholders}) AND s.status<>'withdrawn'
+        ORDER BY s.created_at DESC LIMIT 100
+      `).all(...visible);
+      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(row.encryptedReviewNote,key)?.note||"");}catch{}}addInstitutionReviewAudit(row.id,row.institutionId,req.user.id,"review_queue_viewed",row.status,row.status);return {...row,encryptedReviewNote:undefined,reviewNote};});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,submissions});
+    } catch(error){next(error);}
+  });
+  app.patch("/api/institutions/review-submissions/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,status FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
+      if(!row) return res.status(404).json({success:false,message:"Review submission was not found."});
+      const membership=getInstitutionMembership(req.user.id,row.institution_id);
+      if(!membership||membership.status!=="active"||!["reviewer","institution_admin"].includes(membership.role)) return res.status(403).json({success:false,code:"REVIEW_ACTION_FORBIDDEN",message:"An active reviewer or institution administrator membership is required."});
+      const status=String(req.body?.status||""),note=String(req.body?.reviewNote||"").trim();
+      if(!["needs_correction","approved","rejected"].includes(status)||note.length>500) return res.status(400).json({success:false,message:"Choose a valid outcome and keep the note within 500 characters."});
+      if(["withdrawn","approved","rejected"].includes(row.status)) return res.status(409).json({success:false,message:"This submission is already closed."});
+      const encryptedNote=note?JSON.stringify(jsonEncrypt({note},key)):null,now=new Date().toISOString();
+      database.prepare("UPDATE institution_review_submissions SET status=?,encrypted_review_note=?,reviewed_by=?,updated_at=? WHERE id=?").run(status,encryptedNote,req.user.id,now,row.id);
+      addInstitutionReviewAudit(row.id,row.institution_id,req.user.id,"review_status_changed",row.status,status);
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_REVIEW_STATUS_CHANGED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,submission:{id:row.id,status,reviewNote:note,updatedAt:now}});
+    } catch(error){next(error);}
+  });
+  app.get("/api/institutions/review-submissions/:id/audit", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
+      if(!row) return res.status(404).json({success:false,message:"Review submission was not found."});
+      const member=getInstitutionMembership(req.user.id,row.institution_id),student=row.student_user_id===req.user.id;
+      if(!student&&(!member||member.status!=="active"||!["reviewer","institution_admin","read_only"].includes(member.role))) return res.status(403).json({success:false,message:"You do not have access to this review history."});
+      const audit=database.prepare("SELECT action,from_status AS fromStatus,to_status AS toStatus,created_at AS createdAt FROM institution_review_audit WHERE submission_id=? ORDER BY created_at ASC LIMIT 200").all(row.id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,audit});
+    } catch(error){next(error);}
   });
 
   console.log(JSON.stringify({
