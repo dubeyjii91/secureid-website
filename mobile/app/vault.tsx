@@ -152,7 +152,7 @@ export default function VaultScreen() {
 
   function confirmLocalOcr(document: DocumentRecord) {
     if (!document.mimeType.startsWith("image/")) {
-      Alert.alert("Image required", "On-device OCR currently supports image documents (JPG, PNG and WebP). PDF OCR is not enabled yet.");
+      Alert.alert("Image required", "On-device OCR currently supports image documents (JPG and PNG). PDF OCR is not enabled yet.");
       return;
     }
     Alert.alert(
