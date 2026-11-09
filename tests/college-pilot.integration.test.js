@@ -184,6 +184,9 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(suspendMembership.status, 200);
   assert.equal((await suspendMembership.json()).membership.status, "suspended");
 
+  const suspendedReviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-b") });
+  assert.equal(suspendedReviewerQueue.status, 403, "a suspended-only reviewer must lose queue access immediately");
+
   const membershipAudit = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/audit`, { headers: headers("user-a", true, "owner") });
   assert.equal(membershipAudit.status, 200);
   assert.deepEqual((await membershipAudit.json()).audit.map(item => item.action).sort(), ["membership_provisioned", "membership_updated"].sort());
