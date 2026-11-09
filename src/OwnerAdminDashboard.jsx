@@ -49,6 +49,8 @@ export default function OwnerAdminDashboard() {
   const [selectedMemberRole, setSelectedMemberRole] = useState("student");
   const [institutionError, setInstitutionError] = useState("");
   const [institutionBusy, setInstitutionBusy] = useState(false);
+  const [institutionAudit, setInstitutionAudit] = useState({});
+
 
 
   async function load() {
@@ -161,6 +163,16 @@ export default function OwnerAdminDashboard() {
     } finally { setInstitutionBusy(false); }
   }
 
+  async function loadInstitutionAudit(institutionId) {
+    setInstitutionError("");
+    try {
+      const result = await api("/api/admin/institutions/" + encodeURIComponent(institutionId) + "/audit", { cache: "no-store" });
+      setInstitutionAudit(current => ({ ...current, [institutionId]: result.audit || [] }));
+    } catch (e) {
+      setInstitutionError(e?.message || "Institution audit history could not be loaded.");
+    }
+  }
+
   async function updateMembership(membership, status) {
     if (institutionBusy || !window.confirm((status === "suspended" ? "Suspend " : "Reactivate ") + membership.email + " in this institution?")) return;
     setInstitutionBusy(true); setInstitutionError(""); setNotice("");
@@ -243,6 +255,11 @@ export default function OwnerAdminDashboard() {
           <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="read_only">Read only</option></select></label>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button>
         </form>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"10px 0"}}>
+          <button type="button" className="secondary" disabled={!selectedInstitutionId} onClick={() => loadInstitutionAudit(selectedInstitutionId)}>View selected institution audit</button>
+          {institutionAudit[selectedInstitutionId] && <small>{institutionAudit[selectedInstitutionId].length} recent audit events</small>}
+        </div>
+        {institutionAudit[selectedInstitutionId] && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"8px"}}>Time</th><th style={{padding:"8px"}}>Action</th><th style={{padding:"8px"}}>Account</th><th style={{padding:"8px"}}>Role / status</th></tr></thead><tbody>{institutionAudit[selectedInstitutionId].map((event,index)=><tr key={index}><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(event.createdAt)}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.action.replaceAll("_"," ")}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.fromRole || "—"} → {event.toRole || "—"} · {event.fromStatus || "—"} → {event.toStatus || "—"}</td></tr>)}</tbody></table></div>}
         <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Role</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.role.replaceAll("_"," ")}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
       </>}
       {institutions.length === 0 && <p>No institutions have been provisioned yet.</p>}
