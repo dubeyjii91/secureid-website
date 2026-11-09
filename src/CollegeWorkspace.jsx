@@ -169,7 +169,7 @@ export default function CollegeWorkspace() {
       <form className="collegeSubmissionForm" onSubmit={submitDocument}>
         <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)} required>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select></label>
         <label>Document from your vault<select value={selectedDocumentId} onChange={event => setSelectedDocumentId(event.target.value)} required><option value="">Choose a document</option>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select></label>
-        <label>Purpose<input value={submissionPurpose} maxLength={160} onChange={event => setSubmissionPurpose(event.target.value)} required /></label>
+        <label>Purpose<select value={submissionPurpose} onChange={event => setSubmissionPurpose(event.target.value)} required><option>College enrollment review</option><option>Scholarship application</option><option>Hostel admission</option><option>Exam registration</option><option>Student identity record</option></select></label>
         <label className="collegeConsent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />I consent to submit this document reference and the displayed metadata to the selected institution for the stated purpose.</label>
         <button className="primary" type="submit" disabled={saving || !selectedDocumentId || !consent}>Submit for college review</button>
       </form>
