@@ -8,7 +8,7 @@ const CLIENT_HEADER = "X-SecureID-Client";
 
 type ApiError = Error & { status?: number; payload?: any };
 export type SessionUser = { email: string; mfaVerified: boolean; trustedDevice?: boolean };
-export type DocumentRecord = { id: string; name: string; mimeType: string; sizeBytes: number; category?: string; createdAt: number | string };
+export type DocumentRecord = { id: string; name: string; mimeType: string; sizeBytes: number; category?: string; expiryDate?: string | null; createdAt: number | string };
 export type ShareRecord = { id: string; type: "identity" | "document"; name?: string; contextLabel?: string; createdAt: string; expiresAt: string; revokedAt?: string | null; accessCount?: number };
 
 let csrfToken = "";
@@ -108,8 +108,40 @@ export async function deleteAccount(password: string) {
   return result;
 }
 
+export type IdentityProfile = {
+  name?: string;
+  age?: string;
+  dateOfBirth?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  identityId?: string;
+  college?: string;
+  studentId?: string;
+  governmentId?: string;
+  verificationStatus?: string;
+};
+
+export async function getIdentityProfile() {
+  return request<{ success: boolean; profile: IdentityProfile; updatedAt: number | null }>("/api/identity/profile");
+}
+
+export async function saveIdentityProfile(profile: IdentityProfile) {
+  return request<{ success: boolean; profile: IdentityProfile; updatedAt: number }>("/api/identity/profile", {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  });
+}
+
 export async function listDocuments() {
   return request<{ success: boolean; documents: DocumentRecord[] }>("/api/documents");
+}
+
+export async function updateDocumentExpiry(id: string, expiryDate: string | null) {
+  return request<{ success: boolean; expiryDate: string | null }>(`/api/documents/${encodeURIComponent(id)}/metadata`, {
+    method: "PUT",
+    body: JSON.stringify({ expiryDate }),
+  });
 }
 
 export async function uploadDocument(file: { uri: string; name: string; mimeType?: string | null }) {

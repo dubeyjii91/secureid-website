@@ -92,6 +92,7 @@ export default function DashboardScreen() {
           <Text style={styles.sectionHint}>Quick access</Text>
         </View>
         <ActionCard icon="folder-open-outline" title="Document vault" description="Your private document space" onPress={() => router.push("/vault")} />
+        <ActionCard icon="id-card-outline" title="Identity profile" description="Manage your identity details" onPress={() => router.push("/identity")} />
         <ActionCard icon="share-social-outline" title="Secure sharing" description="Share only the details you select" onPress={() => router.push("/share")} />
         <ActionCard icon="shield-checkmark-outline" title="Security center" description="Account and device protection" onPress={() => router.push("/security")} />
 

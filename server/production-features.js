@@ -178,6 +178,7 @@ export function registerProductionFeatures({
   `);
 
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  try { database.exec("ALTER TABLE secure_documents ADD COLUMN expiry_date TEXT"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
 
   const upload=multer({
     storage:multer.memoryStorage(),
@@ -388,6 +389,7 @@ export function registerProductionFeatures({
           mime_type AS mimeType,
           size_bytes AS sizeBytes,
           document_category AS category,
+          expiry_date AS expiryDate,
           created_at AS createdAt,
           (
             SELECT json_object(
@@ -421,6 +423,38 @@ export function registerProductionFeatures({
     }catch(error){
       next(error);
     }
+  });
+
+  /*
+   * DOCUMENT METADATA UPDATE
+   * Optional expiry date only; document bytes remain encrypted and unchanged.
+   */
+  app.put("/api/documents/:id/metadata",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    try{
+      assertWalletUnlocked(req.user.id);
+      const raw=req.body?.expiryDate;
+      let expiryDate=null;
+      if(raw!==undefined && raw!==null && raw!==""){
+        if(typeof raw!=="string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)){
+          return res.status(400).json({success:false,message:"Enter the expiry date as YYYY-MM-DD."});
+        }
+        const parsed=new Date(raw+"T00:00:00.000Z");
+        if(Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0,10)!==raw){
+          return res.status(400).json({success:false,message:"Choose a valid calendar date."});
+        }
+        expiryDate=raw;
+      }
+
+      const result=database.prepare(
+        "UPDATE secure_documents SET expiry_date=? WHERE id=? AND user_id=? AND deleted_at IS NULL"
+      ).run(expiryDate,String(req.params.id||""),req.user.id);
+      if(result.changes===0){
+        return res.status(404).json({success:false,message:"Document not found."});
+      }
+      logEvent(req.user.id,"DOCUMENT_EXPIRY_UPDATED",req,{hasExpiryDate:Boolean(expiryDate)});
+      res.json({success:true,expiryDate});
+    }catch(error){next(error);}
   });
 
   /*
