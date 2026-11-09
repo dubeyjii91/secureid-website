@@ -73,10 +73,12 @@ test("identity profile is encrypted, authenticated, and MFA protected", async (t
   });
   const profile = {
     name: "Sample User",
+    age: "",
     dateOfBirth: "2000-01-01",
     address: "Example address",
     email: "owner@example.test",
     phone: "9000000000",
+    identityId: "",
     college: "Example College",
     studentId: "STU-01",
     governmentId: "MASKED-01"
