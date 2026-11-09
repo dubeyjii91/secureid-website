@@ -40,7 +40,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   app.use((req, res, next) => {
     const id = req.get("x-test-user");
     if (!id) return res.status(401).json({ success: false });
-    req.user = { id, mfaVerified: req.get("x-test-mfa") !== "false" };
+    req.user = { id, role: req.get("x-test-role") || "user", mfaVerified: req.get("x-test-mfa") !== "false" };
     next();
   });
   registerProductionFeatures({
@@ -83,9 +83,10 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
 
   const base = `http://127.0.0.1:${server.address().port}`;
-  const headers = (user, mfa = true) => ({
+  const headers = (user, mfa = true, role = "user") => ({
     "x-test-user": user,
     "x-test-mfa": String(mfa),
+    "x-test-role": role,
     "content-type": "application/json"
   });
   const payload = {
@@ -145,6 +146,42 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     method: "POST", headers: headers("user-b"), body: JSON.stringify({ institutionId: "college-a", role: "institution_admin" })
   });
   assert.equal(noSelfGrantRoute.status, 404);
+
+  const nonOwnerProvision = await fetch(base + "/api/admin/institutions", {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ name: "Unauthorized College" })
+  });
+  assert.equal(nonOwnerProvision.status, 403);
+
+  const ownerWithoutMfa = await fetch(base + "/api/admin/institutions", {
+    method: "POST", headers: headers("user-a", false, "owner"), body: JSON.stringify({ name: "MFA Missing College" })
+  });
+  assert.equal(ownerWithoutMfa.status, 403);
+
+  const createdInstitutionResponse = await fetch(base + "/api/admin/institutions", {
+    method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ name: "Second Example College" })
+  });
+  assert.equal(createdInstitutionResponse.status, 201);
+  const createdInstitution = (await createdInstitutionResponse.json()).institution;
+
+  const provisionedMembershipResponse = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/memberships`, {
+    method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ userId: "user-b", role: "reviewer" })
+  });
+  assert.equal(provisionedMembershipResponse.status, 201);
+  const provisionedMembership = (await provisionedMembershipResponse.json()).membership;
+
+  const adminDirectory = await fetch(base + "/api/admin/institutions", { headers: headers("user-a", true, "owner") });
+  assert.equal(adminDirectory.status, 200);
+  assert.ok((await adminDirectory.json()).institutions.some(item => item.id === createdInstitution.id));
+
+  const suspendMembership = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/memberships/${provisionedMembership.id}`, {
+    method: "PATCH", headers: headers("user-a", true, "owner"), body: JSON.stringify({ status: "suspended" })
+  });
+  assert.equal(suspendMembership.status, 200);
+  assert.equal((await suspendMembership.json()).membership.status, "suspended");
+
+  const membershipAudit = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/audit`, { headers: headers("user-a", true, "owner") });
+  assert.equal(membershipAudit.status, 200);
+  assert.deepEqual((await membershipAudit.json()).audit.map(item => item.action), ["membership_updated", "membership_provisioned"]);
 
   const missingConsent = await fetch(base + "/api/institutions/review-submissions", {
     method: "POST", headers: headers("user-c"),
