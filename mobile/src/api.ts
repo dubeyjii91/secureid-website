@@ -8,7 +8,7 @@ const CLIENT_HEADER = "X-SecureID-Client";
 
 type ApiError = Error & { status?: number; payload?: any };
 export type SessionUser = { email: string; mfaVerified: boolean; trustedDevice?: boolean };
-export type DocumentRecord = { id: string; name: string; mimeType: string; sizeBytes: number; category?: string; createdAt: number | string };
+export type DocumentRecord = { id: string; name: string; mimeType: string; sizeBytes: number; category?: string; expiryDate?: string | null; createdAt: number | string };
 export type ShareRecord = { id: string; type: "identity" | "document"; name?: string; contextLabel?: string; createdAt: string; expiresAt: string; revokedAt?: string | null; accessCount?: number };
 
 let csrfToken = "";
@@ -110,6 +110,13 @@ export async function deleteAccount(password: string) {
 
 export async function listDocuments() {
   return request<{ success: boolean; documents: DocumentRecord[] }>("/api/documents");
+}
+
+export async function updateDocumentExpiry(id: string, expiryDate: string | null) {
+  return request<{ success: boolean; expiryDate: string | null }>(`/api/documents/${encodeURIComponent(id)}/metadata`, {
+    method: "PUT",
+    body: JSON.stringify({ expiryDate }),
+  });
 }
 
 export async function uploadDocument(file: { uri: string; name: string; mimeType?: string | null }) {
