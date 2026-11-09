@@ -1693,7 +1693,12 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!row) return res.status(404).json({success:false,message:"Review submission was not found."});
       const member=getInstitutionMembership(req.user.id,row.institution_id),student=row.student_user_id===req.user.id;
       if(!student&&(!member||member.status!=="active"||!["reviewer","institution_admin","read_only"].includes(member.role))) return res.status(403).json({success:false,message:"You do not have access to this review history."});
-      const audit=database.prepare("SELECT action,from_status AS fromStatus,to_status AS toStatus,created_at AS createdAt FROM institution_review_audit WHERE submission_id=? ORDER BY created_at ASC LIMIT 200").all(row.id);
+      const audit=database.prepare(`
+        SELECT a.action,a.from_status AS fromStatus,a.to_status AS toStatus,
+          a.created_at AS createdAt,u.email AS actorEmail
+        FROM institution_review_audit a INNER JOIN users u ON u.id=a.actor_user_id
+        WHERE a.submission_id=? ORDER BY a.created_at ASC LIMIT 200
+      `).all(row.id);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,audit});
     } catch(error){next(error);}
   });
