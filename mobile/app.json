@@ -33,7 +33,8 @@
         }
       ],
       "expo-document-picker",
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
@@ -45,4 +46,4 @@
     },
     "icon": "./assets/secureid-icon.png"
   }
-}
+}\n
