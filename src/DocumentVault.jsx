@@ -18,6 +18,10 @@ const fields=[
 
 export default function DocumentVault(){
   const [documents,setDocuments]=useState([]);
+  const [expiryDrafts,setExpiryDrafts]=useState({});
+  const [savingExpiryId,setSavingExpiryId]=useState("");
+  const [vaultSearch,setVaultSearch]=useState("");
+  const [vaultCategory,setVaultCategory]=useState("all");
   const [profile,setProfile]=useState({});
   const [proofFiles,setProofFiles]=useState({student_id:null,institution_proof:null});
   const [proofUploading,setProofUploading]=useState("");
@@ -216,6 +220,46 @@ export default function DocumentVault(){
     }catch(error){setMessage(error.message);}
   }
 
+  async function saveExpiry(doc){
+    const raw=(expiryDrafts[doc.id] ?? doc.expiryDate ?? "").trim();
+    if(raw && !/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)){
+      setMessage("Use YYYY-MM-DD for the expiry date.");
+      return;
+    }
+    setSavingExpiryId(doc.id);
+    setMessage("");
+    try{
+      const result=await api(`/api/documents/${encodeURIComponent(doc.id)}/metadata`,{
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({expiryDate:raw || null})
+      });
+      setDocuments(current=>current.map(item=>item.id===doc.id?{...item,expiryDate:result.expiryDate}:item));
+      setExpiryDrafts(current=>({...current,[doc.id]:result.expiryDate || ""}));
+      setMessage(result.expiryDate ? `Expiry date saved: ${result.expiryDate}.` : "Expiry date removed.");
+    }catch(error){setMessage(error.message);}
+    finally{setSavingExpiryId("");}
+  }
+
+  function expiryLabel(date){
+    if(!date)return "";
+    const today=new Date();
+    const localToday=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    const days=Math.floor((Date.parse(date+"T00:00:00Z")-Date.parse(localToday+"T00:00:00Z"))/86400000);
+    if(days<0)return "Expired";
+    if(days===0)return "Expires today";
+    if(days<=30)return `Expires in ${days} day${days===1?"":"s"}`;
+    return `Expires ${date}`;
+  }
+
+  const documentCategories=[...new Set(documents.map(doc=>doc.category || "general"))].sort();
+  const filteredDocuments=documents.filter(doc=>{
+    const category=doc.category || "general";
+    const query=vaultSearch.trim().toLowerCase();
+    return (vaultCategory==="all" || category===vaultCategory)
+      && (!query || doc.name.toLowerCase().includes(query) || category.toLowerCase().replace(/_/g," ").includes(query) || (doc.expiryDate || "").includes(query));
+  });
+
   async function remove(id){
     if(!window.confirm("Delete this document permanently?")){
       return;
@@ -350,18 +394,28 @@ export default function DocumentVault(){
     </section>
 
     <section className="vaultBlock">
-      <h3>Your documents</h3><label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label>
+      <h3>Your documents</h3>
+      <div className="vaultDocumentFilters">
+        <label><span>Search documents</span><input value={vaultSearch} onChange={event=>setVaultSearch(event.target.value)} placeholder="Name, type or expiry date" /></label>
+        <label><span>Filter by category</span><select value={vaultCategory} onChange={event=>setVaultCategory(event.target.value)}><option value="all">All categories</option>{documentCategories.map(category=><option key={category} value={category}>{category.replace(/_/g," ")}</option>)}</select></label>
+      </div>
+      <label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label>
 
       {documents.length===0 ? (
         <p>No documents stored yet.</p>
       ) : (
         <div className="documentList">
-          {documents.map(doc=>
+          {filteredDocuments.map(doc=>
             <article className="documentItem" key={doc.id}>
               <div>
                 <strong>{doc.name}</strong>
                 <small>{({"aadhaar":"Aadhaar Card","pan":"PAN Card","passport":"Passport","voter_id":"Voter ID","driving_licence":"Driving Licence","student_id":"Student ID","institution_proof":"Institution Proof","general":"Other Document"}[doc.category] || "Other Document")}</small>
                 <small>{doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</small>
+                <div className="documentExpiryEditor">
+                  <label><span>Expiry date (optional)</span><input type="date" value={expiryDrafts[doc.id] ?? doc.expiryDate ?? ""} onChange={event=>setExpiryDrafts(current=>({...current,[doc.id]:event.target.value}))} /></label>
+                  <button type="button" onClick={()=>saveExpiry(doc)} disabled={savingExpiryId===doc.id}>{savingExpiryId===doc.id ? "Saving…" : "Save expiry"}</button>
+                  {doc.expiryDate && <small className={expiryLabel(doc.expiryDate)==="Expired" ? "documentExpiryStatus expired" : expiryLabel(doc.expiryDate).startsWith("Expires in") || expiryLabel(doc.expiryDate)==="Expires today" ? "documentExpiryStatus soon" : "documentExpiryStatus"}>{expiryLabel(doc.expiryDate)}</small>}
+                </div>
                 {(verificationResults[doc.id] || doc.verificationCheck) && <div className="documentVerificationResult" role="status">
                   <strong>{(verificationResults[doc.id] || doc.verificationCheck).fileIntegrityStatus === "passed" ? "File checks passed" : "File checks failed"}</strong>
                   <small>Authenticity: NOT VERIFIED</small>
