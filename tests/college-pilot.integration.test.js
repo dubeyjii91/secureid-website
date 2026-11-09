@@ -33,6 +33,13 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
       size_bytes INTEGER NOT NULL, encrypted_path TEXT NOT NULL, document_category TEXT NOT NULL DEFAULT 'general',
       created_at INTEGER NOT NULL, deleted_at INTEGER
     );
+    -- Simulate a database created before consent-version tracking was added.
+    CREATE TABLE institution_review_submissions (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL, student_user_id TEXT NOT NULL,
+      document_id TEXT NOT NULL, purpose TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'submitted',
+      encrypted_review_note TEXT, consented_at TEXT NOT NULL, reviewed_by TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
   `);
 
   const app = express();
