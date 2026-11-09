@@ -8,6 +8,7 @@ import { enforceShareRateLimit } from "./share-rate-limit.js";
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
 const ALLOWED_DOCUMENT_CATEGORIES = new Set(["general","aadhaar","pan","passport","voter_id","driving_licence","student_id","institution_proof"]);
+const COLLEGE_REVIEW_CONSENT_VERSION = "college-review-v1";
 
 function createCryptoKey(isProduction){
   const raw = process.env.DOCUMENT_ENCRYPTION_KEY || "";
@@ -185,6 +186,7 @@ export function registerProductionFeatures({
       status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','needs_correction','approved','rejected','withdrawn')),
       encrypted_review_note TEXT,
       consented_at TEXT NOT NULL,
+      consent_version TEXT NOT NULL DEFAULT 'college-review-v1',
       reviewed_by TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -218,6 +220,7 @@ export function registerProductionFeatures({
     CREATE INDEX IF NOT EXISTS idx_institution_membership_audit_institution ON institution_membership_audit(institution_id, created_at DESC);
   `);
 
+  try { database.exec("ALTER TABLE institution_review_submissions ADD COLUMN consent_version TEXT NOT NULL DEFAULT 'college-review-v1'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN expiry_date TEXT"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
 
@@ -1610,7 +1613,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const rows=database.prepare(`
         SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.document_id AS documentId,
           d.original_name AS documentName,d.document_category AS documentCategory,s.purpose,s.status,
-          s.encrypted_review_note AS encryptedReviewNote,s.created_at AS createdAt,s.updated_at AS updatedAt
+          s.encrypted_review_note AS encryptedReviewNote,s.consent_version AS consentVersion,s.consented_at AS consentedAt,s.created_at AS createdAt,s.updated_at AS updatedAt
         FROM institution_review_submissions s
         JOIN institutions i ON i.id=s.institution_id
         JOIN secure_documents d ON d.id=s.document_id AND d.user_id=s.student_user_id
@@ -1631,11 +1634,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const doc=database.prepare("SELECT id,original_name,document_category FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
       if(!doc) return res.status(404).json({success:false,message:"Document was not found in your active Document Vault."});
       const id=crypto.randomUUID(),now=new Date().toISOString();
-      database.prepare("INSERT INTO institution_review_submissions(id,institution_id,student_user_id,document_id,purpose,status,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,'submitted',?,?,?)").run(id,institutionId,req.user.id,documentId,purpose,now,now,now);
+      database.prepare("INSERT INTO institution_review_submissions(id,institution_id,student_user_id,document_id,purpose,status,consented_at,consent_version,created_at,updated_at) VALUES(?,?,?,?,?,'submitted',?,?,?,?)").run(id,institutionId,req.user.id,documentId,purpose,now,COLLEGE_REVIEW_CONSENT_VERSION,now,now);
       addInstitutionReviewAudit(id,institutionId,req.user.id,"student_submitted",null,"submitted");
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_DOCUMENT_SUBMITTED",req);
       res.setHeader("Cache-Control","private, no-store");
-      res.status(201).json({success:true,submission:{id,institutionId,documentId,documentName:doc.original_name,documentCategory:doc.document_category,purpose,status:"submitted",consentedAt:now,createdAt:now}});
+      res.status(201).json({success:true,submission:{id,institutionId,documentId,documentName:doc.original_name,documentCategory:doc.document_category,purpose,status:"submitted",consentedAt:now,consentVersion:COLLEGE_REVIEW_CONSENT_VERSION,createdAt:now}});
     } catch(error){next(error);}
   });
   app.delete("/api/institutions/review-submissions/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
