@@ -11,8 +11,6 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
   }),
 });
 
@@ -36,15 +34,15 @@ export async function areExpiryRemindersEnabled() {
 }
 
 export async function enableExpiryReminders(): Promise<boolean> {
-  if (await Notifications.getPermissionsAsync().then((p) => p.status) !== "granted") {
-    const permission = await Notifications.requestPermissionsAsync();
-    if (permission.status !== "granted") return false;
-  }
   await Notifications.setNotificationChannelAsync("document-expiry", {
     name: "Document expiry reminders",
     importance: Notifications.AndroidImportance.DEFAULT,
     vibrationPattern: [0, 180, 100, 180],
   });
+  if (await Notifications.getPermissionsAsync().then((p) => p.status) !== "granted") {
+    const permission = await Notifications.requestPermissionsAsync();
+    if (permission.status !== "granted") return false;
+  }
   await SecureStore.setItemAsync(ENABLED_KEY, "true");
   return true;
 }
