@@ -63,7 +63,9 @@ export default function OwnerAdminDashboard() {
     if (results[0].status === "fulfilled") setHealth(results[0].value);
     else setError(results[0].reason?.message || "Owner status could not be loaded.");
     if (results[1].status === "fulfilled") {
-      setUsers(results[1].value.users || []);
+      const nextUsers = results[1].value.users || [];
+      setUsers(nextUsers);
+      setSelectedMemberUserId(current => nextUsers.some(item => item.id === current) ? current : nextUsers.find(item => item.role !== "owner")?.id || "");
       setTotalUsers(Number(results[1].value.total || 0));
       setActiveUsers(Number(results[1].value.active || 0));
       setSuspendedUsers(Number(results[1].value.suspended || 0));
@@ -79,7 +81,7 @@ export default function OwnerAdminDashboard() {
       setInstitutions(directory.institutions || []);
       setInstitutionMemberships(directory.memberships || []);
       setSelectedInstitutionId(current => (directory.institutions || []).some(item => item.id === current) ? current : (directory.institutions || [])[0]?.id || "");
-      setSelectedMemberUserId(current => users.some(item => item.id === current) ? current : users[0]?.id || "");
+      setSelectedMemberUserId(current => nextUsers.some(item => item.id === current) ? current : nextUsers.find(item => item.role !== "owner")?.id || "");
     } else setInstitutionError(results[4].reason?.message || "Institution directory could not be loaded.");
     setLoading(false);
   }
