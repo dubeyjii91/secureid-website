@@ -33,7 +33,7 @@ Pilot-interest forms must contain only a college name, general role/population/w
 Before inviting real institutions or uploading real student documents, complete and review:
 
 1. Staff invitation/onboarding and verified institutional-domain checks where appropriate.
-2. Consent text versioning, purpose limitation, retention schedule, student withdrawal and institution offboarding/deletion workflows.
+2. Formal legal/privacy review and approval of the versioned consent wording, retention schedule, and institution offboarding/deletion workflows.
 3. A separately designed student-authorized document-viewing flow if file contents are needed by reviewers.
 4. Student credential issuance using existing selective-share, expiry and revocation controls, with clear issuer and verification semantics.
 5. Cross-tenant and role tests, membership suspension/revocation tests, audit completeness and deletion/retention tests.
