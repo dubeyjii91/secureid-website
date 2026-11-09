@@ -202,6 +202,20 @@ export function registerProductionFeatures({
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_institution_review_audit_submission ON institution_review_audit(submission_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS institution_membership_audit (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      membership_id TEXT NOT NULL REFERENCES institution_memberships(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      target_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      from_role TEXT,
+      to_role TEXT,
+      from_status TEXT,
+      to_status TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_membership_audit_institution ON institution_membership_audit(institution_id, created_at DESC);
   `);
 
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
@@ -1522,11 +1536,63 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId)) return res.status(409).json({success:false,message:"Membership already exists."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)").run(id,institutionId,userId,role,now,now);
+      database.prepare("INSERT INTO institution_membership_audit(id,institution_id,membership_id,actor_user_id,target_user_id,action,to_role,to_status,created_at) VALUES(?,?,?,?,?,'membership_provisioned',?,'active',?)")
+        .run(crypto.randomUUID(),institutionId,id,req.user.id,userId,role,now);
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_MEMBERSHIP_PROVISIONED",req);
       res.setHeader("Cache-Control","private, no-store");
       res.status(201).json({success:true,membership:{id,institutionId,institutionName:institution.name,userId,role,status:"active",joinedAt:now}});
     } catch(error){next(error);}
   });
+
+  app.get("/api/admin/institutions", requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutions=database.prepare(`
+        SELECT i.id,i.name,i.created_at AS createdAt,
+          (SELECT COUNT(*) FROM institution_memberships m WHERE m.institution_id=i.id) AS membershipCount
+        FROM institutions i ORDER BY i.name COLLATE NOCASE LIMIT 200
+      `).all();
+      const memberships=database.prepare(`
+        SELECT m.id,m.institution_id AS institutionId,m.user_id AS userId,u.email,
+          m.role,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt
+        FROM institution_memberships m INNER JOIN users u ON u.id=m.user_id
+        ORDER BY m.institution_id,m.created_at DESC LIMIT 500
+      `).all();
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,institutions,memberships});
+    } catch(error){next(error);}
+  });
+  app.patch("/api/admin/institutions/:institutionId/memberships/:membershipId", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||""), membershipId=String(req.params.membershipId||"");
+      const role=req.body?.role===undefined?null:String(req.body.role), status=req.body?.status===undefined?null:String(req.body.status);
+      if(role!==null&&!["student","reviewer","institution_admin","read_only"].includes(role)) return res.status(400).json({success:false,message:"Choose a valid institution role."});
+      if(status!==null&&!["active","suspended"].includes(status)) return res.status(400).json({success:false,message:"Membership status must be active or suspended."});
+      if(role===null&&status===null) return res.status(400).json({success:false,message:"Provide a role or membership status to update."});
+      const current=database.prepare("SELECT id,institution_id,user_id,role,status FROM institution_memberships WHERE id=? AND institution_id=?").get(membershipId,institutionId);
+      if(!current) return res.status(404).json({success:false,message:"Institution membership was not found."});
+      const nextRole=role||current.role,nextStatus=status||current.status,now=new Date().toISOString();
+      database.prepare("UPDATE institution_memberships SET role=?,status=?,updated_at=? WHERE id=? AND institution_id=?").run(nextRole,nextStatus,now,membershipId,institutionId);
+      database.prepare("INSERT INTO institution_membership_audit(id,institution_id,membership_id,actor_user_id,target_user_id,action,from_role,to_role,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .run(crypto.randomUUID(),institutionId,membershipId,req.user.id,current.user_id,"membership_updated",current.role,nextRole,current.status,nextStatus,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_MEMBERSHIP_UPDATED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,membership:{id:membershipId,institutionId,userId:current.user_id,role:nextRole,status:nextStatus,updatedAt:now}});
+    } catch(error){next(error);}
+  });
+  app.get("/api/admin/institutions/:institutionId/audit", requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const rows=database.prepare(`
+        SELECT a.action,a.from_role AS fromRole,a.to_role AS toRole,a.from_status AS fromStatus,
+          a.to_status AS toStatus,a.created_at AS createdAt,u.email AS targetEmail
+        FROM institution_membership_audit a
+        INNER JOIN users u ON u.id=a.target_user_id
+        WHERE a.institution_id=? ORDER BY a.created_at DESC LIMIT 200
+      `).all(String(req.params.institutionId||""));
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,audit:rows});
+    } catch(error){next(error);}
+  });
+
   app.get("/api/institutions/my-review-submissions", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const rows=database.prepare(`
