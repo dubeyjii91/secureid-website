@@ -41,6 +41,15 @@ export default function OwnerAdminDashboard() {
   const [activityError, setActivityError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyUser, setBusyUser] = useState("");
+  const [institutions, setInstitutions] = useState([]);
+  const [institutionMemberships, setInstitutionMemberships] = useState([]);
+  const [institutionName, setInstitutionName] = useState("");
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
+  const [selectedMemberUserId, setSelectedMemberUserId] = useState("");
+  const [selectedMemberRole, setSelectedMemberRole] = useState("student");
+  const [institutionError, setInstitutionError] = useState("");
+  const [institutionBusy, setInstitutionBusy] = useState(false);
+
 
   async function load() {
     setLoading(true); setError(""); setUsersError(""); setActivityError(""); setNotificationError(""); setNotice("");
@@ -48,7 +57,8 @@ export default function OwnerAdminDashboard() {
       api("/api/admin/health"),
       api("/api/admin/users?limit=100"),
       api("/api/admin/activity?limit=50"),
-      api("/api/admin/notifications?limit=50")
+      api("/api/admin/notifications?limit=50"),
+      api("/api/admin/institutions")
     ]);
     if (results[0].status === "fulfilled") setHealth(results[0].value);
     else setError(results[0].reason?.message || "Owner status could not be loaded.");
@@ -64,6 +74,13 @@ export default function OwnerAdminDashboard() {
       setNotifications(results[3].value.notifications || []);
       setNotificationTotals(results[3].value.totals || { total: 0, pending: 0, sent: 0, failed: 0 });
     } else setNotificationError(results[3].reason?.message || "Notification history could not be loaded.");
+    if (results[4].status === "fulfilled") {
+      const directory = results[4].value;
+      setInstitutions(directory.institutions || []);
+      setInstitutionMemberships(directory.memberships || []);
+      setSelectedInstitutionId(current => (directory.institutions || []).some(item => item.id === current) ? current : (directory.institutions || [])[0]?.id || "");
+      setSelectedMemberUserId(current => users.some(item => item.id === current) ? current : users[0]?.id || "");
+    } else setInstitutionError(results[4].reason?.message || "Institution directory could not be loaded.");
     setLoading(false);
   }
 
@@ -111,6 +128,50 @@ export default function OwnerAdminDashboard() {
     } finally {
       setBusyNotification("");
     }
+  }
+
+
+  async function createInstitution(event) {
+    event.preventDefault();
+    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
+    try {
+      const result = await api("/api/admin/institutions", { method: "POST", body: JSON.stringify({ name: institutionName }) });
+      setInstitutionName("");
+      await load();
+      setSelectedInstitutionId(result.institution.id);
+      setNotice("Institution created. Provision staff and student memberships explicitly.");
+    } catch (e) {
+      setInstitutionError(e?.message || "Institution could not be created.");
+    } finally { setInstitutionBusy(false); }
+  }
+
+  async function provisionMembership(event) {
+    event.preventDefault();
+    if (!selectedInstitutionId || !selectedMemberUserId) return;
+    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
+    try {
+      await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/memberships", {
+        method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: selectedMemberRole })
+      });
+      await load();
+      setNotice("Institution membership provisioned and audit entry recorded.");
+    } catch (e) {
+      setInstitutionError(e?.message || "Membership could not be provisioned.");
+    } finally { setInstitutionBusy(false); }
+  }
+
+  async function updateMembership(membership, status) {
+    if (institutionBusy || !window.confirm((status === "suspended" ? "Suspend " : "Reactivate ") + membership.email + " in this institution?")) return;
+    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
+    try {
+      await api("/api/admin/institutions/" + encodeURIComponent(membership.institutionId) + "/memberships/" + encodeURIComponent(membership.id), {
+        method: "PATCH", body: JSON.stringify({ status })
+      });
+      await load();
+      setNotice("Institution membership status updated and audit entry recorded.");
+    } catch (e) {
+      setInstitutionError(e?.message || "Membership status could not be updated.");
+    } finally { setInstitutionBusy(false); }
   }
 
   useEffect(() => { load(); }, []);
@@ -163,6 +224,28 @@ export default function OwnerAdminDashboard() {
       {activityError && <p role="alert">{activityError}</p>}
       {!activityError && events.length === 0 && !loading && <p>No activity events found yet.</p>}
       {events.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Time</th><th style={{padding:"10px 8px"}}>Event</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Actor</th></tr></thead><tbody>{events.map((event)=><tr key={event.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(event.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{eventLabel(event.action)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail || event.targetUserId || "—"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.actorEmail || "System"}</td></tr>)}</tbody></table></div>}
+    </div>
+
+    <div className="panel">
+      <div className="eyebrow dark">COLLEGE / INSTITUTION MANAGEMENT</div>
+      <h3>Institution directory · {institutions.length}</h3>
+      <p>Provision institution access only after verifying the institution and the user's account. Every membership creation or status change is recorded in the institution audit trail. All actions require owner authorization and MFA on the server.</p>
+      {institutionError && <p role="alert">{institutionError}</p>}
+      <form onSubmit={createInstitution} style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
+        <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New college / institution name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} />
+        <button className="primary" disabled={institutionBusy}>{institutionBusy ? "Saving…" : "Create institution"}</button>
+      </form>
+      {institutions.length > 0 && <>
+        <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
+          <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}>{users.filter(user => user.role !== "owner").map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
+          <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="read_only">Read only</option></select></label>
+          <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button>
+        </form>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Role</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.role.replaceAll("_"," ")}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
+      </>}
+      {institutions.length === 0 && <p>No institutions have been provisioned yet.</p>}
+      <small>Never provision a student or staff role based only on an unverified email or college name. Membership does not itself authorize document downloads.</small>
     </div>
     <SecureCloudPanel />
   </section>;
