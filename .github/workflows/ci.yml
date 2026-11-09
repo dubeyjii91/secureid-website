@@ -16,6 +16,11 @@ on:
         required: false
         default: false
         type: boolean
+      publish_preview_ota:
+        description: "Publish the checked-out mobile JavaScript bundle to the preview OTA channel (only after installing the matching preview APK)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -101,6 +106,17 @@ jobs:
           path: apk-output/SecureID-preview.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Publish preview OTA update
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview_ota
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
+            exit 1
+          fi
+          npx --yes eas-cli update --channel preview --message "SecureID preview OTA update" --non-interactive
       - name: Build and download signed Android production AAB with EAS
         id: eas_production
         if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
