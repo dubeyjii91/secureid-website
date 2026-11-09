@@ -1,35 +1,35 @@
-# College pilot workflow
+# College pilot and review workflow
 
-## What this release adds
+## Current implementation
 
-- An authenticated College Pilot page for recording institutional interest.
-- A limited form for institution name, submitter role, approximate student population, workflow interests, and a short non-sensitive note.
-- An account-scoped API: `GET /api/college-pilot/requests` and `POST /api/college-pilot/requests`.
-- Request payloads are encrypted using the existing production-features encryption key before being stored in SQLite.
-- Requests are visible only to the signed-in account that created them. Routes require the existing MFA-verified session, and writes use same-origin protection.
-- The page explicitly warns users not to submit student identity numbers, documents, OTPs, or other sensitive data.
+SecureID reuses the existing Document Vault and selective identity-sharing controls. It does not create a second student vault.
 
-## Important product boundaries
+- Authenticated users can submit non-sensitive college pilot interest. Request data is encrypted at rest and visible only to the submitting account.
+- Institutions and memberships use the roles `student`, `reviewer`, `institution_admin`, and `read_only`.
+- Memberships are provisioned only by a trusted SecureID owner with verified MFA. The owner console can create institutions, provision memberships, and suspend/reactivate memberships. Provisioning and membership changes are audited.
+- Students with an active student membership can select a document already in their own SecureID Vault, choose a limited purpose, and explicitly consent to submit a metadata reference to the institution.
+- Reviewers and institution administrators with active memberships can view their institution's queue and record `needs_correction`, `approved`, or `rejected` administrative outcomes. Read-only members can view but cannot change status.
+- Students can view their own submission status and encrypted review note, inspect audit history, and withdraw open submissions.
+- Deleting a source document automatically withdraws its open review submissions.
+- Account export includes institution memberships and review submissions. Account deletion removes linked membership/review records and their user-linked audit rows in dependency-safe order.
 
-This is an interest-capture foundation, not a full college administration portal. It does not yet provide college tenant accounts, staff invitations, review queues, document access delegation, service-level agreements, payments, or verified institutional partnerships. The UI labels these as future workflow capabilities instead of claiming they are live.
+## Important privacy and verification boundaries
 
-The current pilot request is not a paid subscription and does not automatically contact or promise a response from a college. It records the interest for the account owner to review. Before inviting institutions to use real student data, implement and independently test tenant isolation, institutional staff roles, consent and retention controls, audit events, deletion, operational support, and a legally reviewed data-processing agreement.
+The institution review queue currently receives **metadata only** (document filename/category, purpose, and submission status). It does not expose encrypted document bytes, storage paths, or a download endpoint to college staff. If colleges need to inspect document contents, a separate explicit student-authorized viewing mechanism must be designed and security-tested before enabling it.
 
-## Suggested commercial validation
+An institution's `approved` or `rejected` status is only an administrative workflow decision. It is not a government verification, identity authenticity check, proof of enrollment, or official credential. SecureID must not claim that Aadhaar/PAN or any other identity is government-verified without an authorized provider integration and appropriate consent.
 
-1. Use this page to capture non-sensitive pilot interest.
-2. Interview a small number of colleges about onboarding, document review, and follow-up pain points.
-3. Build the institution-side review queue only after agreeing on a real pilot workflow and data responsibilities.
-4. Test willingness to pay with a written pilot offer before publishing pricing.
-5. Keep student access free initially; charge institutions only for validated administrative workflow and support value.
+Pilot-interest forms must contain only a college name, general role/population/workflow preferences, and a short non-sensitive note. Never enter student names, identity numbers, document images, OTPs, passwords, or other sensitive personal data in the interest form.
 
-Never sell student identity data or describe saved documents as government-verified. Government verification requires a separate authorized provider integration and explicit, appropriate consent.
+## Not yet ready for real college data
 
+Before inviting real institutions or uploading real student documents, complete and review:
 
-## Institution membership foundation
+1. Staff invitation/onboarding and verified institutional-domain checks where appropriate.
+2. Consent text versioning, purpose limitation, retention schedule, student withdrawal and institution offboarding/deletion workflows.
+3. A separately designed student-authorized document-viewing flow if file contents are needed by reviewers.
+4. Student credential issuance using existing selective-share, expiry and revocation controls, with clear issuer and verification semantics.
+5. Cross-tenant and role tests, membership suspension/revocation tests, audit completeness and deletion/retention tests.
+6. Support procedures, a legally reviewed data-processing agreement and privacy review.
 
-The backend now has an institution table and a separate membership table with constrained roles: `student`, `reviewer`, `institution_admin`, and `read_only`. The authenticated `GET /api/institutions/memberships` endpoint returns only the current user's memberships and requires MFA. Responses use private, no-store caching.
-
-Memberships must be provisioned by a trusted operator. No public endpoint allows users to create institutions, enroll themselves, invite staff, or change roles. This is only a tenant-membership foundation: it does not yet grant staff access to student records, documents, or pilot requests, and it is not a completed college review portal.
-
-Before real student data is introduced, the project still needs trusted membership provisioning, institution-scoped review records and actions, audit history, consent/retention and deletion controls, operational support, and a reviewed data-processing agreement. Do not describe documents as government-verified unless an authorized provider integration actually performs that verification.
+Keep student access free initially. Do not sell student identity data. No Google Play launch or paid college pilot is required while SecureID is being built and tested.
