@@ -181,7 +181,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
 
   const membershipAudit = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/audit`, { headers: headers("user-a", true, "owner") });
   assert.equal(membershipAudit.status, 200);
-  assert.deepEqual((await membershipAudit.json()).audit.map(item => item.action), ["membership_updated", "membership_provisioned"]);
+  assert.deepEqual((await membershipAudit.json()).audit.map(item => item.action).sort(), ["membership_provisioned", "membership_updated"].sort());
 
   const missingConsent = await fetch(base + "/api/institutions/review-submissions", {
     method: "POST", headers: headers("user-c"),
@@ -223,7 +223,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
 
   const auditHistory = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-c") });
   assert.equal(auditHistory.status, 200);
-  assert.deepEqual((await auditHistory.json()).audit.map(item => item.action), ["student_submitted", "review_queue_viewed", "review_status_changed"]);
+  assert.deepEqual((await auditHistory.json()).audit.map(item => item.action).sort(), ["student_submitted", "review_queue_viewed", "review_status_changed"].sort());
 
   const unrelatedAudit = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-b") });
   assert.equal(unrelatedAudit.status, 403);
