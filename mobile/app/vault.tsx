@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors } from "../src/theme";
-import { deleteDocument, downloadDocument, listDocuments, uploadDocument, type DocumentRecord } from "../src/api";
+import { deleteDocument, downloadDocument, listDocuments, updateDocumentExpiry, uploadDocument, type DocumentRecord } from "../src/api";
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -27,12 +27,31 @@ function categoryLabel(category?: string) {
   return category ? labels[category] || category.replace(/_/g, " ") : "General";
 }
 
+function localDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function expiryStatus(expiryDate?: string | null) {
+  if (!expiryDate) return null;
+  const today = localDateString();
+  const days = Math.floor((Date.parse(`${expiryDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+  if (days < 0) return { label: "Expired", tone: "danger" as const };
+  if (days <= 30) return { label: days === 0 ? "Expires today" : `Expires in ${days} day${days === 1 ? "" : "s"}`, tone: "warning" as const };
+  return { label: `Expires ${expiryDate}`, tone: "normal" as const };
+}
+
 export default function VaultScreen() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState("");
+  const [savingExpiryId, setSavingExpiryId] = useState("");
+  const [expiryDrafts, setExpiryDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
@@ -64,7 +83,8 @@ export default function VaultScreen() {
       const matchesCategory = selectedCategory === "all" || category === selectedCategory;
       const matchesSearch = !normalizedSearch
         || document.name.toLocaleLowerCase().includes(normalizedSearch)
-        || categoryLabel(category).toLocaleLowerCase().includes(normalizedSearch);
+        || categoryLabel(category).toLocaleLowerCase().includes(normalizedSearch)
+        || (document.expiryDate || "").includes(normalizedSearch);
       return matchesCategory && matchesSearch;
     });
   }, [documents, search, selectedCategory]);
@@ -96,6 +116,25 @@ export default function VaultScreen() {
     finally { setDownloadingId(""); }
   }
 
+  async function saveExpiry(document: DocumentRecord) {
+    const raw = (expiryDrafts[document.id] ?? document.expiryDate ?? "").trim();
+    if (raw && !/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) {
+      Alert.alert("Invalid date", "Use YYYY-MM-DD format, for example 2030-12-31.");
+      return;
+    }
+    setSavingExpiryId(document.id);
+    try {
+      const result = await updateDocumentExpiry(document.id, raw || null);
+      setDocuments((current) => current.map((item) => item.id === document.id ? { ...item, expiryDate: result.expiryDate } : item));
+      setExpiryDrafts((current) => ({ ...current, [document.id]: result.expiryDate || "" }));
+      Alert.alert("Expiry date saved", result.expiryDate ? `Expiry date set to ${result.expiryDate}.` : "Expiry date removed.");
+    } catch (error: any) {
+      Alert.alert("Could not save expiry date", error?.message || "Please try again.");
+    } finally {
+      setSavingExpiryId("");
+    }
+  }
+
   function removeDocument(document: DocumentRecord) {
     Alert.alert("Delete document?", `Delete ${document.name} from your vault? This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
@@ -121,25 +160,12 @@ export default function VaultScreen() {
           <View style={styles.filters}>
             <View style={styles.searchBox}>
               <Ionicons name="search-outline" size={18} color={colors.muted}/>
-              <TextInput
-                accessibilityLabel="Search documents"
-                placeholder="Search name or document type"
-                placeholderTextColor={colors.muted}
-                value={search}
-                onChangeText={setSearch}
-                style={styles.searchInput}
-                returnKeyType="search"
-                clearButtonMode="while-editing"
-              />
+              <TextInput accessibilityLabel="Search documents" placeholder="Search name, type or expiry" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch} style={styles.searchInput} returnKeyType="search" clearButtonMode="while-editing"/>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
               {categories.map((category) => {
                 const active = selectedCategory === category;
-                return (
-                  <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.categoryChip, active && styles.categoryChipActive]}>
-                    <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category === "all" ? "All types" : categoryLabel(category)}</Text>
-                  </Pressable>
-                );
+                return <Pressable key={category} onPress={() => setSelectedCategory(category)} style={[styles.categoryChip, active && styles.categoryChipActive]}><Text style={[styles.categoryText, active && styles.categoryTextActive]}>{category === "all" ? "All types" : categoryLabel(category)}</Text></Pressable>;
               })}
             </ScrollView>
           </View>
@@ -148,14 +174,28 @@ export default function VaultScreen() {
           <View style={styles.empty}><Ionicons name="file-tray-outline" size={42} color={colors.muted}/><Text style={styles.emptyTitle}>Your vault is empty</Text><Text style={styles.emptyText}>Upload a PDF, JPG or PNG to store it in your private vault.</Text></View>
         ) : filteredDocuments.length === 0 ? (
           <View style={styles.empty}><Ionicons name="search-outline" size={38} color={colors.muted}/><Text style={styles.emptyTitle}>No matching documents</Text><Text style={styles.emptyText}>Try another search or choose a different document type.</Text><Pressable onPress={() => {setSearch("");setSelectedCategory("all");}} style={styles.clearFilters}><Text style={styles.clearFiltersText}>Clear filters</Text></Pressable></View>
-        ) : filteredDocuments.map((document) => (
-          <View key={document.id} style={styles.document}>
-            <View style={styles.fileIcon}><Ionicons name={document.mimeType === "application/pdf" ? "document-text-outline" : "image-outline"} size={22} color={colors.accent}/></View>
-            <View style={styles.fileCopy}><Text style={styles.fileName} numberOfLines={1}>{document.name}</Text><Text style={styles.fileMeta}>{formatSize(document.sizeBytes)} · {categoryLabel(document.category)}</Text></View>
-            <Pressable onPress={() => openDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Download ${document.name}`} style={styles.delete}>{downloadingId===document.id?<ActivityIndicator color={colors.accent}/>:<Ionicons name="download-outline" size={19} color={colors.accent}/>}</Pressable>
-            <Pressable onPress={() => removeDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Delete ${document.name}`} style={styles.delete}><Ionicons name="trash-outline" size={19} color={colors.danger}/></Pressable>
-          </View>
-        ))}
+        ) : filteredDocuments.map((document) => {
+          const currentExpiry = expiryDrafts[document.id] ?? document.expiryDate ?? "";
+          const status = expiryStatus(document.expiryDate);
+          return (
+            <View key={document.id} style={styles.document}>
+              <View style={styles.documentTop}>
+                <View style={styles.fileIcon}><Ionicons name={document.mimeType === "application/pdf" ? "document-text-outline" : "image-outline"} size={22} color={colors.accent}/></View>
+                <View style={styles.fileCopy}><Text style={styles.fileName} numberOfLines={1}>{document.name}</Text><Text style={styles.fileMeta}>{formatSize(document.sizeBytes)} · {categoryLabel(document.category)}</Text></View>
+                <Pressable onPress={() => openDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Download ${document.name}`} style={styles.actionIcon}>{downloadingId===document.id?<ActivityIndicator color={colors.accent}/>:<Ionicons name="download-outline" size={19} color={colors.accent}/>}</Pressable>
+                <Pressable onPress={() => removeDocument(document)} disabled={!!downloadingId} accessibilityLabel={`Delete ${document.name}`} style={styles.actionIcon}><Ionicons name="trash-outline" size={19} color={colors.danger}/></Pressable>
+              </View>
+              <View style={styles.expiryArea}>
+                <View style={styles.expiryLabelRow}><Text style={styles.expiryLabel}>Expiry date (optional)</Text>{status && <Text style={[styles.expiryStatus, status.tone === "danger" ? styles.expiryDanger : status.tone === "warning" ? styles.expiryWarning : styles.expiryNormal]}>{status.label}</Text>}</View>
+                <View style={styles.expiryEditRow}>
+                  <TextInput accessibilityLabel={`Expiry date for ${document.name}`} placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={currentExpiry} onChangeText={(value) => setExpiryDrafts((current) => ({ ...current, [document.id]: value }))} style={styles.expiryInput} autoCapitalize="none" keyboardType="numbers-and-punctuation" maxLength={10}/>
+                  <Pressable onPress={() => void saveExpiry(document)} disabled={savingExpiryId === document.id} style={[styles.saveExpiry, savingExpiryId === document.id && {opacity:0.6}]}>{savingExpiryId === document.id ? <ActivityIndicator color={colors.background} size="small"/> : <Text style={styles.saveExpiryText}>Save</Text>}</Pressable>
+                </View>
+                <Text style={styles.expiryHint}>Expiry status is a reminder only; it does not verify document authenticity.</Text>
+              </View>
+            </View>
+          );
+        })}
         <View style={styles.securityNote}><Ionicons name="lock-closed-outline" size={18} color={colors.accent}/><Text style={styles.noteText}>Files are validated by content type, encrypted by the server and protected by account ownership and MFA checks.</Text></View>
       </ScrollView>
     </SafeAreaView>
@@ -169,6 +209,7 @@ const styles=StyleSheet.create({
   sectionHeader:{flexDirection:"row",alignItems:"center",marginTop:29,marginBottom:12},sectionTitle:{color:colors.text,fontSize:17,fontWeight:"800",flex:1},count:{color:colors.accent,fontSize:13,fontWeight:"800"},
   filters:{marginBottom:13,gap:11},searchBox:{height:46,flexDirection:"row",alignItems:"center",gap:9,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,borderRadius:13,paddingHorizontal:12},searchInput:{flex:1,color:colors.text,fontSize:13,paddingVertical:0},categoryList:{gap:8,paddingBottom:2},categoryChip:{borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,borderRadius:20,paddingHorizontal:13,paddingVertical:8},categoryChipActive:{borderColor:colors.accent,backgroundColor:"#153444"},categoryText:{color:colors.muted,fontSize:12,fontWeight:"700"},categoryTextActive:{color:colors.accent},clearFilters:{marginTop:14,paddingHorizontal:15,paddingVertical:9,borderRadius:10,backgroundColor:"#153444"},clearFiltersText:{color:colors.accent,fontSize:13,fontWeight:"800"},
   empty:{alignItems:"center",padding:24,borderRadius:18,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},emptyTitle:{color:colors.text,fontSize:16,fontWeight:"700",marginTop:13},emptyText:{color:colors.muted,fontSize:12,lineHeight:18,textAlign:"center",marginTop:7},
-  document:{flexDirection:"row",alignItems:"center",padding:13,borderRadius:15,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,marginBottom:9},fileIcon:{width:42,height:42,borderRadius:12,backgroundColor:"#153444",alignItems:"center",justifyContent:"center"},fileCopy:{flex:1,minWidth:0,marginHorizontal:11},fileName:{color:colors.text,fontSize:13,fontWeight:"700"},fileMeta:{color:colors.muted,fontSize:11,marginTop:4},delete:{padding:9},
+  document:{borderRadius:15,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,marginBottom:10,padding:12},documentTop:{flexDirection:"row",alignItems:"center"},fileIcon:{width:42,height:42,borderRadius:12,backgroundColor:"#153444",alignItems:"center",justifyContent:"center"},fileCopy:{flex:1,minWidth:0,marginHorizontal:10},fileName:{color:colors.text,fontSize:13,fontWeight:"700"},fileMeta:{color:colors.muted,fontSize:11,marginTop:4},actionIcon:{padding:8},
+  expiryArea:{marginTop:13,paddingTop:12,borderTopWidth:1,borderTopColor:colors.border},expiryLabelRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8},expiryLabel:{color:colors.text,fontSize:12,fontWeight:"700"},expiryStatus:{fontSize:11,fontWeight:"800"},expiryDanger:{color:colors.danger},expiryWarning:{color:"#E6A23C"},expiryNormal:{color:colors.muted},expiryEditRow:{flexDirection:"row",alignItems:"center",gap:8,marginTop:8},expiryInput:{flex:1,minWidth:0,height:40,borderWidth:1,borderColor:colors.border,borderRadius:10,paddingHorizontal:11,color:colors.text,fontSize:13},saveExpiry:{minWidth:62,height:40,borderRadius:10,backgroundColor:colors.accent,alignItems:"center",justifyContent:"center",paddingHorizontal:12},saveExpiryText:{color:colors.background,fontSize:12,fontWeight:"900"},expiryHint:{color:colors.muted,fontSize:10,lineHeight:15,marginTop:6},
   securityNote:{flexDirection:"row",alignItems:"flex-start",gap:10,backgroundColor:colors.surface,borderRadius:14,borderWidth:1,borderColor:colors.border,padding:14,marginTop:18},noteText:{flex:1,color:colors.muted,fontSize:12,lineHeight:18}
 });
