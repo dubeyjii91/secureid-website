@@ -937,6 +937,18 @@ export function registerProductionFeatures({
             AND user_id = ?
         `).run(now,req.params.id,req.user.id);
 
+        const affectedReviews = database.prepare(`
+          SELECT id, institution_id AS institutionId, status
+          FROM institution_review_submissions
+          WHERE document_id = ? AND student_user_id = ? AND status IN ('submitted','needs_correction')
+        `).all(req.params.id, req.user.id);
+        const reviewUpdatedAt = new Date().toISOString();
+        for (const review of affectedReviews) {
+          database.prepare("UPDATE institution_review_submissions SET status='withdrawn',updated_at=? WHERE id=?")
+            .run(reviewUpdatedAt, review.id);
+          addInstitutionReviewAudit(review.id, review.institutionId, req.user.id, "document_deleted_withdrawal", review.status, "withdrawn");
+        }
+
         try{
           fs.rmSync(row.encrypted_path,{force:true});
         }catch{}
@@ -1611,8 +1623,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.post("/api/institutions/review-submissions", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.body?.institutionId||""), documentId=String(req.body?.documentId||""), purpose=String(req.body?.purpose||"").trim();
+      const allowedPurposes = new Set(["College enrollment review","Scholarship application","Hostel admission","Exam registration","Student identity record"]);
       if(req.body?.consent!==true) return res.status(400).json({success:false,message:"Explicit consent is required before submitting a document for review."});
-      if(!institutionId||institutionId.length>128||!documentId||documentId.length>128||purpose.length<3||purpose.length>160) return res.status(400).json({success:false,message:"Choose an institution, one of your documents and a purpose up to 160 characters."});
+      if(!institutionId||institutionId.length>128||!documentId||documentId.length>128||!allowedPurposes.has(purpose)) return res.status(400).json({success:false,message:"Choose an institution, one of your documents and a purpose up to 160 characters."});
       const membership=getInstitutionMembership(req.user.id,institutionId);
       if(!membership||membership.status!=="active"||membership.role!=="student") return res.status(403).json({success:false,code:"ACTIVE_STUDENT_MEMBERSHIP_REQUIRED",message:"An active student membership is required."});
       const doc=database.prepare("SELECT id,original_name,document_category FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
