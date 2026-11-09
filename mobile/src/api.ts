@@ -108,6 +108,31 @@ export async function deleteAccount(password: string) {
   return result;
 }
 
+export type IdentityProfile = {
+  name?: string;
+  age?: string;
+  dateOfBirth?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  identityId?: string;
+  college?: string;
+  studentId?: string;
+  governmentId?: string;
+  verificationStatus?: string;
+};
+
+export async function getIdentityProfile() {
+  return request<{ success: boolean; profile: IdentityProfile; updatedAt: number | null }>("/api/identity/profile");
+}
+
+export async function saveIdentityProfile(profile: IdentityProfile) {
+  return request<{ success: boolean; profile: IdentityProfile; updatedAt: number }>("/api/identity/profile", {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  });
+}
+
 export async function listDocuments() {
   return request<{ success: boolean; documents: DocumentRecord[] }>("/api/documents");
 }
