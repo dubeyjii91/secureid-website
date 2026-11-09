@@ -11,6 +11,13 @@ SecureID reuses the existing Document Vault and selective identity-sharing contr
 - Reviewers and institution administrators with active memberships can view their institution's queue and record `needs_correction`, `approved`, or `rejected` administrative outcomes. Read-only members can view but cannot change status.
 - Students can view their own submission status and encrypted review note, inspect audit history, and withdraw open submissions.
 - Deleting a source document automatically withdraws its open review submissions.
+- Each student submission records the consent timestamp and immutable consent text identifier (`college-review-v1`); the student can retrieve this evidence with their submission history.
+
+### Consent text — college-review-v1
+
+“I consent to submit the selected document reference, filename, document category, selected institution, and stated review purpose to that institution for the purpose shown. I understand that this workflow shares document metadata only and does not grant the institution access to the document file itself. I can withdraw an open submission while it is still awaiting review or correction. An institution’s review outcome is an administrative decision and is not government or identity verification.”
+
+The version identifier and acceptance timestamp are stored with each submission. This is an implementation record, not a substitute for formal legal/privacy review or institution-specific consent terms. Any wording change must use a new version identifier rather than silently changing this text.
 - Account export includes institution memberships and review submissions. Account deletion removes linked membership/review records and their user-linked audit rows in dependency-safe order.
 
 ## Important privacy and verification boundaries
