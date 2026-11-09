@@ -169,7 +169,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const createdInstitution = (await createdInstitutionResponse.json()).institution;
 
   const provisionedMembershipResponse = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/memberships`, {
-    method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ userId: "user-b", role: "reviewer" })
+    method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ userId: "user-d", role: "reviewer" })
   });
   assert.equal(provisionedMembershipResponse.status, 201);
   const provisionedMembership = (await provisionedMembershipResponse.json()).membership;
@@ -184,7 +184,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(suspendMembership.status, 200);
   assert.equal((await suspendMembership.json()).membership.status, "suspended");
 
-  const suspendedReviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-b") });
+  const suspendedReviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-d") });
   assert.equal(suspendedReviewerQueue.status, 403, "a suspended-only reviewer must lose queue access immediately");
 
   const membershipAudit = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/audit`, { headers: headers("user-a", true, "owner") });
