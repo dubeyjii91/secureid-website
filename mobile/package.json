@@ -26,10 +26,11 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "expo-file-system": "~19.0.23",
-    "expo-sharing": "~14.0.8"
+    "expo-sharing": "~14.0.8",
+    "expo-notifications": "~0.32.17"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2"
   }
-}
+}\n
