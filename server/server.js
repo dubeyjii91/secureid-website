@@ -533,8 +533,10 @@ app.get("/api/account/export", requireAuth, requireMfa, (req,res,next)=>{
     const documents=database.prepare("SELECT id,original_name AS originalName,mime_type AS mimeType,size_bytes AS sizeBytes,document_category AS category,created_at AS createdAt,deleted_at AS deletedAt FROM secure_documents WHERE user_id=?").all(req.user.id);
     const identityShares=database.prepare("SELECT id,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
     const documentShares=database.prepare("SELECT id,document_id AS documentId,created_at AS createdAt,expires_at AS expiresAt,revoked_at AS revokedAt,accessed_at AS accessedAt,access_count AS accessCount,share_reason AS purpose FROM secure_document_shares WHERE user_id=? ORDER BY created_at DESC").all(req.user.id);
+    const institutionMemberships=database.prepare("SELECT i.name AS institutionName,m.role,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt FROM institution_memberships m JOIN institutions i ON i.id=m.institution_id WHERE m.user_id=? ORDER BY i.name COLLATE NOCASE").all(req.user.id);
+    const institutionReviewSubmissions=database.prepare("SELECT i.name AS institutionName,d.original_name AS documentName,s.purpose,s.status,s.consented_at AS consentedAt,s.created_at AS createdAt,s.updated_at AS updatedAt FROM institution_review_submissions s JOIN institutions i ON i.id=s.institution_id LEFT JOIN secure_documents d ON d.id=s.document_id WHERE s.student_user_id=? ORDER BY s.created_at DESC").all(req.user.id);
     const events=database.prepare("SELECT event_type AS eventType,created_at AS createdAt,metadata_json AS metadata FROM security_events WHERE user_id=? ORDER BY created_at DESC LIMIT 1000").all(req.user.id).map(e=>({...e,metadata:e.metadata?JSON.parse(e.metadata):null}));
-    const payload={exportVersion:1,exportedAt:new Date().toISOString(),account:{email:user.email,createdAt:user.createdAt,passwordChangedAt:user.passwordChangedAt||null},wallet,privacy,documents,identityShares,documentShares,securityActivity:events};
+    const payload={exportVersion:1,exportedAt:new Date().toISOString(),account:{email:user.email,createdAt:user.createdAt,passwordChangedAt:user.passwordChangedAt||null},wallet,privacy,documents,identityShares,documentShares,institutionMemberships,institutionReviewSubmissions,securityActivity:events};
     res.setHeader("Content-Type","application/json");
     res.setHeader("Content-Disposition",'attachment; filename="secureid-data-export.json"');
     res.json(payload);
@@ -552,6 +554,11 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
     try{
       database.prepare("DELETE FROM secure_document_shares WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM secure_shares WHERE user_id=?").run(req.user.id);
+      // Remove institution audit rows before deleting referenced memberships,
+      // submissions and users. A deleted reviewer may leave other students' submissions intact.
+      database.prepare("DELETE FROM institution_review_audit WHERE actor_user_id=? OR submission_id IN (SELECT id FROM institution_review_submissions WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("DELETE FROM institution_review_submissions WHERE student_user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(req.user.id,req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
       // These tables intentionally lack cascading user foreign keys for migration
