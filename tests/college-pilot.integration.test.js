@@ -232,8 +232,9 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const studentHistory = await fetch(base + "/api/institutions/my-review-submissions", { headers: headers("user-c") });
   assert.equal(studentHistory.status, 200);
   const studentRecords = await studentHistory.json();
-  assert.equal(studentRecords.submissions[0].status, "approved");
-  assert.equal(studentRecords.submissions[0].reviewNote, "Enrollment document reviewed by the institution.");
+  const reviewedRecord = studentRecords.submissions.find(item => item.id === submission.id);
+  assert.equal(reviewedRecord.status, "approved");
+  assert.equal(reviewedRecord.reviewNote, "Enrollment document reviewed by the institution.");
 
   const auditHistory = await fetch(base + `/api/institutions/review-submissions/${submission.id}/audit`, { headers: headers("user-c") });
   assert.equal(auditHistory.status, 200);
