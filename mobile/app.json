@@ -3,7 +3,7 @@
     "name": "SecureID",
     "slug": "secureid-mobile",
     "scheme": "secureid",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -33,7 +33,17 @@
         }
       ],
       "expo-document-picker",
-      "expo-font"
+      "expo-font",
+      "expo-notifications",
+      "expo-updates",
+      [
+        "expo-ai-kit",
+        {
+          "vision": [
+            "text-recognition"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -43,6 +53,12 @@
         "projectId": "95abc66d-901c-4a15-aa86-b11200934001"
       }
     },
-    "icon": "./assets/secureid-icon.png"
+    "icon": "./assets/secureid-icon.png",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/95abc66d-901c-4a15-aa86-b11200934001"
+    }
   }
 }

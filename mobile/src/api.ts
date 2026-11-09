@@ -190,6 +190,37 @@ export async function revokeSession(sessionId: string) {
   });
 }
 
+// Clean up a previous OCR temp file if Android terminated the app before its finally block ran.
+export async function cleanupLocalOcrCache() {
+  if (!FileSystem.cacheDirectory) return;
+  try {
+    const entries = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
+    await Promise.all(entries
+      .filter((entry) => entry.startsWith("secureid-local-ocr-"))
+      .map((entry) => FileSystem.deleteAsync(`${FileSystem.cacheDirectory}${entry}`, { idempotent: true }).catch(() => {})));
+  } catch {}
+}
+
+// Downloads a user's already-stored image into a temporary private cache file for on-device OCR.
+// The caller must delete the returned plaintext cache file in a finally block.
+export async function downloadDocumentForLocalOcr(id: string) {
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  if (!token) throw new Error("Sign in to scan this document.");
+  if (!FileSystem.cacheDirectory) throw new Error("Device storage is unavailable.");
+  const destination = `${FileSystem.cacheDirectory}secureid-local-ocr-${Date.now()}`;
+  const result = await FileSystem.downloadAsync(
+    `${API_BASE_URL}/api/documents/${encodeURIComponent(id)}`,
+    destination,
+    { headers: { [CLIENT_HEADER]: "native", Authorization: `Bearer ${token}` } },
+  );
+  if (result.status !== 200) {
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+    if (result.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
+    throw new Error(result.status === 403 ? "MFA verification is required to scan documents." : "SecureID could not prepare this document for local OCR.");
+  }
+  return result.uri;
+}
+
 export async function downloadDocument(id: string, name: string, mimeType: string) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!token) throw new Error("Sign in to download this document.");
