@@ -1538,7 +1538,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         JOIN secure_documents d ON d.id=s.document_id AND d.user_id=s.student_user_id
         WHERE s.student_user_id=? ORDER BY s.created_at DESC LIMIT 100
       `).all(req.user.id);
-      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(row.encryptedReviewNote,key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
+      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,submissions});
     } catch(error){next(error);}
   });
@@ -1588,7 +1588,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         WHERE s.institution_id IN (${placeholders}) AND s.status<>'withdrawn'
         ORDER BY s.created_at DESC LIMIT 100
       `).all(...visible);
-      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(row.encryptedReviewNote,key)?.note||"");}catch{}}addInstitutionReviewAudit(row.id,row.institutionId,req.user.id,"review_queue_viewed",row.status,row.status);return {...row,encryptedReviewNote:undefined,reviewNote};});
+      const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}addInstitutionReviewAudit(row.id,row.institutionId,req.user.id,"review_queue_viewed",row.status,row.status);return {...row,encryptedReviewNote:undefined,reviewNote};});
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,submissions});
     } catch(error){next(error);}
   });
