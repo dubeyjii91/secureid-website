@@ -33,3 +33,20 @@ Before inviting real institutions or uploading real student documents, complete 
 6. Support procedures, a legally reviewed data-processing agreement and privacy review.
 
 Keep student access free initially. Do not sell student identity data. No Google Play launch or paid college pilot is required while SecureID is being built and tested.
+
+## Two-account manual acceptance test (test accounts only)
+
+Use two accounts controlled by the tester; never share passwords, MFA codes, recovery codes, or real identity documents with another person.
+
+1. Sign in to the owner console with the trusted SecureID owner account and complete MFA.
+2. Create a clearly labelled test institution, for example `SecureID QA Sandbox`.
+3. In the registered-account selector, provision account A as `student` and account B as `reviewer`. Confirm both memberships are active in the institution directory and that the audit trail records both provisions.
+4. Sign out. Sign in as account A (student), complete MFA, and confirm the institution appears in the student review-submission flow. Use only a synthetic/test document already in the test vault. Submit it for one allowed purpose with explicit consent.
+5. Sign out. Sign in as account B (reviewer), complete MFA, open the institution review queue, and confirm only metadata is visible (filename/category/purpose/status; no file bytes or download control).
+6. As reviewer, set the test submission to `needs_correction` and add a non-sensitive test note. Return to account A and verify the status and note are visible; withdraw the open submission.
+7. Repeat with a second synthetic test submission and have the reviewer mark it `approved`. Confirm the student sees the administrative outcome and that the audit trail records submission, queue access and decision.
+8. In the owner console, suspend the reviewer's institution membership. Sign in as account B again and confirm the institution queue is denied. Reactivate only if another test is needed; otherwise leave the test memberships suspended after testing.
+
+Expected security results: the student cannot act as reviewer; the reviewer cannot access the student's vault bytes through the queue; missing MFA is denied; a suspended membership loses access; the student can see and withdraw their own open submission. An `approved` result is an institution workflow decision only, not proof of identity or official enrollment.
+
+Record pass/fail and the app version/build used. Do not mark this manual gate complete until both accounts have actually completed the steps against the same deployed test environment.
