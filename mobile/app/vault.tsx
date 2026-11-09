@@ -249,7 +249,6 @@ export default function VaultScreen() {
                   <Text style={styles.ocrButtonText}>{ocrBusyId === document.id ? "Reading on this device…" : "Extract text on this device"}</Text>
                 </Pressable>
               )}
-              </View>
               <View style={styles.expiryArea}>
                 <View style={styles.expiryLabelRow}><Text style={styles.expiryLabel}>Expiry date (optional)</Text>{status && <Text style={[styles.expiryStatus, status.tone === "danger" ? styles.expiryDanger : status.tone === "warning" ? styles.expiryWarning : styles.expiryNormal]}>{status.label}</Text>}</View>
                 <View style={styles.expiryEditRow}>
