@@ -35,7 +35,15 @@
       "expo-document-picker",
       "expo-font",
       "expo-notifications",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-ai-kit",
+        {
+          "vision": [
+            "text-recognition"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
