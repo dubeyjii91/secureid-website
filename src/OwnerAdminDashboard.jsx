@@ -81,7 +81,6 @@ export default function OwnerAdminDashboard() {
       setInstitutions(directory.institutions || []);
       setInstitutionMemberships(directory.memberships || []);
       setSelectedInstitutionId(current => (directory.institutions || []).some(item => item.id === current) ? current : (directory.institutions || [])[0]?.id || "");
-      setSelectedMemberUserId(current => nextUsers.some(item => item.id === current) ? current : nextUsers.find(item => item.role !== "owner")?.id || "");
     } else setInstitutionError(results[4].reason?.message || "Institution directory could not be loaded.");
     setLoading(false);
   }
