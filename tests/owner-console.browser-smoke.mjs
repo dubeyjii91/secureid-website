@@ -73,8 +73,8 @@ try {
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
-  try { await page.locator('select option[value="institution-1"]').waitFor({ timeout: 5000 }); }
-  catch { throw new Error("Institution was not created in UI. Alert=" + await page.getByRole("alert").allTextContents() + "; Notice=" + await page.getByRole("status").allTextContents() + "; API trace=" + apiTrace.join(" | ")); }
+  try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
+  catch { throw new Error("Institution was not created in UI. Alert=" + await page.getByRole("alert").allTextContents() + "; Notice=" + await page.getByRole("status").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();
