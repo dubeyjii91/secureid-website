@@ -343,6 +343,66 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const availableAfterRelease = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
   assert.equal((await availableAfterRelease.json()).rooms[0].availableBeds, 1);
 
+
+  // Hostel operations: check-in/out lifecycle, institution-admin fee creation,
+  // reviewer payment receipt recording, student fee visibility and reporting.
+  const secondAllocationResponse = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ roomId: room.id })
+  });
+  assert.equal(secondAllocationResponse.status, 201);
+  const secondAllocation = (await secondAllocationResponse.json()).allocation;
+  const checkoutBeforeCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-out`, { method: "POST", headers: headers("user-a") });
+  assert.equal(checkoutBeforeCheckin.status, 409);
+  const checkin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-a") });
+  assert.equal(checkin.status, 200);
+  const duplicateCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-a") });
+  assert.equal(duplicateCheckin.status, 409);
+  const checkout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-out`, { method: "POST", headers: headers("user-a") });
+  assert.equal(checkout.status, 200);
+
+  const reviewerCannotCreateFee = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/fees`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ description: "Hostel fee", amount: 1500 })
+  });
+  assert.equal(reviewerCannotCreateFee.status, 403);
+  const feeResponse = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/fees`, {
+    method: "POST", headers: headers("user-d"), body: JSON.stringify({ description: "Hostel accommodation", amount: 1500.5, dueDate: "2026-12-01" })
+  });
+  assert.equal(feeResponse.status, 201, await feeResponse.clone().text());
+  const fee = (await feeResponse.json()).fee;
+  assert.equal(fee.amountPaise, 150050);
+
+  const studentFees = await fetch(base + "/api/institutions/my-hostel-fees", { headers: headers("user-c") });
+  assert.equal(studentFees.status, 200);
+  assert.equal((await studentFees.json()).fees[0].amountPaise, 150050);
+
+  const partialPayment = await fetch(base + `/api/institutions/hostel-fees/${fee.id}/payments`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ amount: 500, paymentMethod: "upi", reference: "UPI-TEST-001" })
+  });
+  assert.equal(partialPayment.status, 201);
+  assert.equal((await partialPayment.json()).status, "partial");
+  const excessPayment = await fetch(base + `/api/institutions/hostel-fees/${fee.id}/payments`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ amount: 1001, paymentMethod: "cash" })
+  });
+  assert.equal(excessPayment.status, 409);
+  const finalPayment = await fetch(base + `/api/institutions/hostel-fees/${fee.id}/payments`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ amount: 1000.5, paymentMethod: "bank_transfer", reference: "BANK-TEST-002" })
+  });
+  assert.equal(finalPayment.status, 201);
+  assert.equal((await finalPayment.json()).status, "paid");
+
+  const hostelOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-a") });
+  assert.equal(hostelOperations.status, 200);
+  const operationsData = await hostelOperations.json();
+  assert.equal(operationsData.fees.find(item => item.id === fee.id).status, "paid");
+  assert.equal(operationsData.allocations.find(item => item.allocationId === secondAllocation.id).checkedOutAt !== null, true);
+  assert.equal(operationsData.summary.currentlyCheckedIn, 0);
+  const readOnlyOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-b") });
+  assert.equal(readOnlyOperations.status, 200);
+  const readOnlyCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-b") });
+  assert.equal(readOnlyCheckin.status, 403);
+  const unrelatedOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=unknown-college", { headers: headers("user-a") });
+  assert.equal(unrelatedOperations.status, 403);
+
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
   });
