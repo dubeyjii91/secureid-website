@@ -446,7 +446,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const readOnlyOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-b") });
   assert.equal(readOnlyOperations.status, 200);
   const readOnlyCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-b") });
-  assert.equal(readOnlyCheckin.status, 403);
+  assert.equal(readOnlyCheckin.status, 403, "read-only members are denied before allocation lifecycle details are disclosed");
   const unrelatedOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=unknown-college", { headers: headers("user-a") });
   assert.equal(unrelatedOperations.status, 403);
 
