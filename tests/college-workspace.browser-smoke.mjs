@@ -16,6 +16,9 @@ async function openRole(role) {
     const path = url.pathname;
     const method = request.method();
 
+    if (path === "/api/auth/csrf" && method === "GET") {
+      return route.fulfill({ ...json({ success: true }), headers: { "set-cookie": "secureid.csrf=synthetic-test-token; Path=/; SameSite=Lax" } });
+    }
     if (path === "/api/auth/session" && method === "GET") {
       return route.fulfill(json({ user: { email: role === "student" ? "student@secureid.test" : "reviewer@secureid.test", role: "user", mfaVerified: true }, wallet: { risk: 0, locked: false } }));
     }
