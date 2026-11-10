@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./college-workspace.css";
 import api from "./api.js";
+import HostelManagement from "./HostelManagement.jsx";
 
 const initialForm = { institutionName: "", role: "Student", studentCount: "Under 500", workflows: ["Student onboarding", "Document submission tracking"], notes: "" };
 
@@ -185,6 +186,8 @@ export default function CollegeWorkspace() {
       {reviewQueue.length === 0 ? <p className="lead">No student submissions are waiting in your institution queue.</p> : <div className="collegeRequestList">{reviewQueue.map(item => <article className="collegeRequest" key={item.id}><strong>{item.documentName}</strong><span className="collegeStatus">{item.status.replaceAll("_"," ")}</span><small>{item.institutionName} · Student account: {item.studentUserId} · {item.documentCategory} · {item.purpose}</small><button type="button" className="secondary" onClick={() => showAudit(item.id)}>View audit history</button>{auditHistory[item.id] && <ul className="collegeAuditList">{auditHistory[item.id].map((entry,index)=><li key={index}>{entry.action.replaceAll("_"," ")} · {entry.actorEmail || "account"} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}{canReview && ["submitted","needs_correction"].includes(item.status) && <div className="collegeReviewActions"><label>Review note (optional)<textarea maxLength={500} rows={2} value={reviewNotes[item.id] || ""} onChange={event => setReviewNotes(current => ({...current,[item.id]:event.target.value}))} placeholder="Give the student a concise administrative note." /></label><div className="collegeReviewButtons"><button type="button" className="secondary" onClick={() => changeReview(item.id,"needs_correction")}>Needs correction</button><button type="button" className="secondary" onClick={() => changeReview(item.id,"rejected")}>Reject</button><button type="button" className="primary" onClick={() => changeReview(item.id,"approved")}>Approve</button></div></div>}</article>)}</div>}
       <p className="collegePrivacyNote">“Approved” and “rejected” are institution workflow decisions only. They do not mean SecureID or a government authority has verified the document or the student's identity.</p>
     </section>}
+
+    <HostelManagement />
 
     <div className="collegeColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
