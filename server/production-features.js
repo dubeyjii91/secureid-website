@@ -185,6 +185,8 @@ export function registerProductionFeatures({
       stay_type TEXT NOT NULL CHECK (stay_type IN ('new_admission','renewal')),
       room_preference TEXT NOT NULL DEFAULT 'no_preference',
       student_note TEXT,
+      consented_at TEXT NOT NULL,
+      consent_version TEXT NOT NULL DEFAULT 'hostel-application-v1',
       status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','needs_correction','approved','rejected','withdrawn')),
       encrypted_review_note TEXT,
       reviewed_by TEXT,
@@ -249,6 +251,8 @@ export function registerProductionFeatures({
   `);
 
   try { database.exec("ALTER TABLE institution_review_submissions ADD COLUMN consent_version TEXT NOT NULL DEFAULT 'college-review-v1'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  try { database.exec("ALTER TABLE hostel_applications ADD COLUMN consented_at TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  try { database.exec("ALTER TABLE hostel_applications ADD COLUMN consent_version TEXT NOT NULL DEFAULT 'hostel-application-v1'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN expiry_date TEXT"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
 
@@ -1757,8 +1761,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const duplicate=database.prepare("SELECT id FROM hostel_applications WHERE institution_id=? AND student_user_id=? AND academic_year=? AND status<>'withdrawn' LIMIT 1").get(institutionId,req.user.id,academicYear);
       if(duplicate) return res.status(409).json({success:false,message:"You already have a hostel application for this academic year."});
       const id=crypto.randomUUID(),now=new Date().toISOString();
-      database.prepare("INSERT INTO hostel_applications(id,institution_id,student_user_id,academic_year,stay_type,room_preference,student_note,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)")
-        .run(id,institutionId,req.user.id,academicYear,stayType,roomPreference,studentNote||null,now,now);
+      database.prepare("INSERT INTO hostel_applications(id,institution_id,student_user_id,academic_year,stay_type,room_preference,student_note,consented_at,consent_version,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'submitted',?,?)")
+        .run(id,institutionId,req.user.id,academicYear,stayType,roomPreference,studentNote||null,now,"hostel-application-v1",now,now);
       addHostelAudit(id,institutionId,req.user.id,"student_applied",null,"submitted");
       if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_APPLICATION_SUBMITTED",req);
       res.setHeader("Cache-Control","private, no-store");
