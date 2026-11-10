@@ -2,6 +2,11 @@ name: Build SecureID Android APK (EAS signed)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/secureid-android-eas.yml'
 
 permissions:
   contents: read
