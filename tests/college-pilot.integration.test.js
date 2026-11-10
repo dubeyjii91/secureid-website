@@ -315,6 +315,11 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(roomResponse.status, 201, await roomResponse.clone().text());
   const room = (await roomResponse.json()).room;
+  const reviewerOccupancyDenied = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-a"),
+    body: JSON.stringify({ manualOccupiedBeds: 1, academicYear: "2026-2027" })
+  });
+  assert.equal(reviewerOccupancyDenied.status, 403, "reviewers cannot change warden-managed occupancy");
   const approveHostel = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}`, {
     method: "PATCH", headers: headers("user-a"),
     body: JSON.stringify({ status: "approved", reviewNote: "Hostel admission approved." })
@@ -330,6 +335,12 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const fullInventory = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
   assert.equal(fullInventory.status, 200);
   assert.equal((await fullInventory.json()).rooms[0].availableBeds, 0);
+  const overCapacityManualOccupancy = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-d"),
+    body: JSON.stringify({ manualOccupiedBeds: 1, academicYear: "2026-2027" })
+  });
+  assert.equal(overCapacityManualOccupancy.status, 409, "manual occupants plus active allocations cannot exceed capacity");
+
   const studentHostelHistory = await fetch(base + "/api/institutions/my-hostel-applications", { headers: headers("user-c") });
   const studentHostelItem = (await studentHostelHistory.json()).applications.find(item => item.id === hostelApplication.id);
   assert.equal(studentHostelItem.roomNumber, "101");
@@ -342,10 +353,30 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(releaseBed.status, 200);
   const availableAfterRelease = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
   assert.equal((await availableAfterRelease.json()).rooms[0].availableBeds, 1);
+  const setExistingOccupants = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-d"),
+    body: JSON.stringify({ manualOccupiedBeds: 1, academicYear: "2026-2027" })
+  });
+  assert.equal(setExistingOccupants.status, 200, await setExistingOccupants.clone().text());
+  const inventoryWithExistingOccupant = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
+  const roomWithExistingOccupant = (await inventoryWithExistingOccupant.json()).rooms[0];
+  assert.equal(roomWithExistingOccupant.occupiedBeds, 1);
+  assert.equal(roomWithExistingOccupant.manualOccupiedBeds, 1);
+  assert.equal(roomWithExistingOccupant.availableBeds, 0);
+
 
 
   // Hostel operations: check-in/out lifecycle, institution-admin fee creation,
   // reviewer payment receipt recording, student fee visibility and reporting.
+  const allocationBlockedByManualOccupancy = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ roomId: room.id })
+  });
+  assert.equal(allocationBlockedByManualOccupancy.status, 409, "warden-entered occupied beds must reduce allotment capacity");
+  const clearManualOccupancy = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-d"),
+    body: JSON.stringify({ manualOccupiedBeds: 0, academicYear: "2026-2027" })
+  });
+  assert.equal(clearManualOccupancy.status, 200);
   const secondAllocationResponse = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ roomId: room.id })
   });
