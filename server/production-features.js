@@ -177,6 +177,34 @@ export function registerProductionFeatures({
     CREATE INDEX IF NOT EXISTS idx_institution_memberships_institution
       ON institution_memberships(institution_id, status);
 
+    CREATE TABLE IF NOT EXISTS hostel_applications (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      student_user_id TEXT NOT NULL REFERENCES users(id),
+      academic_year TEXT NOT NULL,
+      stay_type TEXT NOT NULL CHECK (stay_type IN ('new_admission','renewal')),
+      room_preference TEXT NOT NULL DEFAULT 'no_preference',
+      student_note TEXT,
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','needs_correction','approved','rejected','withdrawn')),
+      encrypted_review_note TEXT,
+      reviewed_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_applications_institution_status ON hostel_applications(institution_id,status,created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_hostel_applications_student ON hostel_applications(student_user_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS hostel_application_audit (
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES hostel_applications(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_application_audit_app ON hostel_application_audit(application_id,created_at DESC);
+
     CREATE TABLE IF NOT EXISTS institution_review_submissions (
       id TEXT PRIMARY KEY,
       institution_id TEXT NOT NULL REFERENCES institutions(id),
@@ -1703,6 +1731,102 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         WHERE a.submission_id=? ORDER BY a.created_at ASC LIMIT 200
       `).all(row.id);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,audit});
+    } catch(error){next(error);}
+  });
+
+  // HOSTEL ADMISSIONS — institution-scoped student applications and reviewer decisions.
+  function addHostelAudit(applicationId, institutionId, actorUserId, action, fromStatus = null, toStatus = null) {
+    database.prepare("INSERT INTO hostel_application_audit(id,application_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(crypto.randomUUID(), applicationId, institutionId, actorUserId, action, fromStatus, toStatus, new Date().toISOString());
+  }
+
+  app.post("/api/institutions/hostel-applications", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.body?.institutionId||"");
+      const academicYear=String(req.body?.academicYear||"").trim();
+      const stayType=String(req.body?.stayType||"");
+      const roomPreference=String(req.body?.roomPreference||"no_preference");
+      const studentNote=String(req.body?.studentNote||"").trim();
+      if(!institutionId||institutionId.length>128||!/^20\d{2}-20\d{2}$/.test(academicYear)||
+        !["new_admission","renewal"].includes(stayType)||!["no_preference","single","shared"].includes(roomPreference)||studentNote.length>500) {
+        return res.status(400).json({success:false,message:"Check the academic year, stay type, room preference and note."});
+      }
+      const membership=getInstitutionMembership(req.user.id,institutionId);
+      if(!membership||membership.status!=="active"||membership.role!=="student") return res.status(403).json({success:false,code:"ACTIVE_STUDENT_MEMBERSHIP_REQUIRED",message:"An active student membership is required."});
+      const duplicate=database.prepare("SELECT id FROM hostel_applications WHERE institution_id=? AND student_user_id=? AND academic_year=? AND status<>'withdrawn' LIMIT 1").get(institutionId,req.user.id,academicYear);
+      if(duplicate) return res.status(409).json({success:false,message:"You already have a hostel application for this academic year."});
+      const id=crypto.randomUUID(),now=new Date().toISOString();
+      database.prepare("INSERT INTO hostel_applications(id,institution_id,student_user_id,academic_year,stay_type,room_preference,student_note,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)")
+        .run(id,institutionId,req.user.id,academicYear,stayType,roomPreference,studentNote||null,now,now);
+      addHostelAudit(id,institutionId,req.user.id,"student_applied",null,"submitted");
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_APPLICATION_SUBMITTED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,application:{id,institutionId,academicYear,stayType,roomPreference,status:"submitted",createdAt:now,updatedAt:now}});
+    } catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/my-hostel-applications", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const rows=database.prepare(`
+        SELECT h.id,h.institution_id AS institutionId,i.name AS institutionName,h.academic_year AS academicYear,
+          h.stay_type AS stayType,h.room_preference AS roomPreference,h.student_note AS studentNote,h.status,
+          h.encrypted_review_note AS encryptedReviewNote,h.created_at AS createdAt,h.updated_at AS updatedAt
+        FROM hostel_applications h JOIN institutions i ON i.id=h.institution_id
+        WHERE h.student_user_id=? ORDER BY h.created_at DESC LIMIT 100
+      `).all(req.user.id);
+      const applications=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,applications});
+    } catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/hostel-review-queue", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const memberships=database.prepare("SELECT institution_id FROM institution_memberships WHERE user_id=? AND status='active' AND role IN ('reviewer','institution_admin','read_only')").all(req.user.id);
+      const ids=memberships.map(row=>row.institution_id);
+      if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
+      const requested=String(req.query.institutionId||"");
+      if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
+      const visible=requested?[requested]:ids,placeholders=visible.map(()=>"?").join(",");
+      const rows=database.prepare(`
+        SELECT h.id,h.institution_id AS institutionId,i.name AS institutionName,h.student_user_id AS studentUserId,
+          h.academic_year AS academicYear,h.stay_type AS stayType,h.room_preference AS roomPreference,
+          h.student_note AS studentNote,h.status,h.encrypted_review_note AS encryptedReviewNote,
+          h.created_at AS createdAt,h.updated_at AS updatedAt
+        FROM hostel_applications h JOIN institutions i ON i.id=h.institution_id
+        WHERE h.institution_id IN (${placeholders}) AND h.status<>'withdrawn'
+        ORDER BY h.created_at DESC LIMIT 100
+      `).all(...visible);
+      const applications=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}addHostelAudit(row.id,row.institutionId,req.user.id,"review_queue_viewed",row.status,row.status);return {...row,encryptedReviewNote:undefined,reviewNote};});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,applications});
+    } catch(error){next(error);}
+  });
+
+  app.patch("/api/institutions/hostel-applications/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,status FROM hostel_applications WHERE id=?").get(String(req.params.id||""));
+      if(!row) return res.status(404).json({success:false,message:"Hostel application was not found."});
+      const membership=getInstitutionMembership(req.user.id,row.institution_id);
+      if(!membership||membership.status!=="active"||!["reviewer","institution_admin"].includes(membership.role)) return res.status(403).json({success:false,code:"HOSTEL_REVIEW_FORBIDDEN",message:"An active reviewer or institution administrator membership is required."});
+      const status=String(req.body?.status||""),note=String(req.body?.reviewNote||"").trim();
+      if(!["needs_correction","approved","rejected"].includes(status)||note.length>500) return res.status(400).json({success:false,message:"Choose a valid review outcome and keep the note within 500 characters."});
+      if(["withdrawn","approved","rejected"].includes(row.status)) return res.status(409).json({success:false,message:"This hostel application is already closed."});
+      const encryptedNote=note?JSON.stringify(jsonEncrypt({note},key)):null,now=new Date().toISOString();
+      database.prepare("UPDATE hostel_applications SET status=?,encrypted_review_note=?,reviewed_by=?,updated_at=? WHERE id=?").run(status,encryptedNote,req.user.id,now,row.id);
+      addHostelAudit(row.id,row.institution_id,req.user.id,"hostel_review_status_changed",row.status,status);
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_APPLICATION_REVIEWED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,application:{id:row.id,status,reviewNote:note,updatedAt:now}});
+    } catch(error){next(error);}
+  });
+
+  app.delete("/api/institutions/hostel-applications/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM hostel_applications WHERE id=?").get(String(req.params.id||""));
+      if(!row||row.student_user_id!==req.user.id) return res.status(404).json({success:false,message:"Hostel application was not found."});
+      if(!["submitted","needs_correction"].includes(row.status)) return res.status(409).json({success:false,message:"This hostel application can no longer be withdrawn."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE hostel_applications SET status='withdrawn',updated_at=? WHERE id=? AND student_user_id=?").run(now,row.id,req.user.id);
+      addHostelAudit(row.id,row.institution_id,req.user.id,"student_withdrew_hostel_application",row.status,"withdrawn");
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,status:"withdrawn"});
     } catch(error){next(error);}
   });
 
