@@ -22,6 +22,7 @@ export default function HostelManagement() {
   const [form, setForm] = useState(initialForm);
   const [buildingName, setBuildingName] = useState("");
   const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2" });
+  const [occupancyDrafts, setOccupancyDrafts] = useState({});
   const [allocationRooms, setAllocationRooms] = useState({});
   const [notes, setNotes] = useState({});
   const [consent, setConsent] = useState(false);
@@ -59,6 +60,7 @@ export default function HostelManagement() {
       if (institutionIds.length) {
         const inventoryData = await api("/api/institutions/hostel-inventory", { cache: "no-store" });
         setInventory({ buildings: inventoryData.buildings || [], rooms: inventoryData.rooms || [] });
+        setOccupancyDrafts(Object.fromEntries((inventoryData.rooms || []).map(room => [room.id, String(room.manualOccupiedBeds ?? 0)])));
         setRoomForm(value => ({ ...value, buildingId: value.buildingId || inventoryData.buildings?.[0]?.id || "" }));
       } else setInventory({ buildings: [], rooms: [] });
     } catch (err) {
@@ -119,10 +121,22 @@ export default function HostelManagement() {
     try {
       const institutionId = memberships.find(item => item.status === "active" && item.role === "institution_admin" && inventory.buildings.some(building => building.id === roomForm.buildingId))?.institutionId;
       if (!institutionId) throw new Error("Choose a building in an institution you administer.");
-      await api("/api/institutions/hostel-rooms", { method: "POST", body: JSON.stringify({ ...roomForm, institutionId, capacity: Number(roomForm.capacity) }) });
-      setRoomForm(value => ({ ...value, roomNumber: "" })); setMessage("Hostel room added."); await load();
+      await api("/api/institutions/hostel-rooms", { method: "POST", body: JSON.stringify({ ...roomForm, institutionId, capacity: Number(roomForm.capacity), manualOccupiedBeds: Number(roomForm.manualOccupiedBeds) }) });
+      setRoomForm(value => ({ ...value, roomNumber: "", manualOccupiedBeds: "0" })); setMessage("Hostel room added."); await load();
     } catch (err) { setError(err.message || "Room could not be added."); }
     finally { setSaving(false); }
+  }
+
+  async function updateRoomOccupancy(roomId) {
+    setError(""); setMessage("");
+    const manualOccupiedBeds = Number(occupancyDrafts[roomId]);
+    try {
+      await api(`/api/institutions/hostel-rooms/${encodeURIComponent(roomId)}/occupancy`, {
+        method: "PATCH", body: JSON.stringify({ manualOccupiedBeds, academicYear: initialForm.academicYear })
+      });
+      setMessage("Warden occupancy updated. Available beds recalculated.");
+      await load();
+    } catch (err) { setError(err.message || "Room occupancy could not be updated."); }
   }
 
   async function allocate(applicationId) {
@@ -207,7 +221,8 @@ export default function HostelManagement() {
           <label>Building<select required value={roomForm.buildingId} onChange={event => setRoomForm(value => ({ ...value, buildingId: event.target.value }))}>{inventory.buildings.map(building => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>
           <label>Room number<input required maxLength={20} value={roomForm.roomNumber} onChange={event => setRoomForm(value => ({ ...value, roomNumber: event.target.value }))} placeholder="101" /></label>
           <label>Room type<select value={roomForm.roomType} onChange={event => setRoomForm(value => ({ ...value, roomType: event.target.value }))}><option value="single">Single</option><option value="shared">Shared</option><option value="dormitory">Dormitory</option></select></label>
-          <label>Bed capacity<input required type="number" min="1" max="12" value={roomForm.capacity} onChange={event => setRoomForm(value => ({ ...value, capacity: event.target.value }))} /></label>
+          <label>Total bed capacity<input required type="number" min="1" max="12" value={roomForm.capacity} onChange={event => setRoomForm(value => ({ ...value, capacity: event.target.value }))} /></label>
+          <label>Already occupied beds (warden entry)<input required type="number" min="0" max={roomForm.capacity} value={roomForm.manualOccupiedBeds} onChange={event => setRoomForm(value => ({ ...value, manualOccupiedBeds: event.target.value }))} /></label>
           <button className="primary" type="submit" disabled={saving}>Add room</button>
         </form>}
       </div>}
@@ -217,6 +232,7 @@ export default function HostelManagement() {
         {inventory.rooms.length === 0 ? <p className="lead">No rooms have been added yet. An institution administrator can create buildings and rooms.</p> : <div className="collegeRequestList">{inventory.rooms.map(room => <article className="collegeRequest" key={room.id}>
           <strong>{room.buildingName} · Room {room.roomNumber}</strong><span className="collegeStatus">{room.availableBeds} / {room.capacity} beds available</span>
           <small>{room.roomType.replaceAll("_", " ")} · {room.occupiedBeds} occupied · {room.status}</small>
+          {canManageInventory && <div className="collegeReviewActions"><label>Existing occupied beds (warden update)<input type="number" min="0" max={room.capacity} value={occupancyDrafts[room.id] ?? String(room.manualOccupiedBeds ?? 0)} onChange={event => setOccupancyDrafts(current => ({ ...current, [room.id]: event.target.value }))} /></label><button type="button" className="secondary" onClick={() => updateRoomOccupancy(room.id)}>Update occupancy</button></div>}
         </article>)}</div>}
       </div>
 
