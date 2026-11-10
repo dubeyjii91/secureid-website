@@ -1,0 +1,41 @@
+name: SecureID owner console browser smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-console-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install application dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build production frontend
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Start isolated local preview
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/secureid-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/secureid-preview.log
+          exit 1
+      - name: Test owner console with isolated synthetic API responses
+        run: node tests/owner-console.browser-smoke.mjs
