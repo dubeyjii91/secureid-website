@@ -73,8 +73,15 @@ try {
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
+  await page.getByText("Institution created. Provision staff and student memberships explicitly.").waitFor({ timeout: 5000 });
+  // Reload to verify the created institution is returned by the directory endpoint,
+  // rather than relying only on the create-success toast.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Continue securely/i }).click();
+  await page.getByRole("button", { name: /Owner \/ Admin/i }).click();
+  await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
   try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
-  catch { throw new Error("Institution was not created in UI. Alert=" + await page.getByRole("alert").allTextContents() + "; Notice=" + await page.getByRole("status").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
+  catch { throw new Error("Created institution did not reappear after reload. Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();
