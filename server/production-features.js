@@ -2331,9 +2331,20 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         const owned=database.prepare("SELECT id FROM secure_documents WHERE user_id=? AND deleted_at IS NULL AND id IN ("+marks+")").all(req.user.id,...documentIds);
         if(owned.length!==documentIds.length) return res.status(400).json({success:false,message:"Choose only active documents from your own SecureID Vault."});
       }
-      const id=crypto.randomUUID(),now=new Date().toISOString(),encryptedDetails=JSON.stringify(jsonEncrypt({studentNote},key));
+      const now=new Date().toISOString(),encryptedDetails=JSON.stringify(jsonEncrypt({studentNote},key)),documentIdsJson=JSON.stringify(documentIds);
+      const existing=database.prepare("SELECT id,status FROM scholarship_applications WHERE program_id=? AND student_user_id=? AND academic_year=?").get(program.id,req.user.id,academicYear);
+      if(existing){
+        if(!["needs_correction","withdrawn"].includes(existing.status))
+          return res.status(409).json({success:false,message:"You have already applied to this scholarship for that academic year."});
+        database.prepare("UPDATE scholarship_applications SET encrypted_details=?,document_ids_json=?,status='submitted',encrypted_review_note=NULL,reviewed_by=NULL,consented_at=?,updated_at=? WHERE id=?")
+          .run(encryptedDetails,documentIdsJson,now,now,existing.id);
+        addScholarshipAudit(existing.id,program.institution_id,req.user.id,"student_resubmitted",existing.status,"submitted");
+        res.setHeader("Cache-Control","private, no-store");
+        return res.status(200).json({success:true,application:{id:existing.id,programId:program.id,programTitle:program.title,academicYear,status:"submitted",consentedAt:now,documentCount:documentIds.length}});
+      }
+      const id=crypto.randomUUID();
       database.prepare("INSERT INTO scholarship_applications(id,program_id,institution_id,student_user_id,academic_year,encrypted_details,document_ids_json,status,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)")
-        .run(id,program.id,program.institution_id,req.user.id,academicYear,encryptedDetails,JSON.stringify(documentIds),now,now,now);
+        .run(id,program.id,program.institution_id,req.user.id,academicYear,encryptedDetails,documentIdsJson,now,now,now);
       addScholarshipAudit(id,program.institution_id,req.user.id,"student_submitted",null,"submitted");
       if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_APPLICATION_SUBMITTED",req);
       res.setHeader("Cache-Control","private, no-store");
