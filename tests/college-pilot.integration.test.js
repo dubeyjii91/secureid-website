@@ -392,7 +392,6 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(releaseWhileCheckedIn.status, 409);
   const checkout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-out`, { method: "POST", headers: headers("user-a") });
   assert.equal(checkout.status, 200);
-
   const reviewerCannotCreateFee = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/fees`, {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ description: "Hostel fee", amount: 1500 })
   });
@@ -423,16 +422,31 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(finalPayment.status, 201);
   assert.equal((await finalPayment.json()).status, "paid");
 
+  const releaseAfterCheckout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}`, { method: "DELETE", headers: headers("user-a") });
+  assert.equal(releaseAfterCheckout.status, 200);
+  const studentHistoryAfterRelease = await fetch(base + "/api/institutions/my-hostel-applications", { headers: headers("user-c") });
+  const releasedStudentRecord = (await studentHistoryAfterRelease.json()).applications.find(item => item.id === hostelApplication.id);
+  assert.equal(releasedStudentRecord.allocationId, secondAllocation.id);
+  assert.equal(releasedStudentRecord.allocationStatus, "released");
+  assert.ok(releasedStudentRecord.checkedInAt);
+  assert.ok(releasedStudentRecord.checkedOutAt);
+  assert.ok(releasedStudentRecord.releasedAt);
+
   const hostelOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-a") });
   assert.equal(hostelOperations.status, 200);
   const operationsData = await hostelOperations.json();
   assert.equal(operationsData.fees.find(item => item.id === fee.id).status, "paid");
-  assert.equal(operationsData.allocations.find(item => item.allocationId === secondAllocation.id).checkedOutAt !== null, true);
+  const releasedAllocationRecord = operationsData.allocations.find(item => item.allocationId === secondAllocation.id);
+  assert.ok(releasedAllocationRecord, "released allocations remain available in institutional history");
+  assert.equal(releasedAllocationRecord.allocationStatus, "released");
+  assert.equal(releasedAllocationRecord.checkedOutAt !== null, true);
+  assert.ok(releasedAllocationRecord.updatedAt);
   assert.equal(operationsData.summary.currentlyCheckedIn, 0);
+  assert.equal(operationsData.summary.allocatedBeds, 0);
   const readOnlyOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-b") });
   assert.equal(readOnlyOperations.status, 200);
   const readOnlyCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-b") });
-  assert.equal(readOnlyCheckin.status, 403);
+  assert.equal(readOnlyCheckin.status, 403, "read-only members are denied before allocation lifecycle details are disclosed");
   const unrelatedOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=unknown-college", { headers: headers("user-a") });
   assert.equal(unrelatedOperations.status, 403);
 
