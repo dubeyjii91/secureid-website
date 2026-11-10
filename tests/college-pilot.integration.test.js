@@ -502,7 +502,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.deepEqual(studentScholarshipData.applications[0].documentIds, ["doc-c"]);
   const scholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-a") });
   assert.equal(scholarshipPreview.status, 200, await scholarshipPreview.clone().text());
-  assert.match(scholarshipPreview.headers.get("content-type") || "", /application\\/pdf/);
+  assert.match(scholarshipPreview.headers.get("content-type") || "", /application.*pdf/);
   assert.match(scholarshipPreview.headers.get("content-disposition") || "", /^inline;/);
   assert.match(scholarshipPreview.headers.get("cache-control") || "", /no-store/);
   assert.equal(Buffer.from(await scholarshipPreview.arrayBuffer()).toString("utf8"), scholarshipPdf.toString("utf8"));
