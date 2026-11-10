@@ -241,7 +241,10 @@ export default function HostelManagement() {
         {applications.length === 0 ? <p className="lead">No hostel applications submitted yet.</p> : <div className="collegeRequestList">{applications.map(item => <article className="collegeRequest" key={item.id}>
           <strong>{item.institutionName}</strong><span className="collegeStatus">{item.status.replaceAll("_", " ")}</span>
           <small>{item.academicYear} · {item.stayType.replaceAll("_", " ")} · {item.roomPreference.replaceAll("_", " ")}</small>
-          {item.allocationId && <p><strong>Allotted:</strong> {item.buildingName} · Room {item.roomNumber} · Bed {item.bedLabel}</p>}
+          {item.allocationId && <p><strong>{item.allocationStatus === "released" ? "Previous allotment:" : "Allotted:"}</strong> {item.buildingName} · Room {item.roomNumber} · Bed {item.bedLabel}{item.allocationStatus === "released" ? " · Bed released" : ""}</p>}
+          {item.checkedInAt && <small>Check-in: {new Date(item.checkedInAt).toLocaleString()}</small>}
+          {item.checkedOutAt && <small>Check-out: {new Date(item.checkedOutAt).toLocaleString()}</small>}
+          {item.releasedAt && <small>Bed released: {new Date(item.releasedAt).toLocaleString()}</small>}
           {item.reviewNote && <p>{item.reviewNote}</p>}
           {["submitted", "needs_correction"].includes(item.status) && <button type="button" className="secondary" onClick={() => withdraw(item.id)}>Withdraw application</button>}
         </article>)}</div>}
@@ -296,6 +299,16 @@ export default function HostelManagement() {
             <button className="secondary" type="submit">Create fee record</button>
           </form>}
         </article>)}
+        {operations.allocations.some(item => item.allocationStatus === "released") && <div className="hostelApplications">
+          <h3>Allocation history</h3>
+          <p className="collegePrivacyNote">Checked-out and released bed records are retained for institutional audit and student history. Released beds are no longer counted as active allocations.</p>
+          <div className="collegeRequestList">{operations.allocations.filter(item => item.allocationStatus === "released").map(item => <article className="collegeRequest" key={item.allocationId}>
+            <strong>{item.buildingName} · Room {item.roomNumber} · Bed {item.bedLabel}</strong><span className="collegeStatus">Released</span>
+            <small>Student account: {item.studentUserId} · {item.academicYear}</small>
+            <small>{item.checkedInAt ? `Checked in ${new Date(item.checkedInAt).toLocaleString()}` : "Not checked in"}{item.checkedOutAt ? ` · Checked out ${new Date(item.checkedOutAt).toLocaleString()}` : ""}</small>
+            <small>Bed released: {new Date(item.updatedAt).toLocaleString()}</small>
+          </article>)}</div>
+        </div>}
         {operations.fees.map(fee => <article className="collegeRequest" key={fee.id}>
           <strong>{fee.description} · {fee.status}</strong>
           <small>Total ₹{(fee.amountPaise / 100).toFixed(2)} · Paid ₹{(fee.paidPaise / 100).toFixed(2)} · Balance ₹{((fee.amountPaise - fee.paidPaise) / 100).toFixed(2)}</small>
