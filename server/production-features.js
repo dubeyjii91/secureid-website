@@ -1978,15 +1978,16 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const member=getHostelMembership(req,application.institution_id,["reviewer","institution_admin"]);
       if(!member) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required to allot a bed."});
       if(application.status!=="approved") return res.status(409).json({success:false,message:"Approve the hostel application before allotting a room."});
-      const room=database.prepare("SELECT id,institution_id,building_id,room_number,capacity,status FROM hostel_rooms WHERE id=? AND institution_id=?").get(roomId,application.institution_id);
+      const room=database.prepare("SELECT id,institution_id,building_id,room_number,capacity,manual_occupied_beds AS manualOccupiedBeds,status FROM hostel_rooms WHERE id=? AND institution_id=?").get(roomId,application.institution_id);
       if(!room||room.status!=="active") return res.status(404).json({success:false,message:"Choose an active room in the same institution."});
       const existing=database.prepare("SELECT id FROM hostel_bed_allocations WHERE application_id=? AND status='allocated'").get(applicationId);
       if(existing) return res.status(409).json({success:false,message:"This application already has an active bed allocation. Release it before making another allotment."});
       const occupied=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=? AND academic_year=? AND status='allocated'").get(roomId,application.academic_year).count;
-      if(occupied>=room.capacity) return res.status(409).json({success:false,message:"This room is full for the selected academic year."});
+      if(occupied+room.manualOccupiedBeds>=room.capacity) return res.status(409).json({success:false,message:"This room is full for the selected academic year, including warden-entered occupants."});
       let bedLabel=requestedBed;
       if(!bedLabel) {
         const used=new Set(database.prepare("SELECT bed_label FROM hostel_bed_allocations WHERE room_id=? AND academic_year=? AND status='allocated'").all(roomId,application.academic_year).map(row=>row.bed_label));
+        for(let index=1;index<=room.manualOccupiedBeds;index++) used.add(String(index));
         for(let index=1;index<=room.capacity;index++){if(!used.has(String(index))){bedLabel=String(index);break;}}
       }
       if(!bedLabel||bedLabel.length>20) return res.status(400).json({success:false,message:"Bed label must be 1–20 characters."});
