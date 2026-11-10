@@ -169,7 +169,8 @@ export default function HostelManagement() {
     });
   }
 
-  const activeStudents = memberships.filter(item => item.status === "active" && item.role === "student");
+  const activeMemberships = memberships.filter(item => item.status === "active");
+  const activeStudents = activeMemberships.filter(item => item.role === "student");
   const canReview = memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
   const canManageInventory = memberships.some(item => item.status === "active" && item.role === "institution_admin");
   const availableRooms = inventory.rooms.filter(room => room.status === "active" && room.availableBeds > 0);
@@ -179,7 +180,12 @@ export default function HostelManagement() {
     <h2>Hostel applications & room allotment</h2>
     <p className="lead">Students apply with consent. Institution teams review applications, manage rooms, allot beds, record check-in/check-out and maintain a transparent manual fee ledger.</p>
 
-    {loading ? <p>Loading hostel workspace…</p> : <>
+    {loading ? <p>Loading hostel workspace…</p> : activeMemberships.length === 0 ? <div className="hostelApplications">
+      <h3>Connect your college account</h3>
+      <p className="lead">Hostel Management is ready, but this SecureID account does not yet have an active membership in a college or institution.</p>
+      <p className="collegePrivacyNote">Ask the platform owner to open Owner → College / Institution Management, select the college and provision this account with the correct role: Student, Reviewer or Institution admin. After the membership is activated, refresh this page to load the hostel tools. Access is institution-scoped; a platform Owner role alone does not grant access to a college's hostel records.</p>
+      <button type="button" className="secondary" onClick={load}>Refresh access</button>
+    </div> : <>
       {activeStudents.length > 0 && <form className="collegeSubmissionForm" onSubmit={submit}>
         <label>Institution<select required value={form.institutionId} onChange={event => setForm(value => ({ ...value, institutionId: event.target.value }))}>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select></label>
         <label>Academic year<input required pattern="20[0-9]{2}-20[0-9]{2}" maxLength={9} value={form.academicYear} onChange={event => setForm(value => ({ ...value, academicYear: event.target.value }))} placeholder="2026-2027" /></label>
