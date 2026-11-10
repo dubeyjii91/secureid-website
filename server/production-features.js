@@ -2006,10 +2006,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.delete("/api/institutions/hostel-allocations/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const allocation=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
-      if(!allocation||allocation.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
-      if(allocation.checked_in_at&&!allocation.checked_out_at) return res.status(409).json({success:false,message:"Check the student out before releasing this bed."});
+      if(!allocation) return res.status(404).json({success:false,message:"Bed allocation was not found."});
       const member=getHostelMembership(req,allocation.institution_id,["reviewer","institution_admin"]);
       if(!member) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(allocation.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
+      if(allocation.checked_in_at&&!allocation.checked_out_at) return res.status(409).json({success:false,message:"Check the student out before releasing this bed."});
       const now=new Date().toISOString();
       database.prepare("UPDATE hostel_bed_allocations SET status='released',updated_at=? WHERE id=?").run(now,allocation.id);
       addHostelAudit(allocation.application_id,allocation.institution_id,req.user.id,"hostel_bed_released","allocated","released");
@@ -2114,8 +2115,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.post("/api/institutions/hostel-allocations/:id/check-in", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const row=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
-      if(!row||row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
+      if(!row) return res.status(404).json({success:false,message:"Bed allocation was not found."});
       if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
       if(row.checked_in_at&&!row.checked_out_at) return res.status(409).json({success:false,message:"Student is already checked in."});
       const now=new Date().toISOString();
       database.prepare("UPDATE hostel_bed_allocations SET checked_in_at=?,checked_out_at=NULL,updated_at=? WHERE id=?").run(now,now,row.id);
