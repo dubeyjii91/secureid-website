@@ -44,11 +44,15 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          BUILD_ID="$(node -e "const b=require('./eas-build.json'); process.stdout.write(b.id)")"
-          test -n "$BUILD_ID"
+          BUILD_ID="$(node -e "const x=JSON.parse(require('fs').readFileSync('eas-build.json','utf8')); const b=Array.isArray(x)?x[0]:(x.build??x); const id=b?.id??b?.build?.id; if(!id) { console.error(JSON.stringify(x).slice(0,2000)); process.exit(1); } process.stdout.write(id);")"
+          echo "Downloading EAS build: $BUILD_ID"
           npx eas-cli build:download --build-id "$BUILD_ID" --non-interactive
-          APK="$(find . -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          test -n "$APK"
+          APK="$(find . -maxdepth 2 -type f -name '*.apk' ! -name 'secureid-preview.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "::error::EAS download completed but no APK file was found."
+            find . -maxdepth 2 -type f -print
+            exit 1
+          fi
           cp "$APK" ./secureid-preview.apk
 
       - name: Verify APK exists
