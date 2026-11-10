@@ -292,6 +292,19 @@ export function registerProductionFeatures({
   `);
 
   try { database.exec("ALTER TABLE institution_review_submissions ADD COLUMN consent_version TEXT NOT NULL DEFAULT 'college-review-v1'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  try { database.exec("ALTER TABLE hostel_rooms ADD COLUMN manual_occupied_beds INTEGER NOT NULL DEFAULT 0 CHECK (manual_occupied_beds BETWEEN 0 AND 12)"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS hostel_room_occupancy_audit (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL REFERENCES hostel_rooms(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      previous_manual_occupied_beds INTEGER NOT NULL,
+      new_manual_occupied_beds INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_room_occupancy_audit_room ON hostel_room_occupancy_audit(room_id, created_at DESC);
+  `);
   try { database.exec("ALTER TABLE hostel_applications ADD COLUMN consented_at TEXT NOT NULL DEFAULT ''"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE hostel_applications ADD COLUMN consent_version TEXT NOT NULL DEFAULT 'hostel-application-v1'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
   try { database.exec("ALTER TABLE secure_documents ADD COLUMN document_category TEXT NOT NULL DEFAULT 'general'"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
@@ -1896,10 +1909,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const rooms=database.prepare(`
         SELECT r.id,r.institution_id AS institutionId,r.building_id AS buildingId,b.name AS buildingName,
           r.room_number AS roomNumber,r.room_type AS roomType,r.capacity,r.status,
-          (SELECT COUNT(*) FROM hostel_bed_allocations a WHERE a.room_id=r.id AND a.academic_year=? AND a.status='allocated') AS occupiedBeds
+          r.manual_occupied_beds AS manualOccupiedBeds,
+          (SELECT COUNT(*) FROM hostel_bed_allocations a WHERE a.room_id=r.id AND a.academic_year=? AND a.status='allocated') AS allocatedBeds
         FROM hostel_rooms r JOIN hostel_buildings b ON b.id=r.building_id
         WHERE r.institution_id IN (${marks}) ORDER BY b.name,r.room_number
-      `).all(academicYear,...visible).map(room=>({...room,availableBeds:Math.max(0,room.capacity-room.occupiedBeds)}));
+      `).all(academicYear,...visible).map(room=>({...room,occupiedBeds:room.manualOccupiedBeds+room.allocatedBeds,availableBeds:Math.max(0,room.capacity-room.manualOccupiedBeds-room.allocatedBeds)}));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,buildings,rooms});
     } catch(error){next(error);}
   });
@@ -1920,19 +1934,40 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const institutionId=String(req.body?.institutionId||""),buildingId=String(req.body?.buildingId||"");
       const roomNumber=String(req.body?.roomNumber||"").trim(),roomType=String(req.body?.roomType||"shared");
-      const capacity=Number(req.body?.capacity);
+      const capacity=Number(req.body?.capacity),manualOccupiedBeds=Number(req.body?.manualOccupiedBeds ?? 0);
       const member=getHostelMembership(req,institutionId,["institution_admin"]);
       if(!member) return res.status(403).json({success:false,message:"An active institution administrator is required to manage hostel rooms."});
       const building=database.prepare("SELECT id FROM hostel_buildings WHERE id=? AND institution_id=?").get(buildingId,institutionId);
       if(!building) return res.status(404).json({success:false,message:"Select a building belonging to this institution."});
-      if(!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,19}$/.test(roomNumber)||!["single","shared","dormitory"].includes(roomType)||!Number.isInteger(capacity)||capacity<1||capacity>12) {
+      if(!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,19}$/.test(roomNumber)||!["single","shared","dormitory"].includes(roomType)||!Number.isInteger(capacity)||capacity<1||capacity>12||!Number.isInteger(manualOccupiedBeds)||manualOccupiedBeds<0||manualOccupiedBeds>capacity) {
         return res.status(400).json({success:false,message:"Enter a valid room number, room type and capacity (1–12 beds)."});
       }
       const id=crypto.randomUUID(),now=new Date().toISOString();
-      database.prepare("INSERT INTO hostel_rooms(id,institution_id,building_id,room_number,room_type,capacity,status,created_at,updated_at) VALUES(?,?,?,?,?,?,'active',?,?)")
-        .run(id,institutionId,buildingId,roomNumber,roomType,capacity,now,now);
-      res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,room:{id,institutionId,buildingId,roomNumber,roomType,capacity,status:"active"}});
+      database.prepare("INSERT INTO hostel_rooms(id,institution_id,building_id,room_number,room_type,capacity,manual_occupied_beds,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)")
+        .run(id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,now,now);
+      res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,room:{id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,status:"active"}});
     } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"That room number already exists in this building."});next(error);}
+  });
+
+  app.patch("/api/institutions/hostel-rooms/:id/occupancy", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const roomId=String(req.params.id||""),manualOccupiedBeds=Number(req.body?.manualOccupiedBeds);
+      const room=database.prepare("SELECT id,institution_id,capacity,manual_occupied_beds AS manualOccupiedBeds FROM hostel_rooms WHERE id=?").get(roomId);
+      if(!room) return res.status(404).json({success:false,message:"Hostel room was not found."});
+      const member=getHostelMembership(req,room.institution_id,["institution_admin"]);
+      if(!member) return res.status(403).json({success:false,message:"An active institution administrator (warden) is required to update room occupancy."});
+      if(!Number.isInteger(manualOccupiedBeds)||manualOccupiedBeds<0||manualOccupiedBeds>room.capacity) return res.status(400).json({success:false,message:"Enter a whole number of occupied beds between 0 and the room capacity."});
+      const academicYear=String(req.body?.academicYear||"");
+      if(!/^20\\d{2}-20\\d{2}$/.test(academicYear)) return res.status(400).json({success:false,message:"Choose a valid academic year before updating occupancy."});
+      const allocated=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=? AND status='allocated' AND academic_year=?").get(roomId,academicYear).count;
+      if(manualOccupiedBeds+allocated>room.capacity) return res.status(409).json({success:false,message:"Manual occupied beds plus SecureID bed allocations cannot exceed room capacity."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE hostel_rooms SET manual_occupied_beds=?,updated_at=? WHERE id=?").run(manualOccupiedBeds,now,roomId);
+      database.prepare("INSERT INTO hostel_room_occupancy_audit(id,room_id,institution_id,actor_user_id,previous_manual_occupied_beds,new_manual_occupied_beds,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run(crypto.randomUUID(),roomId,room.institution_id,req.user.id,room.manualOccupiedBeds,manualOccupiedBeds,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_ROOM_OCCUPANCY_UPDATED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,room:{id:roomId,manualOccupiedBeds,allocatedBeds:allocated,occupiedBeds:manualOccupiedBeds+allocated,availableBeds:room.capacity-manualOccupiedBeds-allocated}});
+    } catch(error){next(error);}
   });
 
   app.post("/api/institutions/hostel-applications/:id/allocation", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
