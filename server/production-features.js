@@ -1966,8 +1966,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
   app.delete("/api/institutions/hostel-allocations/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
-      const allocation=database.prepare("SELECT id,institution_id,application_id,status FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
+      const allocation=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
       if(!allocation||allocation.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
+      if(allocation.checked_in_at&&!allocation.checked_out_at) return res.status(409).json({success:false,message:"Check the student out before releasing this bed."});
       const member=getHostelMembership(req,allocation.institution_id,["reviewer","institution_admin"]);
       if(!member) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
       const now=new Date().toISOString();
