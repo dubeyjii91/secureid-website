@@ -2413,10 +2413,13 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const application=database.prepare("SELECT id,institution_id,student_user_id,status,document_ids_json,consented_at FROM scholarship_applications WHERE id=?").get(applicationId);
       if(!application) return res.status(404).json({success:false,message:"Scholarship application was not found."});
-      const member=getInstitutionMembership(req.user.id,application.institution_id);
-      if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role))
-        return res.status(403).json({success:false,message:"An active institution reviewer or administrator is required to preview scholarship documents."});
       auditContext={applicationId,institutionId:application.institution_id,documentId,actorUserId:req.user.id};
+      const member=getInstitutionMembership(req.user.id,application.institution_id);
+      if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role)) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','denied',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(403).json({success:false,message:"An active institution reviewer or administrator is required to preview scholarship documents."});
+      }
       let selectedIds=[];try{selectedIds=JSON.parse(application.document_ids_json)||[];}catch{}
       if(!application.consented_at||!["submitted","needs_correction"].includes(application.status)||!selectedIds.includes(documentId)) {
         database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','denied',?)")
