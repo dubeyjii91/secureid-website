@@ -162,7 +162,7 @@ export default function ScholarshipManagement() {
           {application.studentNote && <p>{application.studentNote}</p>}
           {application.reviewNote && <p>Reviewer note: {application.reviewNote}</p>}
           <small>Submitted: {new Date(application.consentedAt || application.createdAt).toLocaleString()}</small>
-          {students.some(item => item.institutionId === application.institutionId && item.role === "student") && application.status === "submitted" && <button type="button" className="secondary" onClick={() => withdraw(application.id)}>Withdraw application</button>}
+          {students.some(item => item.institutionId === application.institutionId && item.role === "student") && ["submitted", "needs_correction"].includes(application.status) && <button type="button" className="secondary" onClick={() => withdraw(application.id)}>Withdraw application</button>}
           {reviewers.some(item => item.institutionId === application.institutionId && ["reviewer", "institution_admin"].includes(item.role)) && ["submitted", "needs_correction"].includes(application.status) && <div className="collegeReviewActions">
             <label>Review note (optional)<textarea rows={2} maxLength={500} value={reviewNotes[application.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [application.id]: event.target.value }))} placeholder="Tell the student what needs attention or record the decision reason." /></label>
             <div className="collegeReviewButtons">
