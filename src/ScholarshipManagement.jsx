@@ -11,6 +11,7 @@ export default function ScholarshipManagement() {
   const [programForm, setProgramForm] = useState(initialProgram);
   const [applicationDraft, setApplicationDraft] = useState({ programId: "", academicYear: yearNow + "-" + (yearNow + 1), studentNote: "", documentIds: [] });
   const [reviewNotes, setReviewNotes] = useState({});
+  const [auditHistory, setAuditHistory] = useState({});
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +102,13 @@ export default function ScholarshipManagement() {
     } catch (err) { setError(err.message || "Scholarship program could not be closed."); }
   }
 
+  async function showAudit(applicationId) {
+    try {
+      const data = await api("/api/institutions/scholarship-applications/" + encodeURIComponent(applicationId) + "/audit", { cache: "no-store" });
+      setAuditHistory(current => ({ ...current, [applicationId]: data.audit || [] }));
+    } catch (err) { setError(err.message || "Scholarship audit history could not be loaded."); }
+  }
+
   async function withdraw(applicationId) {
     setError(""); setMessage("");
     try {
@@ -162,6 +170,9 @@ export default function ScholarshipManagement() {
           {application.studentNote && <p>{application.studentNote}</p>}
           {application.reviewNote && <p>Reviewer note: {application.reviewNote}</p>}
           <small>Submitted: {new Date(application.consentedAt || application.createdAt).toLocaleString()}</small>
+          {application.status === "needs_correction" && students.some(item => item.institutionId === application.institutionId) && <p className="collegePrivacyNote">Please update the application note or document selection above, keep the same program and academic year, then submit again to resubmit this application.</p>}
+          <button type="button" className="secondary" onClick={() => showAudit(application.id)}>View application history</button>
+          {auditHistory[application.id] && <ul className="collegeAuditList">{auditHistory[application.id].map((entry, index) => <li key={index}>{entry.action.replaceAll("_", " ")} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}
           {students.some(item => item.institutionId === application.institutionId && item.role === "student") && ["submitted", "needs_correction"].includes(application.status) && <button type="button" className="secondary" onClick={() => withdraw(application.id)}>Withdraw application</button>}
           {reviewers.some(item => item.institutionId === application.institutionId && ["reviewer", "institution_admin"].includes(item.role)) && ["submitted", "needs_correction"].includes(application.status) && <div className="collegeReviewActions">
             <label>Review note (optional)<textarea rows={2} maxLength={500} value={reviewNotes[application.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [application.id]: event.target.value }))} placeholder="Tell the student what needs attention or record the decision reason." /></label>
