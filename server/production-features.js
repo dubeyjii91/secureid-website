@@ -1989,6 +1989,167 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     } catch(error){next(error);}
   });
 
+
+  // HOSTEL OPERATIONS PHASE 3 — check-in/out, fee ledger and warden reporting.
+  try { database.exec("ALTER TABLE hostel_bed_allocations ADD COLUMN checked_in_at TEXT"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  try { database.exec("ALTER TABLE hostel_bed_allocations ADD COLUMN checked_out_at TEXT"); } catch (error) { if (!String(error?.message || "").includes("duplicate column name")) throw error; }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS hostel_fee_records (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      application_id TEXT NOT NULL REFERENCES hostel_applications(id),
+      allocation_id TEXT NOT NULL REFERENCES hostel_bed_allocations(id),
+      academic_year TEXT NOT NULL,
+      description TEXT NOT NULL,
+      amount_paise INTEGER NOT NULL CHECK(amount_paise > 0),
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'unpaid' CHECK(status IN ('unpaid','partial','paid')),
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_fee_institution ON hostel_fee_records(institution_id,status,due_date);
+    CREATE INDEX IF NOT EXISTS idx_hostel_fee_application ON hostel_fee_records(application_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS hostel_fee_payments (
+      id TEXT PRIMARY KEY,
+      fee_record_id TEXT NOT NULL REFERENCES hostel_fee_records(id),
+      amount_paise INTEGER NOT NULL CHECK(amount_paise > 0),
+      payment_method TEXT NOT NULL CHECK(payment_method IN ('cash','bank_transfer','upi','other')),
+      reference TEXT,
+      received_by TEXT NOT NULL REFERENCES users(id),
+      received_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_fee_payments_record ON hostel_fee_payments(fee_record_id,received_at);
+    CREATE TABLE IF NOT EXISTS hostel_operations_audit (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      application_id TEXT NOT NULL REFERENCES hostel_applications(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hostel_operations_audit ON hostel_operations_audit(institution_id,created_at DESC);
+  `);
+
+  function addHostelOperationsAudit(institutionId, applicationId, actorUserId, action, details = null) {
+    database.prepare("INSERT INTO hostel_operations_audit(id,institution_id,application_id,actor_user_id,action,details,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(crypto.randomUUID(), institutionId, applicationId, actorUserId, action, details, new Date().toISOString());
+  }
+
+  app.get("/api/institutions/hostel-operations", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.query.institutionId||"");
+      const member=getHostelMembership(req,institutionId,["reviewer","institution_admin","read_only"]);
+      if(!member) return res.status(403).json({success:false,message:"An active institution reviewer, administrator or read-only membership is required."});
+      const allocations=database.prepare(`
+        SELECT a.id AS allocationId,a.application_id AS applicationId,a.academic_year AS academicYear,
+          a.bed_label AS bedLabel,a.status AS allocationStatus,a.checked_in_at AS checkedInAt,
+          a.checked_out_at AS checkedOutAt,r.room_number AS roomNumber,b.name AS buildingName,
+          h.student_user_id AS studentUserId,h.status AS applicationStatus
+        FROM hostel_bed_allocations a
+        JOIN hostel_applications h ON h.id=a.application_id
+        JOIN hostel_rooms r ON r.id=a.room_id
+        JOIN hostel_buildings b ON b.id=r.building_id
+        WHERE a.institution_id=? ORDER BY a.created_at DESC LIMIT 500
+      `).all(institutionId);
+      const fees=database.prepare(`
+        SELECT f.id,f.application_id AS applicationId,f.allocation_id AS allocationId,
+          f.academic_year AS academicYear,f.description,f.amount_paise AS amountPaise,
+          f.due_date AS dueDate,f.status,f.created_at AS createdAt,
+          COALESCE((SELECT SUM(p.amount_paise) FROM hostel_fee_payments p WHERE p.fee_record_id=f.id),0) AS paidPaise
+        FROM hostel_fee_records f WHERE f.institution_id=? ORDER BY f.created_at DESC LIMIT 500
+      `).all(institutionId);
+      const totals=database.prepare(`
+        SELECT COUNT(*) AS totalBeds,
+          SUM(CASE WHEN status='allocated' THEN 1 ELSE 0 END) AS allocatedBeds,
+          SUM(CASE WHEN checked_in_at IS NOT NULL AND checked_out_at IS NULL THEN 1 ELSE 0 END) AS currentlyCheckedIn
+        FROM hostel_bed_allocations WHERE institution_id=?
+      `).get(institutionId);
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,allocations,fees,summary:{totalBeds:totals.totalBeds||0,allocatedBeds:totals.allocatedBeds||0,currentlyCheckedIn:totals.currentlyCheckedIn||0}});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/hostel-allocations/:id/check-in", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
+      if(!row||row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
+      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(row.checked_in_at&&!row.checked_out_at) return res.status(409).json({success:false,message:"Student is already checked in."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE hostel_bed_allocations SET checked_in_at=?,checked_out_at=NULL,updated_at=? WHERE id=?").run(now,now,row.id);
+      addHostelOperationsAudit(row.institution_id,row.application_id,req.user.id,"student_checked_in");
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,checkedInAt:now});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/hostel-allocations/:id/check-out", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
+      if(!row||row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
+      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(!row.checked_in_at||row.checked_out_at) return res.status(409).json({success:false,message:"Student must be checked in before check-out."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE hostel_bed_allocations SET checked_out_at=?,updated_at=? WHERE id=?").run(now,now,row.id);
+      addHostelOperationsAudit(row.institution_id,row.application_id,req.user.id,"student_checked_out");
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,checkedOutAt:now});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/hostel-applications/:id/fees", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const applicationId=String(req.params.id||""),description=String(req.body?.description||"Hostel fee").trim();
+      const amount=Number(req.body?.amount),dueDate=String(req.body?.dueDate||"").trim();
+      const application=database.prepare("SELECT id,institution_id,academic_year,status FROM hostel_applications WHERE id=?").get(applicationId);
+      if(!application) return res.status(404).json({success:false,message:"Hostel application was not found."});
+      if(!getHostelMembership(req,application.institution_id,["institution_admin"])) return res.status(403).json({success:false,message:"An active institution administrator is required to create hostel fees."});
+      const allocation=database.prepare("SELECT id FROM hostel_bed_allocations WHERE application_id=? AND status='allocated'").get(applicationId);
+      if(!allocation) return res.status(409).json({success:false,message:"A bed must be allocated before hostel fees are added."});
+      if(description.length<2||description.length>100||!Number.isFinite(amount)||amount<=0||amount>1000000||!/^\d+(\.\d{1,2})?$/.test(String(req.body?.amount??""))||(dueDate&&!/^20\d{2}-\d{2}-\d{2}$/.test(dueDate))) return res.status(400).json({success:false,message:"Enter a valid fee description, amount and due date."});
+      const amountPaise=Math.round(amount*100),id=crypto.randomUUID(),now=new Date().toISOString();
+      database.prepare("INSERT INTO hostel_fee_records(id,institution_id,application_id,allocation_id,academic_year,description,amount_paise,due_date,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'unpaid',?,?,?)")
+        .run(id,application.institution_id,applicationId,allocation.id,application.academic_year,description,amountPaise,dueDate||null,req.user.id,now,now);
+      addHostelOperationsAudit(application.institution_id,applicationId,req.user.id,"hostel_fee_created",String(amountPaise));
+      res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,fee:{id,applicationId,description,amountPaise,dueDate:dueDate||null,status:"unpaid"}});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/hostel-fees/:id/payments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const fee=database.prepare("SELECT id,institution_id,application_id,amount_paise FROM hostel_fee_records WHERE id=?").get(String(req.params.id||""));
+      if(!fee) return res.status(404).json({success:false,message:"Hostel fee record was not found."});
+      if(!getHostelMembership(req,fee.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required to record a received payment."});
+      const amount=Number(req.body?.amount),method=String(req.body?.paymentMethod||""),reference=String(req.body?.reference||"").trim();
+      if(!Number.isFinite(amount)||amount<=0||amount>1000000||!/^\d+(\.\d{1,2})?$/.test(String(req.body?.amount??""))||!["cash","bank_transfer","upi","other"].includes(method)||reference.length>100) return res.status(400).json({success:false,message:"Enter a valid amount, payment method and optional reference."});
+      const amountPaise=Math.round(amount*100);
+      const paid=database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS total FROM hostel_fee_payments WHERE fee_record_id=?").get(fee.id).total;
+      if(paid+amountPaise>fee.amount_paise) return res.status(409).json({success:false,message:"Payment exceeds the outstanding fee balance."});
+      const now=new Date().toISOString(),id=crypto.randomUUID();
+      database.prepare("INSERT INTO hostel_fee_payments(id,fee_record_id,amount_paise,payment_method,reference,received_by,received_at) VALUES(?,?,?,?,?,?,?)")
+        .run(id,fee.id,amountPaise,method,reference||null,req.user.id,now);
+      const nextPaid=paid+amountPaise,status=nextPaid===fee.amount_paise?"paid":"partial";
+      database.prepare("UPDATE hostel_fee_records SET status=?,updated_at=? WHERE id=?").run(status,now,fee.id);
+      addHostelOperationsAudit(fee.institution_id,fee.application_id,req.user.id,"hostel_fee_payment_recorded",String(amountPaise));
+      res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,payment:{id,feeRecordId:fee.id,amountPaise,paymentMethod:method,reference:reference||null,receivedAt:now},status,paidPaise:nextPaid});
+    } catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/my-hostel-fees", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const fees=database.prepare(`
+        SELECT f.id,f.description,f.amount_paise AS amountPaise,f.due_date AS dueDate,f.status,
+          f.academic_year AS academicYear,i.name AS institutionName,
+          COALESCE((SELECT SUM(p.amount_paise) FROM hostel_fee_payments p WHERE p.fee_record_id=f.id),0) AS paidPaise
+        FROM hostel_fee_records f
+        JOIN hostel_applications h ON h.id=f.application_id
+        JOIN institutions i ON i.id=f.institution_id
+        WHERE h.student_user_id=? ORDER BY f.created_at DESC LIMIT 100
+      `).all(req.user.id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,fees});
+    } catch(error){next(error);}
+  });
+
   console.log(JSON.stringify({
     level:"info",
     event:"production_features_registered",
