@@ -368,6 +368,15 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
 
   // Hostel operations: check-in/out lifecycle, institution-admin fee creation,
   // reviewer payment receipt recording, student fee visibility and reporting.
+  const allocationBlockedByManualOccupancy = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ roomId: room.id })
+  });
+  assert.equal(allocationBlockedByManualOccupancy.status, 409, "warden-entered occupied beds must reduce allotment capacity");
+  const clearManualOccupancy = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-d"),
+    body: JSON.stringify({ manualOccupiedBeds: 0, academicYear: "2026-2027" })
+  });
+  assert.equal(clearManualOccupancy.status, 200);
   const secondAllocationResponse = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ roomId: room.id })
   });
