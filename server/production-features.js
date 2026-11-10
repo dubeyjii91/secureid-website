@@ -1743,6 +1743,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.post("/api/institutions/hostel-applications", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.body?.institutionId||"");
+      if(req.body?.consent!==true) return res.status(400).json({success:false,message:"Explicit consent is required before submitting a hostel application."});
       const academicYear=String(req.body?.academicYear||"").trim();
       const stayType=String(req.body?.stayType||"");
       const roomPreference=String(req.body?.roomPreference||"no_preference");
