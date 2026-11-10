@@ -283,6 +283,66 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(studentCannotReview.status, 403);
 
+
+  // Hostel inventory: only institution admins manage rooms; reviewers may allot beds.
+  const hostelApplicationResponse = await fetch(base + "/api/institutions/hostel-applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ institutionId: "college-a", academicYear: "2026-2027", stayType: "new_admission", roomPreference: "shared", consent: true })
+  });
+  assert.equal(hostelApplicationResponse.status, 201, await hostelApplicationResponse.clone().text());
+  const hostelApplication = (await hostelApplicationResponse.json()).application;
+  const createBuildingDenied = await fetch(base + "/api/institutions/hostel-buildings", {
+    method: "POST", headers: headers("user-a"), body: JSON.stringify({ institutionId: "college-a", name: "North Hostel" })
+  });
+  assert.equal(createBuildingDenied.status, 403);
+  const buildingResponse = await fetch(base + "/api/institutions/hostel-buildings", {
+    method: "POST", headers: headers("user-a", true, "owner"),
+    body: JSON.stringify({ institutionId: "college-a", name: "North Hostel" })
+  });
+  assert.equal(buildingResponse.status, 403, "global owner role must not bypass institution-admin membership for inventory writes");
+  // Provision institution-admin membership as a trusted operator.
+  database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
+    .run("membership-admin", "college-a", "user-d", "institution_admin", "active", new Date().toISOString(), new Date().toISOString());
+  const adminBuildingResponse = await fetch(base + "/api/institutions/hostel-buildings", {
+    method: "POST", headers: headers("user-d"),
+    body: JSON.stringify({ institutionId: "college-a", name: "North Hostel" })
+  });
+  assert.equal(adminBuildingResponse.status, 201, await adminBuildingResponse.clone().text());
+  const building = (await adminBuildingResponse.json()).building;
+  const roomResponse = await fetch(base + "/api/institutions/hostel-rooms", {
+    method: "POST", headers: headers("user-d"),
+    body: JSON.stringify({ institutionId: "college-a", buildingId: building.id, roomNumber: "101", roomType: "shared", capacity: 1 })
+  });
+  assert.equal(roomResponse.status, 201, await roomResponse.clone().text());
+  const room = (await roomResponse.json()).room;
+  const approveHostel = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}`, {
+    method: "PATCH", headers: headers("user-a"),
+    body: JSON.stringify({ status: "approved", reviewNote: "Hostel admission approved." })
+  });
+  assert.equal(approveHostel.status, 200);
+  const allocationResponse = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
+    method: "POST", headers: headers("user-a"),
+    body: JSON.stringify({ roomId: room.id })
+  });
+  assert.equal(allocationResponse.status, 201, await allocationResponse.clone().text());
+  const allocation = (await allocationResponse.json()).allocation;
+  assert.equal(allocation.bedLabel, "1");
+  const fullInventory = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
+  assert.equal(fullInventory.status, 200);
+  assert.equal((await fullInventory.json()).rooms[0].availableBeds, 0);
+  const studentHostelHistory = await fetch(base + "/api/institutions/my-hostel-applications", { headers: headers("user-c") });
+  const studentHostelItem = (await studentHostelHistory.json()).applications.find(item => item.id === hostelApplication.id);
+  assert.equal(studentHostelItem.roomNumber, "101");
+  assert.equal(studentHostelItem.bedLabel, "1");
+  const readOnlyAllotment = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/allocation`, {
+    method: "POST", headers: headers("user-b"), body: JSON.stringify({ roomId: room.id })
+  });
+  assert.equal(readOnlyAllotment.status, 403);
+  const releaseBed = await fetch(base + `/api/institutions/hostel-allocations/${allocation.id}`, { method: "DELETE", headers: headers("user-a") });
+  assert.equal(releaseBed.status, 200);
+  const availableAfterRelease = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-c") });
+  assert.equal((await availableAfterRelease.json()).rooms[0].availableBeds, 1);
+
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
   });
