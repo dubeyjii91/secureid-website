@@ -357,6 +357,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(checkin.status, 200);
   const duplicateCheckin = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-in`, { method: "POST", headers: headers("user-a") });
   assert.equal(duplicateCheckin.status, 409);
+  const releaseWhileCheckedIn = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}`, { method: "DELETE", headers: headers("user-a") });
+  assert.equal(releaseWhileCheckedIn.status, 409);
   const checkout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-out`, { method: "POST", headers: headers("user-a") });
   assert.equal(checkout.status, 200);
 
