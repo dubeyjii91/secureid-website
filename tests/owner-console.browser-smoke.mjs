@@ -65,8 +65,7 @@ try {
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
-  await page.getByLabel("Institution").waitFor();
-  await page.getByLabel("Institution").selectOption("institution-1");
+  await page.getByLabel("Institution", { exact: true }).waitFor();
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();
