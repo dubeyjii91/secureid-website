@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { requestMfaCode, verifyMfa } from "../src/api";
+import { requestMfaCode, signOut, verifyMfa } from "../src/api";
 import { colors } from "../src/theme";
 
 export default function MfaScreen() {
@@ -70,7 +70,7 @@ export default function MfaScreen() {
           <View style={styles.trustCopy}><Text style={styles.trustTitle}>Trust this device for 30 days</Text><Text style={styles.trustSubtitle}>Only select this on your personal device. You can leave it unchecked for extra security.</Text></View>
         </Pressable>
         <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={18} color={colors.accent}/><Text style={styles.noticeText}>Your sign-in still requires this verification code. Trusting a device is optional.</Text></View>
-        <Pressable onPress={() => router.replace("/login")} style={styles.back}><Text style={styles.backText}>Back to sign in</Text></Pressable>
+        <Pressable onPress={async () => { try { await signOut(); } catch {} router.replace("/login"); }} style={styles.back}><Text style={styles.backText}>Back to sign in</Text></Pressable>
       </ScrollView>
     </SafeAreaView>
   );
