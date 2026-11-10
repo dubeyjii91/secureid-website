@@ -1958,7 +1958,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!member) return res.status(403).json({success:false,message:"An active institution administrator (warden) is required to update room occupancy."});
       if(!Number.isInteger(manualOccupiedBeds)||manualOccupiedBeds<0||manualOccupiedBeds>room.capacity) return res.status(400).json({success:false,message:"Enter a whole number of occupied beds between 0 and the room capacity."});
       const academicYear=String(req.body?.academicYear||"");
-      if(!/^20\d{2}-\d{4}$/.test(academicYear)) return res.status(400).json({success:false,message:"Choose a valid academic year before updating occupancy."});
+      if(!/^20\d{2}-20\d{2}$/.test(academicYear)) return res.status(400).json({success:false,message:"Choose a valid academic year before updating occupancy."});
       const allocated=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=? AND status='allocated' AND academic_year=?").get(roomId,academicYear).count;
       if(manualOccupiedBeds+allocated>room.capacity) return res.status(409).json({success:false,message:"Manual occupied beds plus SecureID bed allocations cannot exceed room capacity."});
       const now=new Date().toISOString();
@@ -1991,7 +1991,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         for(let index=1;index<=room.capacity;index++){if(!used.has(String(index))){bedLabel=String(index);break;}}
       }
       if(!bedLabel||bedLabel.length>20) return res.status(400).json({success:false,message:"Bed label must be 1–20 characters."});
-      if(/^\\d+$/.test(bedLabel)&&Number(bedLabel)<=room.manualOccupiedBeds) return res.status(409).json({success:false,message:"That bed is already occupied according to the warden inventory."});
+      if(/^\d+$/.test(bedLabel)&&Number(bedLabel)<=room.manualOccupiedBeds) return res.status(409).json({success:false,message:"That bed is already occupied according to the warden inventory."});
       const now=new Date().toISOString(),id=crypto.randomUUID();
       database.prepare("INSERT INTO hostel_bed_allocations(id,institution_id,application_id,room_id,academic_year,bed_label,status,allocated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'allocated',?,?,?)")
         .run(id,application.institution_id,applicationId,roomId,application.academic_year,bedLabel,req.user.id,now,now);
