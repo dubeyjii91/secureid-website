@@ -14,7 +14,10 @@ const json = (body, status = 200) => ({ status, contentType: "application/json",
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const pageErrors = [];
+  const apiTrace = [];
   page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/")) apiTrace.push("-> " + request.method() + " " + new URL(request.url()).pathname); });
+  page.on("response", response => { if (new URL(response.url()).pathname.startsWith("/api/")) apiTrace.push("<- " + response.status() + " " + new URL(response.url()).pathname); });
 
   await page.route("**/api/**", async route => {
     const request = route.request();
@@ -68,7 +71,8 @@ try {
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
-  await page.getByLabel("Institution", { exact: true }).waitFor();
+  try { await page.getByLabel("Institution", { exact: true }).waitFor({ timeout: 5000 }); }
+  catch { throw new Error("Institution was not created in UI. Alert=" + await page.getByRole("alert").allTextContents() + "; Notice=" + await page.getByRole("status").allTextContents() + "; API trace=" + apiTrace.join(" | ")); }
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();
