@@ -2188,6 +2188,207 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     } catch(error){next(error);}
   });
 
+  // INSTITUTION SCHOLARSHIPS — institution-managed programs and student applications.
+  database.exec(\`
+    CREATE TABLE IF NOT EXISTS scholarship_programs (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      eligibility TEXT NOT NULL,
+      award_amount_paise INTEGER NOT NULL CHECK(award_amount_paise > 0),
+      deadline TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_scholarship_programs_institution ON scholarship_programs(institution_id,status,deadline);
+    CREATE TABLE IF NOT EXISTS scholarship_applications (
+      id TEXT PRIMARY KEY,
+      program_id TEXT NOT NULL REFERENCES scholarship_programs(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      student_user_id TEXT NOT NULL REFERENCES users(id),
+      academic_year TEXT NOT NULL,
+      encrypted_details TEXT NOT NULL,
+      document_ids_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted','needs_correction','approved','rejected','withdrawn')),
+      encrypted_review_note TEXT,
+      reviewed_by TEXT,
+      consented_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(program_id,student_user_id,academic_year)
+    );
+    CREATE INDEX IF NOT EXISTS idx_scholarship_applications_institution ON scholarship_applications(institution_id,status,created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_scholarship_applications_student ON scholarship_applications(student_user_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS scholarship_audit (
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES scholarship_applications(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_scholarship_audit_application ON scholarship_audit(application_id,created_at DESC);
+  \`);
+
+  function addScholarshipAudit(applicationId,institutionId,actorUserId,action,fromStatus=null,toStatus=null) {
+    database.prepare("INSERT INTO scholarship_audit(id,application_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(crypto.randomUUID(),applicationId,institutionId,actorUserId,action,fromStatus,toStatus,new Date().toISOString());
+  }
+
+  app.get("/api/institutions/scholarship-workspace", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.query.institutionId||"");
+      const membership=getInstitutionMembership(req.user.id,institutionId);
+      if(!membership||membership.status!=="active"||!["student","reviewer","institution_admin","read_only"].includes(membership.role))
+        return res.status(403).json({success:false,message:"An active institution membership is required for scholarship access."});
+      const programs=database.prepare(\`
+        SELECT id,institution_id AS institutionId,title,description,eligibility,
+          award_amount_paise AS awardAmountPaise,deadline,status,created_at AS createdAt
+        FROM scholarship_programs WHERE institution_id=? ORDER BY deadline ASC,created_at DESC LIMIT 200
+      \`).all(institutionId);
+      const isStudent=membership.role==="student";
+      const rows=database.prepare(\`
+        SELECT a.id,a.program_id AS programId,a.institution_id AS institutionId,
+          a.student_user_id AS studentUserId,a.academic_year AS academicYear,
+          a.encrypted_details AS encryptedDetails,a.document_ids_json AS documentIdsJson,
+          a.status,a.encrypted_review_note AS encryptedReviewNote,a.consented_at AS consentedAt,
+          a.created_at AS createdAt,a.updated_at AS updatedAt,p.title AS programTitle,
+          p.award_amount_paise AS awardAmountPaise,p.deadline
+        FROM scholarship_applications a JOIN scholarship_programs p ON p.id=a.program_id
+        WHERE a.institution_id=? \${isStudent ? "AND a.student_user_id=?" : ""}
+        ORDER BY a.created_at DESC LIMIT 300
+      \`).all(...(isStudent?[institutionId,req.user.id]:[institutionId]));
+      const applications=rows.map(row=>{
+        let details={},reviewNote="";
+        try{details=jsonDecrypt(JSON.parse(row.encryptedDetails),key)||{};}catch{}
+        try{reviewNote=row.encryptedReviewNote?String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||""):"";}catch{}
+        let documentIds=[];try{documentIds=JSON.parse(row.documentIdsJson)||[];}catch{}
+        return {...row,encryptedDetails:undefined,encryptedReviewNote:undefined,documentIdsJson:undefined,
+          studentNote:String(details.studentNote||""),documentIds,reviewNote};
+      });
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,membershipRole:membership.role,programs,applications});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/scholarship-programs", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.body?.institutionId||""),title=String(req.body?.title||"").trim(),
+        description=String(req.body?.description||"").trim(),eligibility=String(req.body?.eligibility||"").trim(),
+        deadline=String(req.body?.deadline||"").trim(),amount=Number(req.body?.awardAmount);
+      const member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||member.role!=="institution_admin")
+        return res.status(403).json({success:false,message:"An active institution administrator is required to publish scholarship programs."});
+      const today=new Date().toISOString().slice(0,10);
+      if(title.length<3||title.length>100||description.length<20||description.length>2000||
+        eligibility.length<10||eligibility.length>1000||!Number.isFinite(amount)||amount<=0||amount>10000000||
+        !/^\d+(\.\d{1,2})?$/.test(String(req.body?.awardAmount??""))||
+        !/^20\d{2}-\d{2}-\d{2}$/.test(deadline)||deadline<today)
+        return res.status(400).json({success:false,message:"Enter a valid title, description, eligibility, award amount and future application deadline."});
+      const id=crypto.randomUUID(),now=new Date().toISOString(),awardAmountPaise=Math.round(amount*100);
+      database.prepare("INSERT INTO scholarship_programs(id,institution_id,title,description,eligibility,award_amount_paise,deadline,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?)")
+        .run(id,institutionId,title,description,eligibility,awardAmountPaise,deadline,req.user.id,now,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_PROGRAM_CREATED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,program:{id,institutionId,title,description,eligibility,awardAmountPaise,deadline,status:"active",createdAt:now}});
+    } catch(error){next(error);}
+  });
+
+  app.patch("/api/institutions/scholarship-programs/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const program=database.prepare("SELECT id,institution_id,status FROM scholarship_programs WHERE id=?").get(String(req.params.id||""));
+      if(!program) return res.status(404).json({success:false,message:"Scholarship program was not found."});
+      const member=getInstitutionMembership(req.user.id,program.institution_id);
+      if(!member||member.status!=="active"||member.role!=="institution_admin")
+        return res.status(403).json({success:false,message:"An active institution administrator is required to update scholarship programs."});
+      const status=String(req.body?.status||"");
+      if(!["active","closed"].includes(status)) return res.status(400).json({success:false,message:"Choose active or closed status."});
+      database.prepare("UPDATE scholarship_programs SET status=?,updated_at=? WHERE id=?").run(status,new Date().toISOString(),program.id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,status});
+    } catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/scholarship-programs/:id/applications", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const program=database.prepare("SELECT id,institution_id,title,deadline,status FROM scholarship_programs WHERE id=?").get(String(req.params.id||""));
+      if(!program) return res.status(404).json({success:false,message:"Scholarship program was not found."});
+      const member=getInstitutionMembership(req.user.id,program.institution_id);
+      if(!member||member.status!=="active"||member.role!=="student")
+        return res.status(403).json({success:false,message:"An active student membership is required to apply."});
+      if(program.status!=="active"||program.deadline<new Date().toISOString().slice(0,10))
+        return res.status(409).json({success:false,message:"This scholarship program is closed or its deadline has passed."});
+      const academicYear=String(req.body?.academicYear||""),studentNote=String(req.body?.studentNote||"").trim();
+      const documentIds=Array.isArray(req.body?.documentIds)?[...new Set(req.body.documentIds.map(value=>String(value)))]:[];
+      if(req.body?.consent!==true||!/^20\d{2}-20\d{2}$/.test(academicYear)||studentNote.length>1000||documentIds.length>10||documentIds.some(id=>!id||id.length>128))
+        return res.status(400).json({success:false,message:"Confirm consent, enter a valid academic year and keep the note and document selection within the allowed limits."});
+      if(documentIds.length){
+        const marks=documentIds.map(()=>"?").join(",");
+        const owned=database.prepare("SELECT id FROM secure_documents WHERE user_id=? AND deleted_at IS NULL AND id IN ("+marks+")").all(req.user.id,...documentIds);
+        if(owned.length!==documentIds.length) return res.status(400).json({success:false,message:"Choose only active documents from your own SecureID Vault."});
+      }
+      const id=crypto.randomUUID(),now=new Date().toISOString(),encryptedDetails=JSON.stringify(jsonEncrypt({studentNote},key));
+      database.prepare("INSERT INTO scholarship_applications(id,program_id,institution_id,student_user_id,academic_year,encrypted_details,document_ids_json,status,consented_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)")
+        .run(id,program.id,program.institution_id,req.user.id,academicYear,encryptedDetails,JSON.stringify(documentIds),now,now,now);
+      addScholarshipAudit(id,program.institution_id,req.user.id,"student_submitted",null,"submitted");
+      if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_APPLICATION_SUBMITTED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,application:{id,programId:program.id,programTitle:program.title,academicYear,status:"submitted",consentedAt:now,documentCount:documentIds.length}});
+    } catch(error){
+      if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"You have already applied to this scholarship for that academic year."});
+      next(error);
+    }
+  });
+
+  app.patch("/api/institutions/scholarship-applications/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM scholarship_applications WHERE id=?").get(String(req.params.id||""));
+      if(!row) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      const member=getInstitutionMembership(req.user.id,row.institution_id);
+      if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role))
+        return res.status(403).json({success:false,message:"An active institution reviewer or administrator is required to review applications."});
+      const status=String(req.body?.status||""),note=String(req.body?.reviewNote||"").trim();
+      if(!["needs_correction","approved","rejected"].includes(status)||note.length>500)
+        return res.status(400).json({success:false,message:"Choose a valid review outcome and keep the note within 500 characters."});
+      if(["approved","rejected","withdrawn"].includes(row.status))
+        return res.status(409).json({success:false,message:"This scholarship application is already closed."});
+      const encryptedNote=note?JSON.stringify(jsonEncrypt({note},key)):null,now=new Date().toISOString();
+      database.prepare("UPDATE scholarship_applications SET status=?,encrypted_review_note=?,reviewed_by=?,updated_at=? WHERE id=?")
+        .run(status,encryptedNote,req.user.id,now,row.id);
+      addScholarshipAudit(row.id,row.institution_id,req.user.id,"review_status_changed",row.status,status);
+      if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_APPLICATION_REVIEWED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,application:{id:row.id,status,reviewNote:note,updatedAt:now}});
+    } catch(error){next(error);}
+  });
+
+  app.delete("/api/institutions/scholarship-applications/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM scholarship_applications WHERE id=?").get(String(req.params.id||""));
+      if(!row||row.student_user_id!==req.user.id) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      if(!["submitted","needs_correction"].includes(row.status)) return res.status(409).json({success:false,message:"This scholarship application can no longer be withdrawn."});
+      const now=new Date().toISOString();
+      database.prepare("UPDATE scholarship_applications SET status='withdrawn',updated_at=? WHERE id=?").run(now,row.id);
+      addScholarshipAudit(row.id,row.institution_id,req.user.id,"student_withdrew",row.status,"withdrawn");
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,status:"withdrawn"});
+    } catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/scholarship-applications/:id/audit", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const row=database.prepare("SELECT id,institution_id,student_user_id FROM scholarship_applications WHERE id=?").get(String(req.params.id||""));
+      if(!row) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      const member=getInstitutionMembership(req.user.id,row.institution_id),isStudent=row.student_user_id===req.user.id;
+      if(!isStudent&&(!member||member.status!=="active"||!["reviewer","institution_admin","read_only"].includes(member.role)))
+        return res.status(403).json({success:false,message:"You do not have access to this scholarship history."});
+      const audit=database.prepare("SELECT action,from_status AS fromStatus,to_status AS toStatus,created_at AS createdAt FROM scholarship_audit WHERE application_id=? ORDER BY created_at ASC LIMIT 100").all(row.id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,audit});
+    } catch(error){next(error);}
+  });
+
   console.log(JSON.stringify({
     level:"info",
     event:"production_features_registered",
