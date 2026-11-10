@@ -1,35 +1,59 @@
-# College pilot workflow
+# College pilot and review workflow
 
-## What this release adds
+## Current implementation
 
-- An authenticated College Pilot page for recording institutional interest.
-- A limited form for institution name, submitter role, approximate student population, workflow interests, and a short non-sensitive note.
-- An account-scoped API: `GET /api/college-pilot/requests` and `POST /api/college-pilot/requests`.
-- Request payloads are encrypted using the existing production-features encryption key before being stored in SQLite.
-- Requests are visible only to the signed-in account that created them. Routes require the existing MFA-verified session, and writes use same-origin protection.
-- The page explicitly warns users not to submit student identity numbers, documents, OTPs, or other sensitive data.
+SecureID reuses the existing Document Vault and selective identity-sharing controls. It does not create a second student vault.
 
-## Important product boundaries
+- Authenticated users can submit non-sensitive college pilot interest. Request data is encrypted at rest and visible only to the submitting account.
+- Institutions and memberships use the roles `student`, `reviewer`, `institution_admin`, and `read_only`.
+- Memberships are provisioned only by a trusted SecureID owner with verified MFA. The owner console can create institutions, provision memberships, and suspend/reactivate memberships. Provisioning and membership changes are audited.
+- Students with an active student membership can select a document already in their own SecureID Vault, choose a limited purpose, and explicitly consent to submit a metadata reference to the institution.
+- Reviewers and institution administrators with active memberships can view their institution's queue and record `needs_correction`, `approved`, or `rejected` administrative outcomes. Read-only members can view but cannot change status.
+- Students can view their own submission status and encrypted review note, inspect audit history, and withdraw open submissions.
+- Deleting a source document automatically withdraws its open review submissions.
+- Each student submission records the consent timestamp and immutable consent text identifier (`college-review-v1`); the student can retrieve this evidence with their submission history.
 
-This is an interest-capture foundation, not a full college administration portal. It does not yet provide college tenant accounts, staff invitations, review queues, document access delegation, service-level agreements, payments, or verified institutional partnerships. The UI labels these as future workflow capabilities instead of claiming they are live.
+### Consent text — college-review-v1
 
-The current pilot request is not a paid subscription and does not automatically contact or promise a response from a college. It records the interest for the account owner to review. Before inviting institutions to use real student data, implement and independently test tenant isolation, institutional staff roles, consent and retention controls, audit events, deletion, operational support, and a legally reviewed data-processing agreement.
+“I consent to submit the selected document reference, filename, document category, selected institution, and stated review purpose to that institution for the purpose shown. I understand that this workflow shares document metadata only and does not grant the institution access to the document file itself. I can withdraw an open submission while it is still awaiting review or correction. An institution’s review outcome is an administrative decision and is not government or identity verification.”
 
-## Suggested commercial validation
+The version identifier and acceptance timestamp are stored with each submission. This is an implementation record, not a substitute for formal legal/privacy review or institution-specific consent terms. Any wording change must use a new version identifier rather than silently changing this text.
+- Account export includes institution memberships and review submissions. Account deletion removes linked membership/review records and their user-linked audit rows in dependency-safe order.
 
-1. Use this page to capture non-sensitive pilot interest.
-2. Interview a small number of colleges about onboarding, document review, and follow-up pain points.
-3. Build the institution-side review queue only after agreeing on a real pilot workflow and data responsibilities.
-4. Test willingness to pay with a written pilot offer before publishing pricing.
-5. Keep student access free initially; charge institutions only for validated administrative workflow and support value.
+## Important privacy and verification boundaries
 
-Never sell student identity data or describe saved documents as government-verified. Government verification requires a separate authorized provider integration and explicit, appropriate consent.
+The institution review queue currently receives **metadata only** (document filename/category, purpose, and submission status). It does not expose encrypted document bytes, storage paths, or a download endpoint to college staff. If colleges need to inspect document contents, a separate explicit student-authorized viewing mechanism must be designed and security-tested before enabling it.
 
+An institution's `approved` or `rejected` status is only an administrative workflow decision. It is not a government verification, identity authenticity check, proof of enrollment, or official credential. SecureID must not claim that Aadhaar/PAN or any other identity is government-verified without an authorized provider integration and appropriate consent.
 
-## Institution membership foundation
+Pilot-interest forms must contain only a college name, general role/population/workflow preferences, and a short non-sensitive note. Never enter student names, identity numbers, document images, OTPs, passwords, or other sensitive personal data in the interest form.
 
-The backend now has an institution table and a separate membership table with constrained roles: `student`, `reviewer`, `institution_admin`, and `read_only`. The authenticated `GET /api/institutions/memberships` endpoint returns only the current user's memberships and requires MFA. Responses use private, no-store caching.
+## Not yet ready for real college data
 
-Memberships must be provisioned by a trusted operator. No public endpoint allows users to create institutions, enroll themselves, invite staff, or change roles. This is only a tenant-membership foundation: it does not yet grant staff access to student records, documents, or pilot requests, and it is not a completed college review portal.
+Before inviting real institutions or uploading real student documents, complete and review:
 
-Before real student data is introduced, the project still needs trusted membership provisioning, institution-scoped review records and actions, audit history, consent/retention and deletion controls, operational support, and a reviewed data-processing agreement. Do not describe documents as government-verified unless an authorized provider integration actually performs that verification.
+1. Staff invitation/onboarding and verified institutional-domain checks where appropriate.
+2. Formal legal/privacy review and approval of the versioned consent wording, retention schedule, and institution offboarding/deletion workflows.
+3. A separately designed student-authorized document-viewing flow if file contents are needed by reviewers.
+4. Student credential issuance using existing selective-share, expiry and revocation controls, with clear issuer and verification semantics.
+5. Cross-tenant and role tests, membership suspension/revocation tests, audit completeness and deletion/retention tests.
+6. Support procedures, a legally reviewed data-processing agreement and privacy review.
+
+Keep student access free initially. Do not sell student identity data. No Google Play launch or paid college pilot is required while SecureID is being built and tested.
+
+## Two-account manual acceptance test (test accounts only)
+
+Use two accounts controlled by the tester; never share passwords, MFA codes, recovery codes, or real identity documents with another person.
+
+1. Sign in to the owner console with the trusted SecureID owner account and complete MFA.
+2. Create a clearly labelled test institution, for example `SecureID QA Sandbox`.
+3. In the registered-account selector, provision account A as `student` and account B as `reviewer`. Confirm both memberships are active in the institution directory and that the audit trail records both provisions.
+4. Sign out. Sign in as account A (student), complete MFA, and confirm the institution appears in the student review-submission flow. Use only a synthetic/test document already in the test vault. Submit it for one allowed purpose with explicit consent.
+5. Sign out. Sign in as account B (reviewer), complete MFA, open the institution review queue, and confirm only metadata is visible (filename/category/purpose/status; no file bytes or download control).
+6. As reviewer, set the test submission to `needs_correction` and add a non-sensitive test note. Return to account A and verify the status and note are visible; withdraw the open submission.
+7. Repeat with a second synthetic test submission and have the reviewer mark it `approved`. Confirm the student sees the administrative outcome and that the audit trail records submission, queue access and decision.
+8. In the owner console, suspend the reviewer's institution membership. Sign in as account B again and confirm the institution queue is denied. Reactivate only if another test is needed; otherwise leave the test memberships suspended after testing.
+
+Expected security results: the student cannot act as reviewer; the reviewer cannot access the student's vault bytes through the queue; missing MFA is denied; a suspended membership loses access; the student can see and withdraw their own open submission. An `approved` result is an institution workflow decision only, not proof of identity or official enrollment.
+
+Record pass/fail and the app version/build used. Do not mark this manual gate complete until both accounts have actually completed the steps against the same deployed test environment.
