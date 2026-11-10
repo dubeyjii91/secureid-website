@@ -15,6 +15,10 @@ export default function HostelManagement() {
   const [applications, setApplications] = useState([]);
   const [queue, setQueue] = useState([]);
   const [inventory, setInventory] = useState({ buildings: [], rooms: [] });
+  const [operations, setOperations] = useState({ allocations: [], fees: [], summary: {} });
+  const [myFees, setMyFees] = useState([]);
+  const [feeDrafts, setFeeDrafts] = useState({});
+  const [paymentDrafts, setPaymentDrafts] = useState({});
   const [form, setForm] = useState(initialForm);
   const [buildingName, setBuildingName] = useState("");
   const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2" });
@@ -39,12 +43,19 @@ export default function HostelManagement() {
       if (students.length) {
         const mine = await api("/api/institutions/my-hostel-applications", { cache: "no-store" });
         setApplications(mine.applications || []);
+        const feeData = await api("/api/institutions/my-hostel-fees", { cache: "no-store" });
+        setMyFees(feeData.fees || []);
         setForm(value => ({ ...value, institutionId: students.some(item => item.institutionId === value.institutionId) ? value.institutionId : students[0].institutionId }));
-      } else setApplications([]);
+      } else { setApplications([]); setMyFees([]); }
       if (reviewers.length) {
         const reviewData = await api("/api/institutions/hostel-review-queue", { cache: "no-store" });
         setQueue(reviewData.applications || []);
-      } else setQueue([]);
+        const operationsMembership = next.find(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
+        if (operationsMembership) {
+          const ops = await api(`/api/institutions/hostel-operations?institutionId=${encodeURIComponent(operationsMembership.institutionId)}`, { cache: "no-store" });
+          setOperations({ allocations: ops.allocations || [], fees: ops.fees || [], summary: ops.summary || {} });
+        }
+      } else { setQueue([]); setOperations({ allocations: [], fees: [], summary: {} }); }
       if (institutionIds.length) {
         const inventoryData = await api("/api/institutions/hostel-inventory", { cache: "no-store" });
         setInventory({ buildings: inventoryData.buildings || [], rooms: inventoryData.rooms || [] });
@@ -134,15 +145,39 @@ export default function HostelManagement() {
     } catch (err) { setError(err.message || "Bed allocation could not be released."); }
   }
 
+
+  async function hostelOperation(path, body = {}) {
+    setError(""); setMessage("");
+    try {
+      await api(path, { method: "POST", body: JSON.stringify(body) });
+      setMessage("Hostel operation saved successfully.");
+      await load();
+    } catch (err) { setError(err.message || "Hostel operation could not be saved."); }
+  }
+
+  async function createFee(applicationId) {
+    const draft = feeDrafts[applicationId] || {};
+    await hostelOperation(`/api/institutions/hostel-applications/${encodeURIComponent(applicationId)}/fees`, {
+      description: draft.description || "Hostel fee", amount: draft.amount, dueDate: draft.dueDate || ""
+    });
+  }
+
+  async function recordFeePayment(feeId) {
+    const draft = paymentDrafts[feeId] || {};
+    await hostelOperation(`/api/institutions/hostel-fees/${encodeURIComponent(feeId)}/payments`, {
+      amount: draft.amount, paymentMethod: draft.paymentMethod || "upi", reference: draft.reference || ""
+    });
+  }
+
   const activeStudents = memberships.filter(item => item.status === "active" && item.role === "student");
   const canReview = memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
   const canManageInventory = memberships.some(item => item.status === "active" && item.role === "institution_admin");
   const availableRooms = inventory.rooms.filter(room => room.status === "active" && room.availableBeds > 0);
 
   return <section className="panel collegeReviewPanel hostelPanel">
-    <div className="eyebrow dark">HOSTEL MANAGEMENT · PHASE 2</div>
+    <div className="eyebrow dark">HOSTEL MANAGEMENT · PHASE 3</div>
     <h2>Hostel applications & room allotment</h2>
-    <p className="lead">Students apply with consent. Institution reviewers make admission decisions, while administrators maintain room inventory and authorized reviewers allot available beds.</p>
+    <p className="lead">Students apply with consent. Institution teams review applications, manage rooms, allot beds, record check-in/check-out and maintain a transparent manual fee ledger.</p>
 
     {loading ? <p>Loading hostel workspace…</p> : <>
       {activeStudents.length > 0 && <form className="collegeSubmissionForm" onSubmit={submit}>
@@ -190,7 +225,13 @@ export default function HostelManagement() {
         </article>)}</div>}
       </div>}
 
-      {memberships.some(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role)) && <div className="hostelApplications">
+
+        {myFees.length > 0 && <div className="hostelApplications"><h3>My hostel fees</h3><div className="collegeRequestList">{myFees.map(fee => <article className="collegeRequest" key={fee.id}>
+          <strong>{fee.institutionName} · {fee.description}</strong><span className="collegeStatus">{fee.status}</span>
+          <small>{fee.academicYear} · Total ₹{(fee.amountPaise / 100).toFixed(2)} · Paid ₹{(fee.paidPaise / 100).toFixed(2)} · Balance ₹{((fee.amountPaise - fee.paidPaise) / 100).toFixed(2)}</small>
+          {fee.dueDate && <small>Due date: {fee.dueDate}</small>}
+        </article>)}</div><p className="collegePrivacyNote">Payment status is maintained by the institution. SecureID does not collect card, UPI PIN or banking credentials here.</p></div>}
+\n      {memberships.some(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role)) && <div className="hostelApplications">
         <h3>Warden / reviewer queue</h3>
         <p className="collegePrivacyNote">Only active institution reviewers and administrators can change application status or allot beds. Read-only members can view the queue.</p>
         {queue.length === 0 ? <p className="lead">No hostel applications in your institution queue.</p> : <div className="collegeRequestList">{queue.map(item => <article className="collegeRequest" key={item.id}>
@@ -213,6 +254,36 @@ export default function HostelManagement() {
           </div>}
           {canReview && item.allocationId && <button type="button" className="secondary" onClick={() => releaseAllocation(item.allocationId)}>Release bed allocation</button>}
         </article>)}</div>}
+      </div>}
+
+      {canReview && <div className="hostelApplications">
+        <h3>Warden operations & fee ledger</h3>
+        <p className="collegePrivacyNote">Manual fee receipts only; no card, UPI PIN or banking credentials are collected. Check-in/check-out and receipts are timestamped.</p>
+        <p className="collegePrivacyNote">{operations.summary.allocatedBeds || 0} allocated beds · {operations.summary.currentlyCheckedIn || 0} currently checked in</p>
+        {operations.allocations.filter(item => item.allocationStatus === "allocated").map(item => <article className="collegeRequest" key={item.allocationId}>
+          <strong>{item.buildingName} · Room {item.roomNumber} · Bed {item.bedLabel}</strong>
+          <small>Student account: {item.studentUserId} · {item.academicYear}</small>
+          <small>{item.checkedInAt ? `Checked in ${new Date(item.checkedInAt).toLocaleString()}` : "Not checked in"}{item.checkedOutAt ? ` · Checked out ${new Date(item.checkedOutAt).toLocaleString()}` : ""}</small>
+          {item.checkedInAt && !item.checkedOutAt
+            ? <button type="button" className="secondary" onClick={() => hostelOperation(`/api/institutions/hostel-allocations/${encodeURIComponent(item.allocationId)}/check-out`)}>Check out</button>
+            : <button type="button" className="secondary" onClick={() => hostelOperation(`/api/institutions/hostel-allocations/${encodeURIComponent(item.allocationId)}/check-in`)}>Check in</button>}
+          {canManageInventory && <form className="collegeSubmissionForm" onSubmit={event => { event.preventDefault(); createFee(item.applicationId); }}>
+            <label>Fee description<input required maxLength={100} value={feeDrafts[item.applicationId]?.description || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], description: event.target.value } }))} placeholder="Hostel / mess fee" /></label>
+            <label>Amount (₹)<input required type="number" min="0.01" max="1000000" step="0.01" value={feeDrafts[item.applicationId]?.amount || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], amount: event.target.value } }))} /></label>
+            <label>Due date<input type="date" value={feeDrafts[item.applicationId]?.dueDate || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], dueDate: event.target.value } }))} /></label>
+            <button className="secondary" type="submit">Create fee record</button>
+          </form>}
+        </article>)}
+        {operations.fees.map(fee => <article className="collegeRequest" key={fee.id}>
+          <strong>{fee.description} · {fee.status}</strong>
+          <small>Total ₹{(fee.amountPaise / 100).toFixed(2)} · Paid ₹{(fee.paidPaise / 100).toFixed(2)} · Balance ₹{((fee.amountPaise - fee.paidPaise) / 100).toFixed(2)}</small>
+          {canReview && fee.status !== "paid" && <form className="collegeSubmissionForm" onSubmit={event => { event.preventDefault(); recordFeePayment(fee.id); }}>
+            <label>Received amount (₹)<input required type="number" min="0.01" max="1000000" step="0.01" value={paymentDrafts[fee.id]?.amount || ""} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], amount: event.target.value } }))} /></label>
+            <label>Method<select value={paymentDrafts[fee.id]?.paymentMethod || "upi"} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], paymentMethod: event.target.value } }))}><option value="upi">UPI (manual confirmation)</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></label>
+            <label>Reference<input maxLength={100} value={paymentDrafts[fee.id]?.reference || ""} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], reference: event.target.value } }))} /></label>
+            <button className="secondary" type="submit">Record received payment</button>
+          </form>}
+        </article>)}
       </div>}
     </>}
     {error && <p className="collegeAlert error" role="alert">{error}</p>}
