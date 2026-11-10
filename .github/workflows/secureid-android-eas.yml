@@ -52,7 +52,7 @@ jobs:
           }
           echo "$DOWNLOAD_OUTPUT"
           # EAS CLI appends an escaped newline in some runner versions; match only through .apk.
-          APK="$(echo "$DOWNLOAD_OUTPUT" | sed -n 's/^Build downloaded to \(.*\.apk\).*/\1/p' | tail -n 1)"
+          APK="$(echo "$DOWNLOAD_OUTPUT" | sed -n 's/.*Build downloaded to \(.*\.apk\).*/\1/p' | tail -n 1)"
           if [ -z "$APK" ] || [ ! -s "$APK" ]; then
             echo "::error::EAS download completed but the reported APK path could not be found."
             exit 1
