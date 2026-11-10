@@ -31,6 +31,8 @@ try {
     if (path === "/api/auth/session" && method === "GET") {
       return route.fulfill(json({ user: { email: "owner@secureid.test", role: "owner", mfaVerified: true }, wallet: { risk: 0, locked: false } }));
     }
+    if (path === "/api/securecloud/overview" && method === "GET") return route.fulfill(json({ projects: 0, services: 0, deployments: 0, workerConfigured: false }));
+    if (path === "/api/securecloud/projects" && method === "GET") return route.fulfill(json({ projects: [] }));
     if (path === "/api/admin/health" && method === "GET") {
       return route.fulfill(json({ status: "ready", service: "SecureID API", database: "ok", emailDelivery: { configured: true, provider: "test" }, backup: { enabled: true, lastSuccessAt: now }, timestamp: now }));
     }
@@ -71,7 +73,7 @@ try {
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
-  try { await page.getByLabel("Institution", { exact: true }).waitFor({ timeout: 5000 }); }
+  try { await page.locator('select option[value="institution-1"]').waitFor({ timeout: 5000 }); }
   catch { throw new Error("Institution was not created in UI. Alert=" + await page.getByRole("alert").allTextContents() + "; Notice=" + await page.getByRole("status").allTextContents() + "; API trace=" + apiTrace.join(" | ")); }
 
   await page.getByLabel("Institution role").selectOption("reviewer");
