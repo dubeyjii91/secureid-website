@@ -72,10 +72,10 @@ try {
   await page.getByText("Institution membership provisioned and audit entry recorded.").waitFor();
 
   await page.getByRole("button", { name: "View selected institution audit" }).click();
-  await page.getByText("membership_provisioned").waitFor();
+  await page.getByText("membership provisioned").waitFor();
 
-  await page.getByRole("button", { name: "Suspend" }).click();
   page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Suspend" }).last().click();
   await page.getByText("Institution membership status updated and audit entry recorded.").waitFor();
 
   if (pageErrors.length) throw new Error("Browser JavaScript errors: " + pageErrors.join("; "));
