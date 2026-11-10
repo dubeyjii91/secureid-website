@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { requireBiometricUnlock } from "../src/biometric";
+import { signOut } from "../src/api";
 import { colors } from "../src/theme";
 
 export default function LockedScreen() {
@@ -32,7 +33,7 @@ export default function LockedScreen() {
         <Pressable onPress={unlock} disabled={busy} style={[styles.button,busy&&{opacity:0.65}]}>
           {busy?<ActivityIndicator color={colors.background}/>:<><Ionicons name="lock-open-outline" size={19} color={colors.background}/><Text style={styles.buttonText}>Unlock SecureID</Text></>}
         </Pressable>
-        <Pressable onPress={()=>router.replace("/login")} style={styles.signin}><Text style={styles.signinText}>Sign in with account credentials</Text></Pressable>
+        <Pressable onPress={async()=>{try{await signOut();}catch{}router.replace("/login");}} style={styles.signin}><Text style={styles.signinText}>Sign out and use another account</Text></Pressable>
       </View>
     </SafeAreaView>
   );
