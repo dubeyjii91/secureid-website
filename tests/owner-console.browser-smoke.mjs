@@ -22,6 +22,9 @@ try {
     const path = url.pathname;
     const method = request.method();
 
+    if (path === "/api/auth/csrf" && method === "GET") {
+      return route.fulfill({ ...json({ success: true }), headers: { "set-cookie": "secureid.csrf=synthetic-test-token; Path=/; SameSite=Lax" } });
+    }
     if (path === "/api/auth/session" && method === "GET") {
       return route.fulfill(json({ user: { email: "owner@secureid.test", role: "owner", mfaVerified: true }, wallet: { risk: 0, locked: false } }));
     }
