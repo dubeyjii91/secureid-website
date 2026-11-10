@@ -208,11 +208,18 @@ export async function downloadDocumentForLocalOcr(id: string) {
   if (!token) throw new Error("Sign in to scan this document.");
   if (!FileSystem.cacheDirectory) throw new Error("Device storage is unavailable.");
   const destination = `${FileSystem.cacheDirectory}secureid-local-ocr-${Date.now()}`;
-  const result = await FileSystem.downloadAsync(
-    `${API_BASE_URL}/api/documents/${encodeURIComponent(id)}`,
-    destination,
-    { headers: { [CLIENT_HEADER]: "native", Authorization: `Bearer ${token}` } },
-  );
+  let result: FileSystem.FileSystemDownloadResult;
+  try {
+    result = await FileSystem.downloadAsync(
+      `${API_BASE_URL}/api/documents/${encodeURIComponent(id)}`,
+      destination,
+      { headers: { [CLIENT_HEADER]: "native", Authorization: `Bearer ${token}` } },
+    );
+  } catch (error) {
+    // A failed or interrupted transfer can leave a partial plaintext cache file.
+    await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => {});
+    throw error;
+  }
   if (result.status !== 200) {
     await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
     if (result.status === 401) await SecureStore.deleteItemAsync(TOKEN_KEY);
