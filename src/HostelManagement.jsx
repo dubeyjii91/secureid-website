@@ -255,6 +255,36 @@ export default function HostelManagement() {
           {canReview && item.allocationId && <button type="button" className="secondary" onClick={() => releaseAllocation(item.allocationId)}>Release bed allocation</button>}
         </article>)}</div>}
       </div>}
+
+      {canReview && <div className="hostelApplications">
+        <h3>Warden operations & fee ledger</h3>
+        <p className="collegePrivacyNote">Manual fee receipts only; no card, UPI PIN or banking credentials are collected. Check-in/check-out and receipts are timestamped.</p>
+        <p className="collegePrivacyNote">{operations.summary.allocatedBeds || 0} allocated beds · {operations.summary.currentlyCheckedIn || 0} currently checked in</p>
+        {operations.allocations.filter(item => item.allocationStatus === "allocated").map(item => <article className="collegeRequest" key={item.allocationId}>
+          <strong>{item.buildingName} · Room {item.roomNumber} · Bed {item.bedLabel}</strong>
+          <small>Student account: {item.studentUserId} · {item.academicYear}</small>
+          <small>{item.checkedInAt ? `Checked in ${new Date(item.checkedInAt).toLocaleString()}` : "Not checked in"}{item.checkedOutAt ? ` · Checked out ${new Date(item.checkedOutAt).toLocaleString()}` : ""}</small>
+          {item.checkedInAt && !item.checkedOutAt
+            ? <button type="button" className="secondary" onClick={() => hostelOperation(`/api/institutions/hostel-allocations/${encodeURIComponent(item.allocationId)}/check-out`)}>Check out</button>
+            : <button type="button" className="secondary" onClick={() => hostelOperation(`/api/institutions/hostel-allocations/${encodeURIComponent(item.allocationId)}/check-in`)}>Check in</button>}
+          {canManageInventory && <form className="collegeSubmissionForm" onSubmit={event => { event.preventDefault(); createFee(item.applicationId); }}>
+            <label>Fee description<input required maxLength={100} value={feeDrafts[item.applicationId]?.description || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], description: event.target.value } }))} placeholder="Hostel / mess fee" /></label>
+            <label>Amount (₹)<input required type="number" min="0.01" max="1000000" step="0.01" value={feeDrafts[item.applicationId]?.amount || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], amount: event.target.value } }))} /></label>
+            <label>Due date<input type="date" value={feeDrafts[item.applicationId]?.dueDate || ""} onChange={event => setFeeDrafts(current => ({ ...current, [item.applicationId]: { ...current[item.applicationId], dueDate: event.target.value } }))} /></label>
+            <button className="secondary" type="submit">Create fee record</button>
+          </form>}
+        </article>)}
+        {operations.fees.map(fee => <article className="collegeRequest" key={fee.id}>
+          <strong>{fee.description} · {fee.status}</strong>
+          <small>Total ₹{(fee.amountPaise / 100).toFixed(2)} · Paid ₹{(fee.paidPaise / 100).toFixed(2)} · Balance ₹{((fee.amountPaise - fee.paidPaise) / 100).toFixed(2)}</small>
+          {canReview && fee.status !== "paid" && <form className="collegeSubmissionForm" onSubmit={event => { event.preventDefault(); recordFeePayment(fee.id); }}>
+            <label>Received amount (₹)<input required type="number" min="0.01" max="1000000" step="0.01" value={paymentDrafts[fee.id]?.amount || ""} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], amount: event.target.value } }))} /></label>
+            <label>Method<select value={paymentDrafts[fee.id]?.paymentMethod || "upi"} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], paymentMethod: event.target.value } }))}><option value="upi">UPI (manual confirmation)</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></label>
+            <label>Reference<input maxLength={100} value={paymentDrafts[fee.id]?.reference || ""} onChange={event => setPaymentDrafts(current => ({ ...current, [fee.id]: { ...current[fee.id], reference: event.target.value } }))} /></label>
+            <button className="secondary" type="submit">Record received payment</button>
+          </form>}
+        </article>)}
+      </div>}
     </>}
     {error && <p className="collegeAlert error" role="alert">{error}</p>}
     {message && <p className="collegeAlert" role="status">{message}</p>}
