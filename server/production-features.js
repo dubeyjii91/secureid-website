@@ -2426,6 +2426,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
           .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
         return res.status(403).json({success:false,message:"This document is not currently shared for scholarship review."});
       }
+      // Bound repeated encrypted-file reads per IP and account before touching storage.
+      enforceShareRateLimit(database,req,req.user.id);
       const document=database.prepare("SELECT id,user_id,original_name,mime_type,size_bytes,encrypted_path FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL")
         .get(documentId,application.student_user_id);
       if(!document) {
