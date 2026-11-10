@@ -28,8 +28,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
       share_identity_id INTEGER DEFAULT 0, share_college INTEGER DEFAULT 0, share_student_id INTEGER DEFAULT 0,
       share_government_id INTEGER DEFAULT 0, share_verification_status INTEGER DEFAULT 0
     );
-    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test'),('user-d','d@example.test');
-    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c'),('user-d');
+    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test'),('user-d','d@example.test'),('user-e','e@example.test');
+    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c'),('user-d'),('user-e');
     CREATE TABLE secure_documents (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL, encrypted_path TEXT NOT NULL, document_category TEXT NOT NULL DEFAULT 'general',
@@ -508,7 +508,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(Buffer.from(await scholarshipPreview.arrayBuffer()).toString("utf8"), scholarshipPdf.toString("utf8"));
   const readonlyScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-b") });
   assert.equal(readonlyScholarshipPreview.status, 403);
-  const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-d") });
+  const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-e") });
   assert.equal(unrelatedScholarshipPreview.status, 403);
   const unselectedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c2/preview", { headers: headers("user-a") });
   assert.equal(unselectedScholarshipPreview.status, 403);
