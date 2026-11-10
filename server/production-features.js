@@ -1775,7 +1775,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const rows=database.prepare(`
         SELECT h.id,h.institution_id AS institutionId,i.name AS institutionName,h.academic_year AS academicYear,
           h.stay_type AS stayType,h.room_preference AS roomPreference,h.student_note AS studentNote,h.status,
-          h.encrypted_review_note AS encryptedReviewNote,h.created_at AS createdAt,h.updated_at AS updatedAt
+          h.encrypted_review_note AS encryptedReviewNote,h.consented_at AS consentedAt,h.consent_version AS consentVersion,
+          h.created_at AS createdAt,h.updated_at AS updatedAt
         FROM hostel_applications h JOIN institutions i ON i.id=h.institution_id
         WHERE h.student_user_id=? ORDER BY h.created_at DESC LIMIT 100
       `).all(req.user.id);
