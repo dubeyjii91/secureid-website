@@ -3,6 +3,15 @@ import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+function isCanonicalBase64(value) {
+  // Avoid the nested-quantifier regex here: large valid document blobs can
+  // trigger excessive backtracking/stack exhaustion in JavaScript's regex engine.
+  if (typeof value !== "string" || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+    return false;
+  }
+  return Buffer.from(value, "base64").toString("base64") === value;
+}
+
 const backupPath = process.argv[2];
 const dbPath = path.resolve(process.env.DATABASE_PATH || "./data/secureid.sqlite");
 const documentDir = path.resolve(process.env.DOCUMENT_STORAGE_PATH || "./data/secureid-documents");
@@ -40,7 +49,7 @@ if (payload.version === 2) {
   try { snapshot = JSON.parse(decrypted.toString("utf8")); }
   catch { throw new Error("Backup snapshot is invalid."); }
   if (snapshot.version !== 2 || typeof snapshot.database !== "string" ||
-      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(snapshot.database) ||
+      !isCanonicalBase64(snapshot.database) ||
       !Array.isArray(snapshot.documents)) {
     throw new Error("Backup snapshot is incomplete.");
   }
@@ -51,7 +60,7 @@ if (payload.version === 2) {
     if (!item || typeof item.name !== "string" ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/i.test(item.name) ||
         typeof item.data !== "string" ||
-        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(item.data) ||
+        !isCanonicalBase64(item.data) ||
         names.has(item.name)) {
       throw new Error("Backup contains an invalid document entry.");
     }
