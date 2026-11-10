@@ -12,6 +12,7 @@ export default function MfaScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const [trustDevice, setTrustDevice] = useState(false);
 
   async function sendCode() {
     setLoading(true);
@@ -41,7 +42,7 @@ export default function MfaScreen() {
     }
     setBusy(true);
     try {
-      await verifyMfa(code, challengeId, true);
+      await verifyMfa(code, challengeId, trustDevice);
       router.replace("/");
     } catch (error: any) {
       Alert.alert("Verification failed", error?.message || "Check the code and try again.");
@@ -64,7 +65,11 @@ export default function MfaScreen() {
           </Pressable>
           <Pressable onPress={sendCode} disabled={loading || resendIn > 0} style={[styles.resend,(loading || resendIn > 0) && {opacity:0.55}]}><Text style={styles.resendText}>{resendIn > 0 ? `Request another code in ${resendIn}s` : "Request another code"}</Text></Pressable>
         </>}
-        <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={18} color={colors.accent}/><Text style={styles.noticeText}>This device will be marked as trusted after successful verification. The server still controls session expiry and access.</Text></View>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: trustDevice }} onPress={() => setTrustDevice(value => !value)} style={styles.trustOption}>
+          <View style={[styles.trustCheckbox, trustDevice && styles.trustCheckboxChecked]}>{trustDevice && <Ionicons name="checkmark" size={15} color={colors.background}/>}</View>
+          <View style={styles.trustCopy}><Text style={styles.trustTitle}>Trust this device for 30 days</Text><Text style={styles.trustSubtitle}>Only select this on your personal device. You can leave it unchecked for extra security.</Text></View>
+        </Pressable>
+        <View style={styles.notice}><Ionicons name="shield-checkmark-outline" size={18} color={colors.accent}/><Text style={styles.noticeText}>Your sign-in still requires this verification code. Trusting a device is optional.</Text></View>
         <Pressable onPress={() => router.replace("/login")} style={styles.back}><Text style={styles.backText}>Back to sign in</Text></Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -78,6 +83,7 @@ const styles=StyleSheet.create({
   label:{color:colors.text,fontSize:13,fontWeight:"700",marginBottom:9},code:{height:60,borderWidth:1,borderColor:colors.border,borderRadius:14,backgroundColor:colors.surface,color:colors.text,fontSize:25,fontWeight:"800",letterSpacing:9,textAlign:"center"},
   button:{height:54,borderRadius:14,backgroundColor:colors.accent,alignItems:"center",justifyContent:"center",marginTop:22},buttonText:{color:colors.background,fontSize:15,fontWeight:"900"},
   resend:{alignSelf:"center",padding:15},resendText:{color:colors.accent,fontSize:13,fontWeight:"700"},
-  notice:{flexDirection:"row",gap:10,alignItems:"flex-start",padding:15,borderRadius:14,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,marginTop:20},noticeText:{flex:1,color:colors.muted,fontSize:12,lineHeight:18},
+  trustOption:{flexDirection:"row",alignItems:"flex-start",gap:11,padding:14,borderRadius:14,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,marginTop:18},trustCheckbox:{width:22,height:22,borderRadius:6,borderWidth:1.5,borderColor:colors.muted,alignItems:"center",justifyContent:"center"},trustCheckboxChecked:{backgroundColor:colors.accent,borderColor:colors.accent},trustCopy:{flex:1,gap:4},trustTitle:{color:colors.text,fontSize:13,fontWeight:"800"},trustSubtitle:{color:colors.muted,fontSize:11,lineHeight:16},
+  notice:{flexDirection:"row",gap:10,alignItems:"flex-start",padding:15,borderRadius:14,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,marginTop:12},noticeText:{flex:1,color:colors.muted,fontSize:12,lineHeight:18},
   back:{alignSelf:"center",padding:14,marginTop:12},backText:{color:colors.muted,fontSize:13}
 });
