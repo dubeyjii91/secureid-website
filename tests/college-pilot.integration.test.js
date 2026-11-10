@@ -561,3 +561,4 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(tooLong.status, 400);
 });
+// Regression: unrelated users must exist in the fixture so denial auditing satisfies user foreign keys.
