@@ -450,6 +450,87 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const unrelatedOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=unknown-college", { headers: headers("user-a") });
   assert.equal(unrelatedOperations.status, 403);
 
+  // Scholarship programs: institution-admin publishing, student consent and reviewer decisions.
+  const scholarshipDeadline = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10);
+  const reviewerCannotPublishScholarship = await fetch(base + "/api/institutions/scholarship-programs", {
+    method: "POST", headers: headers("user-a"),
+    body: JSON.stringify({ institutionId: "college-a", title: "Merit Scholarship", description: "Annual support for eligible enrolled students.", eligibility: "Students must meet the college merit and attendance criteria.", awardAmount: 12000, deadline: scholarshipDeadline })
+  });
+  assert.equal(reviewerCannotPublishScholarship.status, 403);
+  const createScholarship = await fetch(base + "/api/institutions/scholarship-programs", {
+    method: "POST", headers: headers("user-d"),
+    body: JSON.stringify({ institutionId: "college-a", title: "Merit Scholarship", description: "Annual support for eligible enrolled students.", eligibility: "Students must meet the college merit and attendance criteria.", awardAmount: 12000, deadline: scholarshipDeadline })
+  });
+  assert.equal(createScholarship.status, 201, await createScholarship.clone().text());
+  const scholarship = (await createScholarship.json()).program;
+  assert.equal(scholarship.awardAmountPaise, 1200000);
+  assert.equal(scholarship.status, "active");
+  const scholarshipNoConsent = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id + "/applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ academicYear: "2026-2027", studentNote: "Merit applicant.", documentIds: ["doc-c"], consent: false })
+  });
+  assert.equal(scholarshipNoConsent.status, 400);
+  const scholarshipApply = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id + "/applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ academicYear: "2026-2027", studentNote: "Merit applicant.", documentIds: ["doc-c"], consent: true })
+  });
+  assert.equal(scholarshipApply.status, 201, await scholarshipApply.clone().text());
+  const scholarshipApplication = (await scholarshipApply.json()).application;
+  assert.equal(scholarshipApplication.status, "submitted");
+  assert.equal(scholarshipApplication.documentCount, 1);
+  const duplicateScholarshipApply = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id + "/applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ academicYear: "2026-2027", studentNote: "Duplicate attempt.", documentIds: [], consent: true })
+  });
+  assert.equal(duplicateScholarshipApply.status, 409);
+  const studentScholarshipWorkspace = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-c") });
+  assert.equal(studentScholarshipWorkspace.status, 200);
+  const studentScholarshipData = await studentScholarshipWorkspace.json();
+  assert.equal(studentScholarshipData.programs[0].id, scholarship.id);
+  assert.equal(studentScholarshipData.applications[0].id, scholarshipApplication.id);
+  assert.equal(studentScholarshipData.applications[0].studentNote, "Merit applicant.");
+  assert.deepEqual(studentScholarshipData.applications[0].documentIds, ["doc-c"]);
+  const readonlyScholarshipDecision = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
+    method: "PATCH", headers: headers("user-b"),
+    body: JSON.stringify({ status: "approved", reviewNote: "Read-only cannot approve." })
+  });
+  assert.equal(readonlyScholarshipDecision.status, 403);
+  const scholarshipCorrection = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
+    method: "PATCH", headers: headers("user-a"),
+    body: JSON.stringify({ status: "needs_correction", reviewNote: "Please provide an updated supporting note." })
+  });
+  assert.equal(scholarshipCorrection.status, 200);
+  assert.equal((await scholarshipCorrection.json()).application.status, "needs_correction");
+  const scholarshipResubmit = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id + "/applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ academicYear: "2026-2027", studentNote: "Updated merit application details.", documentIds: ["doc-c"], consent: true })
+  });
+  assert.equal(scholarshipResubmit.status, 200, await scholarshipResubmit.clone().text());
+  assert.equal((await scholarshipResubmit.json()).application.id, scholarshipApplication.id);
+  const scholarshipDecision = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
+    method: "PATCH", headers: headers("user-a"),
+    body: JSON.stringify({ status: "approved", reviewNote: "Updated eligibility reviewed by the institution." })
+  });
+  assert.equal(scholarshipDecision.status, 200);
+  assert.equal((await scholarshipDecision.json()).application.status, "approved");
+  const reviewerScholarshipWorkspace = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-a") });
+  assert.equal(reviewerScholarshipWorkspace.status, 200);
+  const reviewerScholarshipData = await reviewerScholarshipWorkspace.json();
+  assert.equal(reviewerScholarshipData.applications[0].status, "approved");
+  assert.equal(reviewerScholarshipData.applications[0].reviewNote, "Updated eligibility reviewed by the institution.");
+  const scholarshipAudit = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/audit", { headers: headers("user-c") });
+  assert.equal(scholarshipAudit.status, 200);
+  assert.deepEqual((await scholarshipAudit.json()).audit.map(item => item.action), ["student_submitted", "review_status_changed", "student_resubmitted", "review_status_changed"]);
+  const closeScholarship = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id, {
+    method: "PATCH", headers: headers("user-d"), body: JSON.stringify({ status: "closed" })
+  });
+  assert.equal(closeScholarship.status, 200);
+  const closedScholarshipApply = await fetch(base + "/api/institutions/scholarship-programs/" + scholarship.id + "/applications", {
+    method: "POST", headers: headers("user-c"),
+    body: JSON.stringify({ academicYear: "2027-2028", studentNote: "", documentIds: [], consent: true })
+  });
+  assert.equal(closedScholarshipApply.status, 409);
+
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
   });
