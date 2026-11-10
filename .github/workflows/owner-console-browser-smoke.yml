@@ -39,3 +39,5 @@ jobs:
           exit 1
       - name: Test owner console with isolated synthetic API responses
         run: node tests/owner-console.browser-smoke.mjs
+      - name: Test student and reviewer workflow with synthetic accounts and documents
+        run: node tests/college-workspace.browser-smoke.mjs
