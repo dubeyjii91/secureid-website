@@ -392,16 +392,6 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(releaseWhileCheckedIn.status, 409);
   const checkout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}/check-out`, { method: "POST", headers: headers("user-a") });
   assert.equal(checkout.status, 200);
-  const releaseAfterCheckout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}`, { method: "DELETE", headers: headers("user-a") });
-  assert.equal(releaseAfterCheckout.status, 200);
-  const studentHistoryAfterRelease = await fetch(base + "/api/institutions/my-hostel-applications", { headers: headers("user-c") });
-  const releasedStudentRecord = (await studentHistoryAfterRelease.json()).applications.find(item => item.id === hostelApplication.id);
-  assert.equal(releasedStudentRecord.allocationId, secondAllocation.id);
-  assert.equal(releasedStudentRecord.allocationStatus, "released");
-  assert.ok(releasedStudentRecord.checkedInAt);
-  assert.ok(releasedStudentRecord.checkedOutAt);
-  assert.ok(releasedStudentRecord.releasedAt);
-
   const reviewerCannotCreateFee = await fetch(base + `/api/institutions/hostel-applications/${hostelApplication.id}/fees`, {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ description: "Hostel fee", amount: 1500 })
   });
@@ -431,6 +421,16 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(finalPayment.status, 201);
   assert.equal((await finalPayment.json()).status, "paid");
+
+  const releaseAfterCheckout = await fetch(base + `/api/institutions/hostel-allocations/${secondAllocation.id}`, { method: "DELETE", headers: headers("user-a") });
+  assert.equal(releaseAfterCheckout.status, 200);
+  const studentHistoryAfterRelease = await fetch(base + "/api/institutions/my-hostel-applications", { headers: headers("user-c") });
+  const releasedStudentRecord = (await studentHistoryAfterRelease.json()).applications.find(item => item.id === hostelApplication.id);
+  assert.equal(releasedStudentRecord.allocationId, secondAllocation.id);
+  assert.equal(releasedStudentRecord.allocationStatus, "released");
+  assert.ok(releasedStudentRecord.checkedInAt);
+  assert.ok(releasedStudentRecord.checkedOutAt);
+  assert.ok(releasedStudentRecord.releasedAt);
 
   const hostelOperations = await fetch(base + "/api/institutions/hostel-operations?institutionId=college-a", { headers: headers("user-a") });
   assert.equal(hostelOperations.status, 200);
