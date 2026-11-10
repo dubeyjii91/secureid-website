@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./college-workspace.css";
 import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
+import ScholarshipManagement from "./ScholarshipManagement.jsx";
 
 const initialForm = { institutionName: "", role: "Student", studentCount: "Under 500", workflows: ["Student onboarding", "Document submission tracking"], notes: "" };
 
@@ -188,6 +189,7 @@ export default function CollegeWorkspace() {
     </section>}
 
     <HostelManagement />
+    <ScholarshipManagement />
 
     <div className="collegeColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
