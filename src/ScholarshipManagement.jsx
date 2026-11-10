@@ -12,6 +12,8 @@ export default function ScholarshipManagement() {
   const [applicationDraft, setApplicationDraft] = useState({ programId: "", academicYear: yearNow + "-" + (yearNow + 1), studentNote: "", documentIds: [] });
   const [reviewNotes, setReviewNotes] = useState({});
   const [auditHistory, setAuditHistory] = useState({});
+  const [documentPreviews, setDocumentPreviews] = useState({});
+  const [previewLoading, setPreviewLoading] = useState({});
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,6 +104,20 @@ export default function ScholarshipManagement() {
     } catch (err) { setError(err.message || "Scholarship program could not be closed."); }
   }
 
+  async function previewScholarshipDocument(applicationId, document) {
+    const key = applicationId + ":" + document.id;
+    setError(""); setMessage("");
+    setPreviewLoading(current => ({ ...current, [key]: true }));
+    try {
+      const response = await api("/api/institutions/scholarship-applications/" + encodeURIComponent(applicationId) + "/documents/" + encodeURIComponent(document.id) + "/preview", { cache: "no-store" });
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(new Blob([blob], { type: document.mimeType }));
+      setDocumentPreviews(current => ({ ...current, [key]: objectUrl }));
+      setMessage("Secure document preview is ready. Access has been recorded in the audit history.");
+    } catch (err) { setError(err.message || "Document preview could not be opened."); }
+    finally { setPreviewLoading(current => ({ ...current, [key]: false })); }
+  }
+
   async function showAudit(applicationId) {
     try {
       const data = await api("/api/institutions/scholarship-applications/" + encodeURIComponent(applicationId) + "/audit", { cache: "no-store" });
@@ -156,7 +172,7 @@ export default function ScholarshipManagement() {
           <label>Supporting documents from your Vault<select multiple size={Math.min(5, Math.max(2, documents.length))} value={applicationDraft.documentIds} onChange={event => setApplicationDraft(value => ({ ...value, documentIds: Array.from(event.target.selectedOptions, option => option.value) }))}>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select></label>
           <small className="collegePrivacyNote">Hold Ctrl (Windows) or Command (Mac) to select multiple documents. Up to 10 document references are allowed.</small>
           <label>Application note (optional)<textarea rows={3} maxLength={1000} value={applicationDraft.studentNote} onChange={event => setApplicationDraft(value => ({ ...value, studentNote: event.target.value }))} placeholder="Add a short explanation without sensitive identity or banking details." /></label>
-          <label className="collegeConsent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />I consent to share this application and the selected document references with the chosen institution for scholarship review.</label>
+          <label className="collegeConsent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />I consent to share this application and let authorized institution reviewers preview the selected Vault documents securely for scholarship review. I understand previews are audited and access ends if I withdraw my application.</label>
           <button className="primary" type="submit" disabled={saving || !applicationDraft.programId || !consent}>{saving ? "Submitting…" : "Submit scholarship application"}</button>
         </form>
         {documents.length === 0 && <p className="collegeAlert">Your SecureID Vault has no active documents. You can still apply without attachments if the program allows it.</p>}
@@ -168,6 +184,18 @@ export default function ScholarshipManagement() {
           <strong>{application.programTitle}</strong><span className="collegeStatus">{application.status.replaceAll("_", " ")}</span>
           <small>{application.institutionName} · {application.academicYear} · Award ₹{(application.awardAmountPaise / 100).toFixed(2)} · {application.documentIds.length} document reference(s)</small>
           {application.studentNote && <p>{application.studentNote}</p>}
+          {reviewers.some(item => item.institutionId === application.institutionId && ["reviewer", "institution_admin"].includes(item.role)) && application.documents?.length > 0 && ["submitted", "needs_correction"].includes(application.status) && <div className="collegeReviewActions">
+            <strong>Consented supporting documents</strong>
+            {application.documents.map(document => {
+              const previewKey = application.id + ":" + document.id;
+              return <div className="collegeRequest" key={document.id}>
+                <small>{document.name} · {document.category} · {(document.sizeBytes / 1024).toFixed(0)} KB</small>
+                <button type="button" className="secondary" disabled={Boolean(previewLoading[previewKey])} onClick={() => previewScholarshipDocument(application.id, document)}>{previewLoading[previewKey] ? "Preparing secure preview…" : "Prepare secure preview"}</button>
+                {documentPreviews[previewKey] && <a href={documentPreviews[previewKey]} target="_blank" rel="noopener noreferrer">Open document preview</a>}
+              </div>;
+            })}
+            <small className="collegePrivacyNote">View-only preview is available only to authorized reviewers while this application is under review. Each successful access is audited; files are not exposed as permanent download links.</small>
+          </div>}
           {application.reviewNote && <p>Reviewer note: {application.reviewNote}</p>}
           <small>Submitted: {new Date(application.consentedAt || application.createdAt).toLocaleString()}</small>
           {application.status === "needs_correction" && students.some(item => item.institutionId === application.institutionId) && <p className="collegePrivacyNote">Please update the application note or document selection above, keep the same program and academic year, then submit again to resubmit this application.</p>}
