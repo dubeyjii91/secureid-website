@@ -1891,7 +1891,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
       const visible=requested?[requested]:ids,marks=visible.map(()=>"?").join(",");
       const requestedYear=String(req.query.academicYear||"");
-      const academicYear=/^20\\d{2}-20\\d{2}$/.test(requestedYear)?requestedYear:`${new Date().getFullYear()}-${new Date().getFullYear()+1}`;
+      const academicYear=/^20\d{2}-20\d{2}$/.test(requestedYear)?requestedYear:`${new Date().getFullYear()}-${new Date().getFullYear()+1}`;
       const buildings=database.prepare(`SELECT id,institution_id AS institutionId,name FROM hostel_buildings WHERE institution_id IN (${marks}) ORDER BY name`).all(...visible);
       const rooms=database.prepare(`
         SELECT r.id,r.institution_id AS institutionId,r.building_id AS buildingId,b.name AS buildingName,
