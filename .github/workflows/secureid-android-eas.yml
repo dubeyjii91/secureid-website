@@ -21,11 +21,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Authenticate Expo
         env:
@@ -37,20 +35,26 @@ jobs:
           fi
           npx eas-cli whoami
 
-      - name: Build Android preview APK with EAS credentials
+      - name: Build Android preview APK using EAS-managed signing credentials
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build --platform android --profile preview --non-interactive --wait
+        run: npx eas-cli build --platform android --profile preview --non-interactive --wait --json > eas-build.json
 
-      - name: Download completed EAS APK
+      - name: Download completed EAS build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build:download --latest --platform android --output ./secureid-preview.apk
+        run: |
+          BUILD_ID="$(node -e "const b=require('./eas-build.json'); process.stdout.write(b.id)")"
+          test -n "$BUILD_ID"
+          npx eas-cli build:download --build-id "$BUILD_ID" --non-interactive
+          APK="$(find . -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          cp "$APK" ./secureid-preview.apk
 
       - name: Verify APK exists
         run: test -s ./secureid-preview.apk
 
-      - name: Upload signed APK
+      - name: Upload EAS-signed APK
         uses: actions/upload-artifact@v4
         with:
           name: secureid-android-eas-preview-apk
