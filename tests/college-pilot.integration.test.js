@@ -508,7 +508,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(Buffer.from(await scholarshipPreview.arrayBuffer()).toString("utf8"), scholarshipPdf.toString("utf8"));
   const readonlyScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-b") });
   assert.equal(readonlyScholarshipPreview.status, 403);
-  const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("unrelated-user") });
+  const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-d") });
   assert.equal(unrelatedScholarshipPreview.status, 403);
   const unselectedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c2/preview", { headers: headers("user-a") });
   assert.equal(unselectedScholarshipPreview.status, 403);
