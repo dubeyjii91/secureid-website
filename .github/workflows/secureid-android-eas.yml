@@ -46,11 +46,14 @@ jobs:
         run: |
           BUILD_ID="$(node -e "const x=JSON.parse(require('fs').readFileSync('eas-build.json','utf8')); const b=Array.isArray(x)?x[0]:(x.build??x); const id=b?.id??b?.build?.id; if(!id) { console.error(JSON.stringify(x).slice(0,2000)); process.exit(1); } process.stdout.write(id);")"
           echo "Downloading EAS build: $BUILD_ID"
-          npx eas-cli build:download --build-id "$BUILD_ID" --non-interactive
-          APK="$(find . -maxdepth 2 -type f -name '*.apk' ! -name 'secureid-preview.apk' -print -quit)"
-          if [ -z "$APK" ]; then
-            echo "::error::EAS download completed but no APK file was found."
-            find . -maxdepth 2 -type f -print
+          DOWNLOAD_OUTPUT="$(npx eas-cli build:download --build-id "$BUILD_ID" --non-interactive 2>&1)" || {
+            printf '%s\\n' "$DOWNLOAD_OUTPUT"
+            exit 1
+          }
+          printf '%s\\n' "$DOWNLOAD_OUTPUT"
+          APK="$(printf '%s\\n' "$DOWNLOAD_OUTPUT" | sed -n 's/^Build downloaded to //p' | tail -n 1)"
+          if [ -z "$APK" ] || [ ! -s "$APK" ]; then
+            echo "::error::EAS download completed but the reported APK path could not be found."
             exit 1
           fi
           cp "$APK" ./secureid-preview.apk
