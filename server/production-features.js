@@ -2339,7 +2339,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       res.setHeader("Cache-Control","private, no-store");
       res.status(201).json({success:true,application:{id,programId:program.id,programTitle:program.title,academicYear,status:"submitted",consentedAt:now,documentCount:documentIds.length}});
     } catch(error){
-      if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"You have already applied to this scholarship for that academic year."});
+      const databaseCode=String(error?.code||""),databaseMessage=String(error?.message||"");
+      if(databaseCode.includes("CONSTRAINT")||/constraint failed|unique constraint/i.test(databaseMessage))
+        return res.status(409).json({success:false,message:"You have already applied to this scholarship for that academic year."});
       next(error);
     }
   });
