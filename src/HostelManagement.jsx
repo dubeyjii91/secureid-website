@@ -15,6 +15,10 @@ export default function HostelManagement() {
   const [applications, setApplications] = useState([]);
   const [queue, setQueue] = useState([]);
   const [inventory, setInventory] = useState({ buildings: [], rooms: [] });
+  const [operations, setOperations] = useState({ allocations: [], fees: [], summary: {} });
+  const [myFees, setMyFees] = useState([]);
+  const [feeDrafts, setFeeDrafts] = useState({});
+  const [paymentDrafts, setPaymentDrafts] = useState({});
   const [form, setForm] = useState(initialForm);
   const [buildingName, setBuildingName] = useState("");
   const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2" });
@@ -39,12 +43,19 @@ export default function HostelManagement() {
       if (students.length) {
         const mine = await api("/api/institutions/my-hostel-applications", { cache: "no-store" });
         setApplications(mine.applications || []);
+        const feeData = await api("/api/institutions/my-hostel-fees", { cache: "no-store" });
+        setMyFees(feeData.fees || []);
         setForm(value => ({ ...value, institutionId: students.some(item => item.institutionId === value.institutionId) ? value.institutionId : students[0].institutionId }));
-      } else setApplications([]);
+      } else { setApplications([]); setMyFees([]); }
       if (reviewers.length) {
         const reviewData = await api("/api/institutions/hostel-review-queue", { cache: "no-store" });
         setQueue(reviewData.applications || []);
-      } else setQueue([]);
+        const operationsMembership = next.find(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
+        if (operationsMembership) {
+          const ops = await api(`/api/institutions/hostel-operations?institutionId=${encodeURIComponent(operationsMembership.institutionId)}`, { cache: "no-store" });
+          setOperations({ allocations: ops.allocations || [], fees: ops.fees || [], summary: ops.summary || {} });
+        }
+      } else { setQueue([]); setOperations({ allocations: [], fees: [], summary: {} }); }
       if (institutionIds.length) {
         const inventoryData = await api("/api/institutions/hostel-inventory", { cache: "no-store" });
         setInventory({ buildings: inventoryData.buildings || [], rooms: inventoryData.rooms || [] });
@@ -134,15 +145,39 @@ export default function HostelManagement() {
     } catch (err) { setError(err.message || "Bed allocation could not be released."); }
   }
 
+
+  async function hostelOperation(path, body = {}) {
+    setError(""); setMessage("");
+    try {
+      await api(path, { method: "POST", body: JSON.stringify(body) });
+      setMessage("Hostel operation saved successfully.");
+      await load();
+    } catch (err) { setError(err.message || "Hostel operation could not be saved."); }
+  }
+
+  async function createFee(applicationId) {
+    const draft = feeDrafts[applicationId] || {};
+    await hostelOperation(`/api/institutions/hostel-applications/${encodeURIComponent(applicationId)}/fees`, {
+      description: draft.description || "Hostel fee", amount: draft.amount, dueDate: draft.dueDate || ""
+    });
+  }
+
+  async function recordFeePayment(feeId) {
+    const draft = paymentDrafts[feeId] || {};
+    await hostelOperation(`/api/institutions/hostel-fees/${encodeURIComponent(feeId)}/payments`, {
+      amount: draft.amount, paymentMethod: draft.paymentMethod || "upi", reference: draft.reference || ""
+    });
+  }
+
   const activeStudents = memberships.filter(item => item.status === "active" && item.role === "student");
   const canReview = memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
   const canManageInventory = memberships.some(item => item.status === "active" && item.role === "institution_admin");
   const availableRooms = inventory.rooms.filter(room => room.status === "active" && room.availableBeds > 0);
 
   return <section className="panel collegeReviewPanel hostelPanel">
-    <div className="eyebrow dark">HOSTEL MANAGEMENT · PHASE 2</div>
+    <div className="eyebrow dark">HOSTEL MANAGEMENT · PHASE 3</div>
     <h2>Hostel applications & room allotment</h2>
-    <p className="lead">Students apply with consent. Institution reviewers make admission decisions, while administrators maintain room inventory and authorized reviewers allot available beds.</p>
+    <p className="lead">Students apply with consent. Institution teams review applications, manage rooms, allot beds, record check-in/check-out and maintain a transparent manual fee ledger.</p>
 
     {loading ? <p>Loading hostel workspace…</p> : <>
       {activeStudents.length > 0 && <form className="collegeSubmissionForm" onSubmit={submit}>
@@ -190,7 +225,13 @@ export default function HostelManagement() {
         </article>)}</div>}
       </div>}
 
-      {memberships.some(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role)) && <div className="hostelApplications">
+
+        {myFees.length > 0 && <div className="hostelApplications"><h3>My hostel fees</h3><div className="collegeRequestList">{myFees.map(fee => <article className="collegeRequest" key={fee.id}>
+          <strong>{fee.institutionName} · {fee.description}</strong><span className="collegeStatus">{fee.status}</span>
+          <small>{fee.academicYear} · Total ₹{(fee.amountPaise / 100).toFixed(2)} · Paid ₹{(fee.paidPaise / 100).toFixed(2)} · Balance ₹{((fee.amountPaise - fee.paidPaise) / 100).toFixed(2)}</small>
+          {fee.dueDate && <small>Due date: {fee.dueDate}</small>}
+        </article>)}</div><p className="collegePrivacyNote">Payment status is maintained by the institution. SecureID does not collect card, UPI PIN or banking credentials here.</p></div>}
+\n      {memberships.some(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role)) && <div className="hostelApplications">
         <h3>Warden / reviewer queue</h3>
         <p className="collegePrivacyNote">Only active institution reviewers and administrators can change application status or allot beds. Read-only members can view the queue.</p>
         {queue.length === 0 ? <p className="lead">No hostel applications in your institution queue.</p> : <div className="collegeRequestList">{queue.map(item => <article className="collegeRequest" key={item.id}>
