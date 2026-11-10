@@ -2189,7 +2189,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   // INSTITUTION SCHOLARSHIPS — institution-managed programs and student applications.
-  database.exec(\`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS scholarship_programs (
       id TEXT PRIMARY KEY,
       institution_id TEXT NOT NULL REFERENCES institutions(id),
@@ -2233,7 +2233,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_scholarship_audit_application ON scholarship_audit(application_id,created_at DESC);
-  \`);
+  `);
 
   function addScholarshipAudit(applicationId,institutionId,actorUserId,action,fromStatus=null,toStatus=null) {
     database.prepare("INSERT INTO scholarship_audit(id,application_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?)")
@@ -2246,13 +2246,13 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const membership=getInstitutionMembership(req.user.id,institutionId);
       if(!membership||membership.status!=="active"||!["student","reviewer","institution_admin","read_only"].includes(membership.role))
         return res.status(403).json({success:false,message:"An active institution membership is required for scholarship access."});
-      const programs=database.prepare(\`
+      const programs=database.prepare(`
         SELECT id,institution_id AS institutionId,title,description,eligibility,
           award_amount_paise AS awardAmountPaise,deadline,status,created_at AS createdAt
         FROM scholarship_programs WHERE institution_id=? ORDER BY deadline ASC,created_at DESC LIMIT 200
-      \`).all(institutionId);
+      `).all(institutionId);
       const isStudent=membership.role==="student";
-      const rows=database.prepare(\`
+      const rows=database.prepare(`
         SELECT a.id,a.program_id AS programId,a.institution_id AS institutionId,
           a.student_user_id AS studentUserId,a.academic_year AS academicYear,
           a.encrypted_details AS encryptedDetails,a.document_ids_json AS documentIdsJson,
@@ -2260,9 +2260,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
           a.created_at AS createdAt,a.updated_at AS updatedAt,p.title AS programTitle,
           p.award_amount_paise AS awardAmountPaise,p.deadline
         FROM scholarship_applications a JOIN scholarship_programs p ON p.id=a.program_id
-        WHERE a.institution_id=? \${isStudent ? "AND a.student_user_id=?" : ""}
+        WHERE a.institution_id=? ${isStudent ? "AND a.student_user_id=?" : ""}
         ORDER BY a.created_at DESC LIMIT 300
-      \`).all(...(isStudent?[institutionId,req.user.id]:[institutionId]));
+      `).all(...(isStudent?[institutionId,req.user.id]:[institutionId]));
       const applications=rows.map(row=>{
         let details={},reviewNote="";
         try{details=jsonDecrypt(JSON.parse(row.encryptedDetails),key)||{};}catch{}
