@@ -178,6 +178,30 @@ export function registerProductionFeatures({
     CREATE INDEX IF NOT EXISTS idx_institution_memberships_institution
       ON institution_memberships(institution_id, status);
 
+    -- Additive role grants preserve the existing membership table and its dependants.
+    CREATE TABLE IF NOT EXISTS institution_membership_role_grants (
+      id TEXT PRIMARY KEY,
+      membership_id TEXT NOT NULL REFERENCES institution_memberships(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('warden')),
+      granted_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      UNIQUE(membership_id, role)
+    );
+    CREATE INDEX IF NOT EXISTS idx_membership_role_grants_membership
+      ON institution_membership_role_grants(membership_id, role);
+
+    -- Subscription entitlements are independent from membership roles.
+    CREATE TABLE IF NOT EXISTS institution_subscriptions (
+      institution_id TEXT PRIMARY KEY REFERENCES institutions(id) ON DELETE CASCADE,
+      plan_key TEXT NOT NULL DEFAULT 'pilot',
+      status TEXT NOT NULL DEFAULT 'pilot' CHECK (status IN ('pilot','active','past_due','suspended','expired')),
+      features_json TEXT NOT NULL DEFAULT '[]',
+      starts_at TEXT,
+      ends_at TEXT,
+      updated_by TEXT REFERENCES users(id),
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS hostel_applications (
       id TEXT PRIMARY KEY,
       institution_id TEXT NOT NULL REFERENCES institutions(id),
@@ -1550,7 +1574,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         SELECT
           m.institution_id AS institutionId,
           i.name AS institutionName,
-          m.role AS role,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM institution_membership_role_grants g
+            WHERE g.membership_id=m.id AND g.role='warden'
+          ) THEN 'warden' ELSE m.role END AS role,
+          m.role AS baseRole,
           m.status AS status,
           m.created_at AS joinedAt
         FROM institution_memberships m
@@ -1611,7 +1639,15 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     next();
   }
   function getInstitutionMembership(userId, institutionId) {
-    return database.prepare("SELECT institution_id, role, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
+    return database.prepare("SELECT id, institution_id, role, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
+  }
+  function hasInstitutionRole(membership, role) {
+    if (!membership || membership.status !== "active") return false;
+    if (membership.role === role) return true;
+    if (role === "warden") return Boolean(database.prepare(
+      "SELECT 1 FROM institution_membership_role_grants WHERE membership_id=? AND role='warden' LIMIT 1"
+    ).get(membership.id));
+    return false;
   }
   function addInstitutionReviewAudit(submissionId, institutionId, actorUserId, action, fromStatus = null, toStatus = null) {
     database.prepare("INSERT INTO institution_review_audit (id,submission_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES (?,?,?,?,?,?,?,?)")
@@ -1627,6 +1663,27 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       res.setHeader("Cache-Control","private, no-store");
       res.status(201).json({success:true,institution:{id,name,createdAt:now}});
     } catch(error){next(error);}
+  });
+  app.post("/api/admin/institutions/:institutionId/membership-roles", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||"");
+      const userId=String(req.body?.userId||"");
+      const role=String(req.body?.role||"");
+      const action=String(req.body?.action||"grant");
+      if(!userId||userId.length>128||role!=="warden"||!["grant","revoke"].includes(action))
+        return res.status(400).json({success:false,message:"Choose a valid account, Warden role and grant/revoke action."});
+      const membership=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId);
+      if(!membership) return res.status(404).json({success:false,message:"Create an institution membership before assigning the Warden role."});
+      if(action==="grant") {
+        database.prepare("INSERT OR IGNORE INTO institution_membership_role_grants(id,membership_id,role,granted_by,created_at) VALUES(?,?,'warden',?,?)")
+          .run(crypto.randomUUID(),membership.id,req.user.id,new Date().toISOString());
+      } else {
+        database.prepare("DELETE FROM institution_membership_role_grants WHERE membership_id=? AND role='warden'").run(membership.id);
+      }
+      if(typeof logEvent==="function") logEvent(req.user.id,action==="grant"?"INSTITUTION_WARDEN_GRANTED":"INSTITUTION_WARDEN_REVOKED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,userId,role:"warden",action});
+    } catch(error) { next(error); }
   });
   app.post("/api/admin/institutions/:institutionId/memberships", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
     try {
@@ -1893,9 +1950,12 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
 
   // HOSTEL INVENTORY — institution-scoped buildings, rooms and capacity-aware bed allotments.
-  function getHostelMembership(req, institutionId, allowed = ["reviewer","institution_admin","read_only","student"]) {
+  function getHostelMembership(req, institutionId, allowed = ["reviewer","institution_admin","warden","read_only","student"]) {
     const membership=getInstitutionMembership(req.user.id,institutionId);
-    return membership&&membership.status==="active"&&allowed.includes(membership.role)?membership:null;
+    if(!membership||membership.status!=="active") return null;
+    if(allowed.includes(membership.role)) return membership;
+    if(allowed.includes("warden")&&hasInstitutionRole(membership,"warden")) return {...membership,role:"warden"};
+    return null;
   }
 
   app.get("/api/institutions/hostel-inventory", requireAuth, requireMfaProduction, (req,res,next) => {
@@ -1924,7 +1984,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.post("/api/institutions/hostel-buildings", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.body?.institutionId||""),name=String(req.body?.name||"").trim();
-      const member=getHostelMembership(req,institutionId,["institution_admin"]);
+      const member=getHostelMembership(req,institutionId,["institution_admin","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active institution administrator is required to manage hostel buildings."});
       if(name.length<2||name.length>80) return res.status(400).json({success:false,message:"Building name must be 2–80 characters."});
       const id=crypto.randomUUID(),now=new Date().toISOString();
@@ -1938,7 +1998,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const institutionId=String(req.body?.institutionId||""),buildingId=String(req.body?.buildingId||"");
       const roomNumber=String(req.body?.roomNumber||"").trim(),roomType=String(req.body?.roomType||"shared");
       const capacity=Number(req.body?.capacity),manualOccupiedBeds=Number(req.body?.manualOccupiedBeds ?? 0);
-      const member=getHostelMembership(req,institutionId,["institution_admin"]);
+      const member=getHostelMembership(req,institutionId,["institution_admin","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active institution administrator is required to manage hostel rooms."});
       const building=database.prepare("SELECT id FROM hostel_buildings WHERE id=? AND institution_id=?").get(buildingId,institutionId);
       if(!building) return res.status(404).json({success:false,message:"Select a building belonging to this institution."});
@@ -1957,7 +2017,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const roomId=String(req.params.id||""),manualOccupiedBeds=Number(req.body?.manualOccupiedBeds);
       const room=database.prepare("SELECT id,institution_id,capacity,manual_occupied_beds AS manualOccupiedBeds FROM hostel_rooms WHERE id=?").get(roomId);
       if(!room) return res.status(404).json({success:false,message:"Hostel room was not found."});
-      const member=getHostelMembership(req,room.institution_id,["institution_admin"]);
+      const member=getHostelMembership(req,room.institution_id,["institution_admin","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active institution administrator (warden) is required to update room occupancy."});
       if(!Number.isInteger(manualOccupiedBeds)||manualOccupiedBeds<0||manualOccupiedBeds>room.capacity) return res.status(400).json({success:false,message:"Enter a whole number of occupied beds between 0 and the room capacity."});
       const academicYear=String(req.body?.academicYear||"");
@@ -1978,7 +2038,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const applicationId=String(req.params.id||""),roomId=String(req.body?.roomId||""),requestedBed=String(req.body?.bedLabel||"").trim();
       const application=database.prepare("SELECT id,institution_id,student_user_id,academic_year,status FROM hostel_applications WHERE id=?").get(applicationId);
       if(!application) return res.status(404).json({success:false,message:"Hostel application was not found."});
-      const member=getHostelMembership(req,application.institution_id,["reviewer","institution_admin"]);
+      const member=getHostelMembership(req,application.institution_id,["reviewer","institution_admin","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required to allot a bed."});
       if(application.status!=="approved") return res.status(409).json({success:false,message:"Approve the hostel application before allotting a room."});
       const room=database.prepare("SELECT id,institution_id,building_id,room_number,capacity,manual_occupied_beds AS manualOccupiedBeds,status FROM hostel_rooms WHERE id=? AND institution_id=?").get(roomId,application.institution_id);
@@ -2008,7 +2068,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const allocation=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
       if(!allocation) return res.status(404).json({success:false,message:"Bed allocation was not found."});
-      const member=getHostelMembership(req,allocation.institution_id,["reviewer","institution_admin"]);
+      const member=getHostelMembership(req,allocation.institution_id,["reviewer","institution_admin","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
       if(allocation.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
       if(allocation.checked_in_at&&!allocation.checked_out_at) return res.status(409).json({success:false,message:"Check the student out before releasing this bed."});
@@ -2117,7 +2177,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const row=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
       if(!row) return res.status(404).json({success:false,message:"Bed allocation was not found."});
-      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin","warden"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
       if(row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
       if(row.checked_in_at&&!row.checked_out_at) return res.status(409).json({success:false,message:"Student is already checked in."});
       const now=new Date().toISOString();
@@ -2131,7 +2191,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const row=database.prepare("SELECT id,institution_id,application_id,status,checked_in_at,checked_out_at FROM hostel_bed_allocations WHERE id=?").get(String(req.params.id||""));
       if(!row||row.status!=="allocated") return res.status(404).json({success:false,message:"Active bed allocation was not found."});
-      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
+      if(!getHostelMembership(req,row.institution_id,["reviewer","institution_admin","warden"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required."});
       if(!row.checked_in_at||row.checked_out_at) return res.status(409).json({success:false,message:"Student must be checked in before check-out."});
       const now=new Date().toISOString();
       database.prepare("UPDATE hostel_bed_allocations SET checked_out_at=?,updated_at=? WHERE id=?").run(now,now,row.id);
@@ -2146,7 +2206,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const amount=Number(req.body?.amount),dueDate=String(req.body?.dueDate||"").trim();
       const application=database.prepare("SELECT id,institution_id,academic_year,status FROM hostel_applications WHERE id=?").get(applicationId);
       if(!application) return res.status(404).json({success:false,message:"Hostel application was not found."});
-      if(!getHostelMembership(req,application.institution_id,["institution_admin"])) return res.status(403).json({success:false,message:"An active institution administrator is required to create hostel fees."});
+      if(!getHostelMembership(req,application.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator is required to create hostel fees."});
       const allocation=database.prepare("SELECT id FROM hostel_bed_allocations WHERE application_id=? AND status='allocated'").get(applicationId);
       if(!allocation) return res.status(409).json({success:false,message:"A bed must be allocated before hostel fees are added."});
       if(description.length<2||description.length>100||!Number.isFinite(amount)||amount<=0||amount>1000000||!/^\d+(\.\d{1,2})?$/.test(String(req.body?.amount??""))||(dueDate&&!/^20\d{2}-\d{2}-\d{2}$/.test(dueDate))) return res.status(400).json({success:false,message:"Enter a valid fee description, amount and due date."});
@@ -2162,7 +2222,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const fee=database.prepare("SELECT id,institution_id,application_id,amount_paise FROM hostel_fee_records WHERE id=?").get(String(req.params.id||""));
       if(!fee) return res.status(404).json({success:false,message:"Hostel fee record was not found."});
-      if(!getHostelMembership(req,fee.institution_id,["reviewer","institution_admin"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required to record a received payment."});
+      if(!getHostelMembership(req,fee.institution_id,["reviewer","institution_admin","warden"])) return res.status(403).json({success:false,message:"An active reviewer or institution administrator is required to record a received payment."});
       const amount=Number(req.body?.amount),method=String(req.body?.paymentMethod||""),reference=String(req.body?.reference||"").trim();
       if(!Number.isFinite(amount)||amount<=0||amount>1000000||!/^\d+(\.\d{1,2})?$/.test(String(req.body?.amount??""))||!["cash","bank_transfer","upi","other"].includes(method)||reference.length>100) return res.status(400).json({success:false,message:"Enter a valid amount, payment method and optional reference."});
       const amountPaise=Math.round(amount*100);
