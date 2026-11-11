@@ -570,6 +570,18 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const wardenMemberships = await fetch(base + "/api/institutions/memberships", { headers: headers("user-e") });
   assert.equal(wardenMemberships.status, 200);
   assert.equal((await wardenMemberships.json()).memberships[0].role, "warden");
+  const revokeWarden = await fetch(base + "/api/admin/institutions/college-a/membership-roles", {
+    method: "POST", headers: headers("user-a", true, "owner"),
+    body: JSON.stringify({ userId: "user-e", role: "warden", action: "revoke" })
+  });
+  assert.equal(revokeWarden.status, 200);
+  const roleAfterRevoke = await fetch(base + "/api/institutions/memberships", { headers: headers("user-e") });
+  assert.equal((await roleAfterRevoke.json()).memberships[0].role, "read_only");
+  const regrantWarden = await fetch(base + "/api/admin/institutions/college-a/membership-roles", {
+    method: "POST", headers: headers("user-a", true, "owner"),
+    body: JSON.stringify({ userId: "user-e", role: "warden", action: "grant" })
+  });
+  assert.equal(regrantWarden.status, 200);
   const wardenBuilding = await fetch(base + "/api/institutions/hostel-buildings", {
     method: "POST", headers: headers("user-e"),
     body: JSON.stringify({ institutionId: "college-a", name: "Warden-managed block" })
