@@ -565,6 +565,10 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("DELETE FROM institution_admission_requests WHERE student_user_id=?").run(req.user.id);
       database.prepare("UPDATE institution_admission_requests SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
       database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(req.user.id,req.user.id);
+      // Preserve financial and sponsorship history while anonymizing the deleted owner.
+      database.prepare("UPDATE secureid_financial_entries SET created_by=NULL WHERE created_by=?").run(req.user.id);
+      database.prepare("UPDATE secureid_sponsorships SET created_by=NULL WHERE created_by=?").run(req.user.id);
+      database.prepare("UPDATE secureid_monetization_audit SET actor_user_id=NULL WHERE actor_user_id=?").run(req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
       // These tables intentionally lack cascading user foreign keys for migration
