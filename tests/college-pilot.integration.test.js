@@ -582,6 +582,11 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     body: JSON.stringify({ userId: "user-e", role: "warden", action: "grant" })
   });
   assert.equal(regrantWarden.status, 200);
+  const wardenRoleAudit = await fetch(base + "/api/admin/institutions/college-a/audit", { headers: headers("user-a", true, "owner") });
+  assert.equal(wardenRoleAudit.status, 200);
+  const wardenAuditActions = (await wardenRoleAudit.json()).audit.map(item => item.action);
+  assert.ok(wardenAuditActions.includes("warden_role_granted"));
+  assert.ok(wardenAuditActions.includes("warden_role_revoked"));
   const wardenBuilding = await fetch(base + "/api/institutions/hostel-buildings", {
     method: "POST", headers: headers("user-e"),
     body: JSON.stringify({ institutionId: "college-a", name: "Warden-managed block" })
