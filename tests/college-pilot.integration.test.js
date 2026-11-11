@@ -5,7 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createCipheriv } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { registerProductionFeatures } from "../server/production-features.js";
 
 test("college pilot requests require MFA, are encrypted at rest, validated, and account-scoped", async (t) => {
@@ -13,7 +14,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const previousStorage = process.env.DOCUMENT_STORAGE_PATH;
   const previousKey = process.env.DOCUMENT_ENCRYPTION_KEY;
   process.env.DOCUMENT_STORAGE_PATH = path.join(root, "documents");
-  process.env.DOCUMENT_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  const encryptionKey = randomBytes(32);
+  process.env.DOCUMENT_ENCRYPTION_KEY = encryptionKey.toString("base64");
 
   const database = new DatabaseSync(":memory:");
   database.exec(`
@@ -26,8 +28,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
       share_identity_id INTEGER DEFAULT 0, share_college INTEGER DEFAULT 0, share_student_id INTEGER DEFAULT 0,
       share_government_id INTEGER DEFAULT 0, share_verification_status INTEGER DEFAULT 0
     );
-    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test'),('user-d','d@example.test');
-    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c'),('user-d');
+    INSERT INTO users(id,email) VALUES ('user-a','a@example.test'),('user-b','b@example.test'),('user-c','c@example.test'),('user-d','d@example.test'),('user-e','e@example.test');
+    INSERT INTO wallet_settings(user_id) VALUES ('user-a'),('user-b'),('user-c'),('user-d'),('user-e');
     CREATE TABLE secure_documents (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, original_name TEXT NOT NULL, mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL, encrypted_path TEXT NOT NULL, document_category TEXT NOT NULL DEFAULT 'general',
@@ -76,6 +78,14 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     .run("doc-c", "user-c", "student-card.pdf", "application/pdf", 2048, "encrypted/test-path", "student_id", Date.now());
   database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
     .run("doc-c2", "user-c", "old-student-card.pdf", "application/pdf", 1024, "encrypted/test-path-2", "student_id", Date.now());
+  const scholarshipPdf = Buffer.from("%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\n%%EOF", "utf8");
+  const scholarshipIv = randomBytes(12);
+  const scholarshipCipher = createCipheriv("aes-256-gcm", encryptionKey, scholarshipIv);
+  const scholarshipEncrypted = Buffer.concat([scholarshipCipher.update(scholarshipPdf), scholarshipCipher.final()]);
+  const scholarshipPayload = { iv: scholarshipIv.toString("base64"), tag: scholarshipCipher.getAuthTag().toString("base64"), data: scholarshipEncrypted.toString("base64") };
+  const scholarshipDocumentPath = path.join(root, "documents", "scholarship-doc.json");
+  writeFileSync(scholarshipDocumentPath, JSON.stringify(scholarshipPayload));
+  database.prepare("UPDATE secure_documents SET size_bytes=?,encrypted_path=? WHERE id='doc-c'").run(scholarshipPdf.length, scholarshipDocumentPath);
 
   app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ success: false, message: "Request failed." }));
 
@@ -194,7 +204,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(suspendMembership.status, 200);
   assert.equal((await suspendMembership.json()).membership.status, "suspended");
 
-  const suspendedReviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("user-d") });
+  const suspendedReviewerQueue = await fetch(base + "/api/institutions/review-queue", { headers: headers("unrelated-user") });
   assert.equal(suspendedReviewerQueue.status, 403, "a suspended-only reviewer must lose queue access immediately");
 
   const membershipAudit = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/audit`, { headers: headers("user-a", true, "owner") });
@@ -490,6 +500,25 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(studentScholarshipData.applications[0].id, scholarshipApplication.id);
   assert.equal(studentScholarshipData.applications[0].studentNote, "Merit applicant.");
   assert.deepEqual(studentScholarshipData.applications[0].documentIds, ["doc-c"]);
+  const scholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-a") });
+  assert.equal(scholarshipPreview.status, 200, await scholarshipPreview.clone().text());
+  assert.match(scholarshipPreview.headers.get("content-type") || "", /application.*pdf/);
+  assert.match(scholarshipPreview.headers.get("content-disposition") || "", /^inline;/);
+  assert.match(scholarshipPreview.headers.get("cache-control") || "", /no-store/);
+  assert.equal(Buffer.from(await scholarshipPreview.arrayBuffer()).toString("utf8"), scholarshipPdf.toString("utf8"));
+  database.prepare("UPDATE secure_documents SET size_bytes=size_bytes+1 WHERE id='doc-c'").run();
+  const invalidIntegrityPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-a") });
+  assert.equal(invalidIntegrityPreview.status, 422);
+  database.prepare("UPDATE secure_documents SET size_bytes=? WHERE id='doc-c'").run(scholarshipPdf.length);
+  const readonlyScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-b") });
+  assert.equal(readonlyScholarshipPreview.status, 403);
+  const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-e") });
+  assert.equal(unrelatedScholarshipPreview.status, 403);
+  const unselectedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c2/preview", { headers: headers("user-a") });
+  assert.equal(unselectedScholarshipPreview.status, 403);
+  const previewAudit = database.prepare("SELECT outcome FROM scholarship_document_access_audit WHERE application_id=? ORDER BY created_at ASC").all(scholarshipApplication.id);
+  assert.deepEqual(previewAudit.map(item => item.outcome), ["success", "error", "denied", "denied", "denied"]);
+
   const readonlyScholarshipDecision = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
     method: "PATCH", headers: headers("user-b"),
     body: JSON.stringify({ status: "approved", reviewNote: "Read-only cannot approve." })
@@ -536,3 +565,4 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(tooLong.status, 400);
 });
+// Regression: unrelated users must exist in the fixture so denial auditing satisfies user foreign keys.

@@ -2,6 +2,7 @@
 import path from "node:path";
 import crypto from "node:crypto";
 import multer from "multer";
+import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
 import { enforceShareRateLimit } from "./share-rate-limit.js";
 
@@ -2237,6 +2238,17 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_scholarship_audit_application ON scholarship_audit(application_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS scholarship_document_access_audit (
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES scholarship_applications(id),
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      document_id TEXT NOT NULL,
+      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      action TEXT NOT NULL,
+      outcome TEXT NOT NULL CHECK(outcome IN ('success','denied','not_found','error')),
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_scholarship_document_audit_application ON scholarship_document_access_audit(application_id,created_at DESC);
   `);
 
   function addScholarshipAudit(applicationId,institutionId,actorUserId,action,fromStatus=null,toStatus=null) {
@@ -2272,8 +2284,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         try{details=jsonDecrypt(JSON.parse(row.encryptedDetails),key)||{};}catch{}
         try{reviewNote=row.encryptedReviewNote?String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||""):"";}catch{}
         let documentIds=[];try{documentIds=JSON.parse(row.documentIdsJson)||[];}catch{}
+        const documents=documentIds.length?database.prepare("SELECT id,original_name AS name,mime_type AS mimeType,size_bytes AS sizeBytes,document_category AS category FROM secure_documents WHERE user_id=? AND deleted_at IS NULL AND id IN ("+documentIds.map(()=>"?").join(",")+")").all(row.studentUserId,...documentIds):[];
         return {...row,encryptedDetails:undefined,encryptedReviewNote:undefined,documentIdsJson:undefined,
-          studentNote:String(details.studentNote||""),documentIds,reviewNote};
+          studentNote:String(details.studentNote||""),documentIds,documents,reviewNote};
       });
       res.setHeader("Cache-Control","private, no-store");
       res.json({success:true,membershipRole:membership.role,programs,applications});
@@ -2392,6 +2405,73 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       addScholarshipAudit(row.id,row.institution_id,req.user.id,"student_withdrew",row.status,"withdrawn");
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,status:"withdrawn"});
     } catch(error){next(error);}
+  });
+
+  // CONSENTED SCHOLARSHIP DOCUMENT PREVIEW — view-only, scoped to the submitted application.
+  const scholarshipPreviewIpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { success: false, message: "Too many document preview requests. Try again later." }
+  });
+  app.get("/api/institutions/scholarship-applications/:id/documents/:documentId/preview", scholarshipPreviewIpLimiter, requireAuth, requireMfaProduction, async (req,res,next) => {
+    const applicationId=String(req.params.id||""),documentId=String(req.params.documentId||"");
+    let auditContext=null;
+    try {
+      const application=database.prepare("SELECT id,institution_id,student_user_id,status,document_ids_json,consented_at FROM scholarship_applications WHERE id=?").get(applicationId);
+      if(!application) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      auditContext={applicationId,institutionId:application.institution_id,documentId,actorUserId:req.user.id};
+      const member=getInstitutionMembership(req.user.id,application.institution_id);
+      if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role)) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','denied',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(403).json({success:false,message:"An active institution reviewer or administrator is required to preview scholarship documents."});
+      }
+      let selectedIds=[];try{selectedIds=JSON.parse(application.document_ids_json)||[];}catch{}
+      if(!application.consented_at||!["submitted","needs_correction"].includes(application.status)||!selectedIds.includes(documentId)) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','denied',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(403).json({success:false,message:"This document is not currently shared for scholarship review."});
+      }
+      // Bound repeated encrypted-file reads per IP and account before touching storage.
+      enforceShareRateLimit(database,req,req.user.id);
+      const document=database.prepare("SELECT id,user_id,original_name,mime_type,size_bytes,encrypted_path FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL")
+        .get(documentId,application.student_user_id);
+      if(!document) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','not_found',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(404).json({success:false,message:"The student's selected Vault document is no longer available."});
+      }
+      assertWalletUnlocked(application.student_user_id);
+      const payload=JSON.parse(fs.readFileSync(document.encrypted_path,"utf8"));
+      const buffer=decryptBuffer(payload,key);
+      if(buffer.length!==Number(document.size_bytes)||!ALLOWED_MIME.has(document.mime_type)) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','error',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(422).json({success:false,message:"The stored document failed its integrity check."});
+      }
+      const actual=await fileTypeFromBuffer(buffer);
+      if(!actual||actual.mime!==document.mime_type) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','error',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+        return res.status(422).json({success:false,message:"The document content does not match its stored file type."});
+      }
+      database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','success',?)")
+        .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
+      res.setHeader("Cache-Control","private, no-store, max-age=0");
+      res.setHeader("X-Content-Type-Options","nosniff");
+      res.setHeader("Content-Security-Policy","sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+      res.setHeader("Content-Disposition","inline; filename=\""+safeFilename(document.original_name)+"\"");
+      res.type(document.mime_type);
+      return res.status(200).send(buffer);
+    } catch(error) {
+      if(auditContext) {
+        try { database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','error',?)")
+          .run(crypto.randomUUID(),auditContext.applicationId,auditContext.institutionId,auditContext.documentId,auditContext.actorUserId,new Date().toISOString()); } catch {}
+      }
+      next(error);
+    }
   });
 
   app.get("/api/institutions/scholarship-applications/:id/audit", requireAuth, requireMfaProduction, (req,res,next) => {
