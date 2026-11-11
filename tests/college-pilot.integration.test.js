@@ -506,6 +506,10 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.match(scholarshipPreview.headers.get("content-disposition") || "", /^inline;/);
   assert.match(scholarshipPreview.headers.get("cache-control") || "", /no-store/);
   assert.equal(Buffer.from(await scholarshipPreview.arrayBuffer()).toString("utf8"), scholarshipPdf.toString("utf8"));
+  database.prepare("UPDATE secure_documents SET size_bytes=size_bytes+1 WHERE id='doc-c'").run();
+  const invalidIntegrityPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-a") });
+  assert.equal(invalidIntegrityPreview.status, 422);
+  database.prepare("UPDATE secure_documents SET size_bytes=? WHERE id='doc-c'").run(scholarshipPdf.length);
   const readonlyScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-b") });
   assert.equal(readonlyScholarshipPreview.status, 403);
   const unrelatedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c/preview", { headers: headers("user-e") });
@@ -513,7 +517,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const unselectedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c2/preview", { headers: headers("user-a") });
   assert.equal(unselectedScholarshipPreview.status, 403);
   const previewAudit = database.prepare("SELECT outcome FROM scholarship_document_access_audit WHERE application_id=? ORDER BY created_at ASC").all(scholarshipApplication.id);
-  assert.deepEqual(previewAudit.map(item => item.outcome), ["success", "denied", "denied", "denied"]);
+  assert.deepEqual(previewAudit.map(item => item.outcome), ["success", "error", "denied", "denied", "denied"]);
 
   const readonlyScholarshipDecision = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
     method: "PATCH", headers: headers("user-b"),
