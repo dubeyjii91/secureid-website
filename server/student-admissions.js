@@ -162,7 +162,8 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       const note=clean(req.body?.reviewNote,500);
       const timestamp=now();
       const application=decrypt(JSON.parse(row.encrypted_application));
-      const review=database.transaction(()=>{
+      database.exec("BEGIN IMMEDIATE");
+      try {
         const changed=database.prepare("UPDATE institution_admission_requests SET status=?,review_note=?,reviewed_by=?,updated_at=? WHERE id=? AND institution_id=? AND status IN ('submitted','needs_correction')")
           .run(status,note||null,req.user.id,timestamp,requestId,institutionId);
         if(changed.changes!==1) throw new Error("This admission request has already been reviewed.");
@@ -185,8 +186,11 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
         }
         database.prepare("INSERT INTO institution_admission_audit(id,request_id,institution_id,actor_user_id,action,from_status,to_status,note,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
           .run(id(),requestId,institutionId,req.user.id,status,row.status,status,note||null,timestamp);
-      });
-      review();
+        database.exec("COMMIT");
+      } catch(transactionError) {
+        try { database.exec("ROLLBACK"); } catch {}
+        throw transactionError;
+      }
       return res.json({success:true,status,message:status==="approved"?"Admission approved and student membership created.":"Admission review updated."});
     } catch(error) {
       if(String(error?.message||"").includes("non-student institution membership") || String(error?.message||"").includes("suspended institution membership")) return fail(res,409,error.message);
