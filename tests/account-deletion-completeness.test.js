@@ -40,3 +40,9 @@ test("account deletion erases all user-linked identity and institution records",
   assert.match(route, /database\.exec\("COMMIT"\)/);
   assert.match(route, /database\.exec\("ROLLBACK"\)/);
 });
+
+
+test("account deletion anonymizes monetization actors without deleting financial history", () => {
+  assert.match(route, /UPDATE secureid_financial_entries SET created_by=NULL WHERE created_by=\?/);
+  assert.match(route, /UPDATE secureid_monetization_audit SET actor_user_id=NULL WHERE actor_user_id=\?/);
+});
