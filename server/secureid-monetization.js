@@ -42,7 +42,7 @@ export function registerSecureIdMonetization({ app, database, requireAuth, requi
       starts_at TEXT,
       ends_at TEXT,
       notes TEXT,
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
