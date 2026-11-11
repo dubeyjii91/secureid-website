@@ -201,6 +201,11 @@ export function registerProductionFeatures({
       updated_by TEXT REFERENCES users(id),
       updated_at TEXT NOT NULL
     );
+    -- Existing pilot institutions retain the workflows already in use after migration.
+    INSERT OR IGNORE INTO institution_subscriptions
+      (institution_id,plan_key,status,features_json,starts_at,updated_at)
+    SELECT id,'pilot','pilot','["hostel","scholarship","student_submissions"]',created_at,created_at
+    FROM institutions;
 
     CREATE TABLE IF NOT EXISTS hostel_applications (
       id TEXT PRIMARY KEY,
@@ -1641,6 +1646,14 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   function getInstitutionMembership(userId, institutionId) {
     return database.prepare("SELECT id, institution_id, role, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
   }
+  function hasInstitutionFeature(institutionId, feature) {
+    const row=database.prepare("SELECT status,features_json,starts_at,ends_at FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
+    if(!row||!["pilot","active"].includes(row.status)) return false;
+    const now=Date.now(),starts=row.starts_at?Date.parse(row.starts_at):0,ends=row.ends_at?Date.parse(row.ends_at):Infinity;
+    if((starts&&now<starts)||(ends&&now>=ends)) return false;
+    let features=[];try{features=JSON.parse(row.features_json||"[]");}catch{}
+    return Array.isArray(features)&&features.includes(feature);
+  }
   function hasInstitutionRole(membership, role) {
     if (!membership || membership.status !== "active") return false;
     if (membership.role === role) return true;
@@ -1653,6 +1666,42 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     database.prepare("INSERT INTO institution_review_audit (id,submission_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES (?,?,?,?,?,?,?,?)")
       .run(crypto.randomUUID(), submissionId, institutionId, actorUserId, action, fromStatus, toStatus, new Date().toISOString());
   }
+  app.get("/api/institutions/:institutionId/subscription", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||"");
+      const membership=getInstitutionMembership(req.user.id,institutionId);
+      if(!membership||membership.status!=="active") return res.status(403).json({success:false,message:"An active institution membership is required."});
+      const row=database.prepare("SELECT plan_key AS planKey,status,features_json AS featuresJson,starts_at AS startsAt,ends_at AS endsAt,updated_at AS updatedAt FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
+      let features=[];try{features=JSON.parse(row?.featuresJson||"[]");}catch{}
+      const now=Date.now(),starts=row?.startsAt?Date.parse(row.startsAt):0,ends=row?.endsAt?Date.parse(row.endsAt):Infinity;
+      const active=Boolean(row&&["pilot","active"].includes(row.status)&&(!starts||now>=starts)&&(!ends||now<ends));
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,subscription:{planKey:row?.planKey||"none",status:row?.status||"unassigned",active,features:active?features:[],startsAt:row?.startsAt||null,endsAt:row?.endsAt||null}});
+    } catch(error) { next(error); }
+  });
+  app.put("/api/admin/institutions/:institutionId/subscription", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||"");
+      const institution=database.prepare("SELECT id FROM institutions WHERE id=?").get(institutionId);
+      if(!institution) return res.status(404).json({success:false,message:"Institution was not found."});
+      const planKey=String(req.body?.planKey||"").trim().slice(0,40);
+      const status=String(req.body?.status||"");
+      const features=Array.isArray(req.body?.features)?[...new Set(req.body.features.map(String))]:[];
+      const allowedFeatures=new Set(["hostel","scholarship","student_submissions"]);
+      const startsAt=req.body?.startsAt?String(req.body.startsAt):null;
+      const endsAt=req.body?.endsAt?String(req.body.endsAt):null;
+      if(!planKey||!["pilot","active","past_due","suspended","expired"].includes(status)||features.length>allowedFeatures.size||features.some(feature=>!allowedFeatures.has(feature)))
+        return res.status(400).json({success:false,message:"Enter a plan name, valid status and supported feature entitlements."});
+      if(startsAt&&(!Number.isFinite(Date.parse(startsAt)))||endsAt&&(!Number.isFinite(Date.parse(endsAt)))||(startsAt&&endsAt&&Date.parse(endsAt)<=Date.parse(startsAt)))
+        return res.status(400).json({success:false,message:"Enter a valid subscription date range."});
+      const now=new Date().toISOString();
+      database.prepare("INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,ends_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(institution_id) DO UPDATE SET plan_key=excluded.plan_key,status=excluded.status,features_json=excluded.features_json,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at")
+        .run(institutionId,planKey,status,JSON.stringify(features),startsAt,endsAt,req.user.id,now);
+      if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_SUBSCRIPTION_UPDATED",req);
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,subscription:{institutionId,planKey,status,features,startsAt,endsAt,updatedAt:now}});
+    } catch(error) { next(error); }
+  });
   app.post("/api/admin/institutions", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
     try {
       const name=String(req.body?.name||"").trim();
@@ -1952,7 +2001,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   // HOSTEL INVENTORY — institution-scoped buildings, rooms and capacity-aware bed allotments.
   function getHostelMembership(req, institutionId, allowed = ["reviewer","institution_admin","warden","read_only","student"]) {
     const membership=getInstitutionMembership(req.user.id,institutionId);
-    if(!membership||membership.status!=="active") return null;
+    if(!membership||membership.status!=="active"||!hasInstitutionFeature(institutionId,"hostel")) return null;
     if(allowed.includes(membership.role)) return membership;
     if(allowed.includes("warden")&&hasInstitutionRole(membership,"warden")) return {...membership,role:"warden"};
     return null;
