@@ -27,7 +27,7 @@ export function registerSecureIdMonetization({ app, database, requireAuth, requi
       reference TEXT,
       description TEXT NOT NULL,
       idempotency_key TEXT NOT NULL UNIQUE,
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       paid_at TEXT
     );
@@ -49,7 +49,7 @@ export function registerSecureIdMonetization({ app, database, requireAuth, requi
     CREATE INDEX IF NOT EXISTS idx_secureid_sponsorships_status ON secureid_sponsorships(status,created_at DESC);
     CREATE TABLE IF NOT EXISTS secureid_monetization_audit (
       id TEXT PRIMARY KEY,
-      actor_user_id TEXT NOT NULL REFERENCES users(id),
+      actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       action TEXT NOT NULL,
       entity_type TEXT NOT NULL,
       entity_id TEXT,
@@ -60,8 +60,7 @@ export function registerSecureIdMonetization({ app, database, requireAuth, requi
 
   function ownerOnly(req, res, next) {
     if (req.user?.role !== "owner") return fail(res, 403, "SecureID Owner access is required.");
-    if (!req.user?.mfaVerified) return fail(res, 403, "Verified MFA is required.");
-    next();
+    return requireMfaProduction(req, res, next);
   }
 
   function audit(actor, action, type, entityId, details = {}) {
