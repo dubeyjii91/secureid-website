@@ -65,6 +65,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   // Provision a test institution membership as a trusted operator would.
   // There is deliberately no public API for users to grant themselves roles.
   database.prepare("INSERT INTO institutions (id, name, created_at) VALUES (?, ?, ?)").run("college-a", "Example College", new Date().toISOString());
+  database.prepare("INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_at) VALUES(?,'pilot','pilot',?,?,?)")
+    .run("college-a", JSON.stringify(["hostel","scholarship","student_submissions"]), new Date().toISOString(), new Date().toISOString());
   database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     "membership-a", "college-a", "user-a", "reviewer", "active", new Date().toISOString(), new Date().toISOString()
   );
@@ -74,6 +76,11 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     "membership-readonly", "college-a", "user-b", "read_only", "active", new Date().toISOString(), new Date().toISOString()
   );
+  database.prepare("INSERT INTO institution_memberships (id, institution_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    "membership-warden", "college-a", "user-e", "read_only", "active", new Date().toISOString(), new Date().toISOString()
+  );
+  database.prepare("INSERT INTO institution_membership_role_grants(id,membership_id,role,granted_by,created_at) VALUES(?,?,'warden',?,?)")
+    .run("warden-grant-e", "membership-warden", "user-a", new Date().toISOString());
   database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
     .run("doc-c", "user-c", "student-card.pdf", "application/pdf", 2048, "encrypted/test-path", "student_id", Date.now());
   database.prepare("INSERT INTO secure_documents (id,user_id,original_name,mime_type,size_bytes,encrypted_path,document_category,created_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
@@ -559,6 +566,24 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     body: JSON.stringify({ academicYear: "2027-2028", studentNote: "", documentIds: [], consent: true })
   });
   assert.equal(closedScholarshipApply.status, 409);
+
+  const wardenMemberships = await fetch(base + "/api/institutions/memberships", { headers: headers("user-e") });
+  assert.equal(wardenMemberships.status, 200);
+  assert.equal((await wardenMemberships.json()).memberships[0].role, "warden");
+  const wardenBuilding = await fetch(base + "/api/institutions/hostel-buildings", {
+    method: "POST", headers: headers("user-e"),
+    body: JSON.stringify({ institutionId: "college-a", name: "Warden-managed block" })
+  });
+  assert.equal(wardenBuilding.status, 201, await wardenBuilding.clone().text());
+  const subscriptionUpdate = await fetch(base + "/api/admin/institutions/college-a/subscription", {
+    method: "PUT", headers: headers("user-a", true, "owner"),
+    body: JSON.stringify({ planKey: "scholarship-only", status: "active", features: ["scholarship","student_submissions"] })
+  });
+  assert.equal(subscriptionUpdate.status, 200, await subscriptionUpdate.clone().text());
+  const hostelBlockedByEntitlement = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a", { headers: headers("user-c") });
+  assert.equal(hostelBlockedByEntitlement.status, 403);
+  const scholarshipStillEnabled = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-c") });
+  assert.equal(scholarshipStillEnabled.status, 200);
 
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
