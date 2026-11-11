@@ -81,7 +81,6 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       const institutionId = clean(req.body?.institutionId,128);
       if (!institutionId) return fail(res,400,"Choose an institution.");
       const timestamp = now();
-      const institution = database.prepare(activeInstitutionSql).get(timestamp,timestamp);
       // Resolve the requested institution from the active, subscription-backed directory.
       const selected = database.prepare(activeInstitutionSql).all(timestamp,timestamp).find(item => item.id === institutionId);
       if (!selected) return fail(res,404,"This institution is not accepting admission requests right now.");
