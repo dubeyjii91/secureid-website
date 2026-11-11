@@ -21,7 +21,7 @@ export default function HostelManagement() {
   const [paymentDrafts, setPaymentDrafts] = useState({});
   const [form, setForm] = useState(initialForm);
   const [buildingName, setBuildingName] = useState("");
-  const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2" });
+  const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2", manualOccupiedBeds: "0" });
   const [occupancyDrafts, setOccupancyDrafts] = useState({});
   const [occupancyAudit, setOccupancyAudit] = useState([]);
   const [allocationRooms, setAllocationRooms] = useState({});
