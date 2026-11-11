@@ -1806,7 +1806,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
   app.get("/api/institutions/my-review-submissions", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
-      const rows=database.prepare(`      const rows=database.prepare(`
+      const rows=database.prepare(`
         SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.document_id AS documentId,
           d.original_name AS documentName,d.document_category AS documentCategory,s.purpose,s.status,
           s.encrypted_review_note AS encryptedReviewNote,s.consent_version AS consentVersion,s.consented_at AS consentedAt,s.created_at AS createdAt,s.updated_at AS updatedAt
@@ -1814,7 +1814,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         JOIN institutions i ON i.id=s.institution_id
         JOIN secure_documents d ON d.id=s.document_id AND d.user_id=s.student_user_id
         WHERE s.student_user_id=? ORDER BY s.created_at DESC LIMIT 100
-      `).all(req.user.id);
+      `).all(req.user.id).filter(row=>hasInstitutionFeature(row.institutionId,"student_submissions"));
       const submissions=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,submissions});
     } catch(error){next(error);}
@@ -1854,9 +1854,11 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const memberships=database.prepare("SELECT institution_id FROM institution_memberships WHERE user_id=? AND status='active' AND role IN ('reviewer','institution_admin','read_only')").all(req.user.id);
       const ids=memberships.map(row=>row.institution_id);
       if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
-      const requested=String(req.query.institutionId||"");      const requested=String(req.query.institutionId||"");
+      const requested=String(req.query.institutionId||"");
       if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
-      const visible=requested?[requested]:ids, placeholders=visible.map(()=>"?").join(",");
+      const visible=(requested?[requested]:ids).filter(id=>hasInstitutionFeature(id,"student_submissions"));
+      if(!visible.length) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Student document submissions are not enabled for your institution subscription."});
+      const placeholders=visible.map(()=>"?").join(",");
       const rows=database.prepare(`
         SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.student_user_id AS studentUserId,
           s.document_id AS documentId,d.original_name AS documentName,d.document_category AS documentCategory,
@@ -1952,7 +1954,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         LEFT JOIN hostel_rooms r ON r.id=a.room_id
         LEFT JOIN hostel_buildings b ON b.id=r.building_id
         WHERE h.student_user_id=? ORDER BY h.created_at DESC LIMIT 100
-      `).all(req.user.id);
+      `).all(req.user.id).filter(row=>hasInstitutionFeature(row.institutionId,"hostel"));
       const applications=rows.map(row=>{let reviewNote="";if(row.encryptedReviewNote){try{reviewNote=String(jsonDecrypt(JSON.parse(row.encryptedReviewNote),key)?.note||"");}catch{}}return {...row,encryptedReviewNote:undefined,reviewNote};});
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,applications});
     } catch(error){next(error);}
@@ -2301,14 +2303,14 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.get("/api/institutions/my-hostel-fees", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const fees=database.prepare(`
-        SELECT f.id,f.description,f.amount_paise AS amountPaise,f.due_date AS dueDate,f.status,
+        SELECT f.id,f.institution_id AS institutionId,f.description,f.amount_paise AS amountPaise,f.due_date AS dueDate,f.status,
           f.academic_year AS academicYear,i.name AS institutionName,
           COALESCE((SELECT SUM(p.amount_paise) FROM hostel_fee_payments p WHERE p.fee_record_id=f.id),0) AS paidPaise
         FROM hostel_fee_records f
         JOIN hostel_applications h ON h.id=f.application_id
         JOIN institutions i ON i.id=f.institution_id
         WHERE h.student_user_id=? ORDER BY f.created_at DESC LIMIT 100
-      `).all(req.user.id);
+      `).all(req.user.id).filter(row=>hasInstitutionFeature(row.institutionId,"hostel"));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,fees});
     } catch(error){next(error);}
   });
