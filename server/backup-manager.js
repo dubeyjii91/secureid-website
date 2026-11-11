@@ -83,18 +83,19 @@ export function runEncryptedBackup(){
   if(!existsSync(dbPath)) throw new Error("DATABASE_PATH does not exist.");
   mkdirSync(backupDir,{recursive:true});
   const stamp=new Date().toISOString().replace(/[:.]/g,"-");
-  const tmp=path.resolve(backupDir,".secureid-"+stamp+".sqlite");
+  const snapshotDir=mkdtempSync(path.join(backupDir,".secureid-snapshot-"));
+  const tmp=path.join(snapshotDir,"snapshot.sqlite");
   const out=path.resolve(backupDir,"secureid-"+stamp+".backup.json");
-  const db=new DatabaseSync(dbPath,{timeout:5000});
   try{
-    // VACUUM INTO creates a plaintext SQLite snapshot. Apply a restrictive
-    // process umask before creation, then enforce owner-only permissions before reading it.
-    const previousUmask=process.umask(0o077);
-    try{ db.exec("PRAGMA wal_checkpoint(PASSIVE); VACUUM INTO '"+tmp.replaceAll("'","''")+"'"); }
-    finally{ process.umask(previousUmask); }
-  }finally{ db.close(); }
-  chmodSync(tmp,0o600);
-  try{
+    const db=new DatabaseSync(dbPath,{timeout:5000});
+    try{
+      // VACUUM INTO creates a plaintext SQLite snapshot. Apply a restrictive
+      // process umask before creation, then enforce owner-only permissions before reading it.
+      const previousUmask=process.umask(0o077);
+      try{ db.exec("PRAGMA wal_checkpoint(PASSIVE); VACUUM INTO '"+tmp.replaceAll("'","''")+"'"); }
+      finally{ process.umask(previousUmask); }
+    }finally{ db.close(); }
+    chmodSync(tmp,0o600);
     const databaseBytes=readFileSync(tmp);
     const documents=existsSync(documentDir)
       ? readdirSync(documentDir,{withFileTypes:true})
@@ -112,7 +113,6 @@ export function runEncryptedBackup(){
     const tag=cipher.getAuthTag();
     const payload={version:2,createdAt:new Date().toISOString(),sha256:createHash("sha256").update(plaintext).digest("hex"),iv:iv.toString("base64"),tag:tag.toString("base64"),data:ciphertext.toString("base64")};
     writeFileSync(out,JSON.stringify(payload),{encoding:"utf8",mode:0o600,flag:"wx"});
-    rmSync(tmp,{force:true});
     const configuredRetention=Number(process.env.BACKUP_RETENTION_COUNT||7);
     // Invalid values must never coerce to NaN: Array.slice(NaN) is slice(0),
     // which would otherwise delete every existing backup during retention cleanup.
@@ -124,10 +124,13 @@ export function runEncryptedBackup(){
     status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out,alertingConfigured:isBackupAlertingConfigured()};
     return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256};
   }catch(error){
-    rmSync(tmp,{force:true});
     status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error),alertingConfigured:isBackupAlertingConfigured()};
     void sendBackupAlert("SecureID encrypted backup failed","An automatic SecureID encrypted backup failed at "+new Date().toISOString()+". Review the production logs and backup status immediately.");
     throw error;
+  }finally{
+    // Keep every failure path—including VACUUM, chmod, and document reads—from
+    // leaving a plaintext SQLite snapshot on persistent storage.
+    rmSync(snapshotDir,{recursive:true,force:true});
   }
 }
 
