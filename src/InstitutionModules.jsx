@@ -1,0 +1,67 @@
+import { useEffect, useState } from "react";
+import api from "./api.js";
+
+const tabs = ["Students","Staff","Finance","Academics"];
+const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+export default function InstitutionModules({ institutionId }) {
+  const [tab,setTab]=useState("Students");
+  const [students,setStudents]=useState([]);
+  const [staff,setStaff]=useState([]);
+  const [invoices,setInvoices]=useState([]);
+  const [courses,setCourses]=useState([]);
+  const [overview,setOverview]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  const [message,setMessage]=useState("");
+  const [staffForm,setStaffForm]=useState({fullName:"",email:"",employeeCode:"",department:"",designation:""});
+  const [invoiceForm,setInvoiceForm]=useState({studentUserId:"",feeHead:"Tuition fee",description:"",amount:"",dueDate:""});
+  const [courseForm,setCourseForm]=useState({courseCode:"",title:"",department:"",academicYear:"2026-2027"});
+  const [attendanceForm,setAttendanceForm]=useState({courseId:"",studentUserId:"",date:new Date().toISOString().slice(0,10),status:"present"});
+  const [paymentForm,setPaymentForm]=useState({invoiceId:"",amount:"",method:"upi",reference:""});
+
+  async function load() {
+    if(!institutionId)return;
+    setBusy(true);setError("");
+    try {
+      const [s,st,f,c,o]=await Promise.all([
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/students`,{cache:"no-store"}),
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/staff`,{cache:"no-store"}),
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/finance`,{cache:"no-store"}),
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/courses`,{cache:"no-store"}),
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/operations/overview`,{cache:"no-store"})
+      ]);
+      setStudents(s.students||[]);setStaff(st.staff||[]);setInvoices(f.invoices||[]);setCourses(c.courses||[]);setOverview(o.overview||null);
+    } catch(err){setError(err.message||"Institution modules could not be loaded.");}
+    finally{setBusy(false);}
+  }
+  useEffect(()=>{load();},[institutionId]);
+
+  async function run(action,success) {
+    setBusy(true);setError("");setMessage("");
+    try{await action();setMessage(success);await load();}
+    catch(err){setError(err.message||"The operation could not be saved.");}
+    finally{setBusy(false);}
+  }
+  async function saveStaff(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/staff`,{method:"POST",body:JSON.stringify(staffForm)}),"Staff record saved.");setStaffForm({fullName:"",email:"",employeeCode:"",department:"",designation:""});}
+  async function saveInvoice(e){e.preventDefault();const student=students.find(s=>s.userId===invoiceForm.studentUserId);if(!student){setError("Choose a student from the directory.");return;}await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices`,{method:"POST",body:JSON.stringify({studentUserId:student.userId,feeHead:invoiceForm.feeHead,description:invoiceForm.description,amountPaise:Math.round(Number(invoiceForm.amount)*100),dueDate:invoiceForm.dueDate})}),"Fee invoice created.");setInvoiceForm(v=>({...v,amount:"",description:"",dueDate:""}));}
+  async function saveCourse(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/courses`,{method:"POST",body:JSON.stringify(courseForm)}),"Course created.");setCourseForm(v=>({...v,courseCode:"",title:"",department:""}));}
+  async function markAttendance(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(attendanceForm.courseId)}/attendance`,{method:"POST",body:JSON.stringify(attendanceForm)}),"Attendance saved.");}
+  async function receivePayment(e){e.preventDefault();const key=crypto.randomUUID();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(paymentForm.invoiceId)}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise:Math.round(Number(paymentForm.amount)*100),method:paymentForm.method,reference:paymentForm.reference,idempotencyKey:key})}),"Payment recorded.");setPaymentForm({invoiceId:"",amount:"",method:"upi",reference:""});}
+
+  if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
+  return <section className="panel institutionModules">
+    <div className="eyebrow dark">INSTITUTION OPERATIONS</div><h2>Institution management modules</h2>
+    {overview&&<div className="collegeValueGrid institutionAdminOverview">
+      <article className="panel"><h3>Students</h3><p>{overview.students}</p></article><article className="panel"><h3>Staff</h3><p>{overview.staff}</p></article><article className="panel"><h3>Courses</h3><p>{overview.courses}</p></article><article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
+    </div>}
+    <div className="collegeReviewButtons" role="tablist" aria-label="Institution modules">{tabs.map(item=><button type="button" key={item} className={tab===item?"primary":"secondary"} onClick={()=>setTab(item)} role="tab" aria-selected={tab===item}>{item}</button>)}</div>
+    {busy&&<p>Loading / saving securely…</p>}
+    {tab==="Students"&&<><h3>Student directory</h3><p className="collegePrivacyNote">Only students with active memberships in this institution are listed. Student accounts and permissions are not created or changed here.</p>{students.length===0?<p>No active student memberships found.</p>:<div className="collegeRequestList">{students.map(s=><article className="collegeRequest" key={s.userId}><strong>{s.email}</strong><small>{s.studentNumber||"No student number"} · {s.department||"Department not set"} · {s.program||"Program not set"} · {s.academicYear||"Year not set"}</small><span className="collegeStatus">{s.status}</span></article>)}</div>}</>}
+    {tab==="Staff"&&<><h3>Staff directory</h3><form className="collegeSubmissionForm" onSubmit={saveStaff}><label>Full name<input required maxLength={120} value={staffForm.fullName} onChange={e=>setStaffForm(v=>({...v,fullName:e.target.value}))}/></label><label>Email<input type="email" value={staffForm.email} onChange={e=>setStaffForm(v=>({...v,email:e.target.value}))}/></label><label>Employee code<input value={staffForm.employeeCode} onChange={e=>setStaffForm(v=>({...v,employeeCode:e.target.value}))}/></label><label>Department<input value={staffForm.department} onChange={e=>setStaffForm(v=>({...v,department:e.target.value}))}/></label><label>Designation<input value={staffForm.designation} onChange={e=>setStaffForm(v=>({...v,designation:e.target.value}))}/></label><button className="primary" disabled={busy}>Add staff record</button></form>{staff.map(s=><article className="collegeRequest" key={s.id}><strong>{s.fullName}</strong><small>{s.email||"No email"} · {s.employeeCode||"No employee code"} · {s.department||"No department"} · {s.designation||"No designation"}</small><span className="collegeStatus">{s.status}</span>{s.status==="active"&&<button type="button" className="secondary" onClick={()=>run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/staff/${encodeURIComponent(s.id)}`,{method:"PATCH",body:JSON.stringify({status:"inactive"})}),"Staff record deactivated.")}>Deactivate</button>}</article>)}</>}
+    {tab==="Finance"&&<><h3>Create fee invoice</h3><form className="collegeSubmissionForm" onSubmit={saveInvoice}><label>Student<select required value={invoiceForm.studentUserId} onChange={e=>setInvoiceForm(v=>({...v,studentUserId:e.target.value}))}><option value="">Select student</option>{students.map(s=><option key={s.userId} value={s.userId}>{s.email}</option>)}</select></label><label>Fee head<input required value={invoiceForm.feeHead} onChange={e=>setInvoiceForm(v=>({...v,feeHead:e.target.value}))}/></label><label>Amount (₹)<input type="number" min="0.01" step="0.01" required value={invoiceForm.amount} onChange={e=>setInvoiceForm(v=>({...v,amount:e.target.value}))}/></label><label>Due date<input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm(v=>({...v,dueDate:e.target.value}))}/></label><label>Description<input value={invoiceForm.description} onChange={e=>setInvoiceForm(v=>({...v,description:e.target.value}))}/></label><button className="primary" disabled={busy}>Create invoice</button></form><h3>Fee ledger</h3>{invoices.map(i=><article className="collegeRequest" key={i.id}><strong>{i.feeHead} · {money(i.amountPaise)}</strong><small>{i.studentEmail} · Paid {money(i.paidPaise)} · Due {i.dueDate||"Not set"}</small><span className="collegeStatus">{i.status}</span>{i.status!=="paid"&&i.status!=="cancelled"&&<button className="secondary" type="button" onClick={()=>setPaymentForm(v=>({...v,invoiceId:i.id,amount:((i.amountPaise-i.paidPaise)/100).toFixed(2)}))}>Receive payment</button>}</article>)}{paymentForm.invoiceId&&<form className="collegeSubmissionForm" onSubmit={receivePayment}><h3>Record payment</h3><label>Amount (₹)<input type="number" min="0.01" step="0.01" required value={paymentForm.amount} onChange={e=>setPaymentForm(v=>({...v,amount:e.target.value}))}/></label><label>Method<select value={paymentForm.method} onChange={e=>setPaymentForm(v=>({...v,method:e.target.value}))}><option value="upi">UPI</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="card">Card</option><option value="other">Other</option></select></label><label>Reference<input value={paymentForm.reference} onChange={e=>setPaymentForm(v=>({...v,reference:e.target.value}))}/></label><button className="primary" disabled={busy}>Save payment</button><button type="button" className="secondary" onClick={()=>setPaymentForm({invoiceId:"",amount:"",method:"upi",reference:""})}>Cancel</button></form>}</>}
+    {tab==="Academics"&&<><h3>Courses & subjects</h3><form className="collegeSubmissionForm" onSubmit={saveCourse}><label>Course code<input required value={courseForm.courseCode} onChange={e=>setCourseForm(v=>({...v,courseCode:e.target.value}))}/></label><label>Course title<input required value={courseForm.title} onChange={e=>setCourseForm(v=>({...v,title:e.target.value}))}/></label><label>Department<input value={courseForm.department} onChange={e=>setCourseForm(v=>({...v,department:e.target.value}))}/></label><label>Academic year<input required value={courseForm.academicYear} onChange={e=>setCourseForm(v=>({...v,academicYear:e.target.value}))}/></label><button className="primary" disabled={busy}>Add course</button></form><h3>Mark attendance</h3><form className="collegeSubmissionForm" onSubmit={markAttendance}><label>Course<select required value={attendanceForm.courseId} onChange={e=>setAttendanceForm(v=>({...v,courseId:e.target.value}))}><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.courseCode} · {c.title}</option>)}</select></label><label>Student<select required value={attendanceForm.studentUserId} onChange={e=>setAttendanceForm(v=>({...v,studentUserId:e.target.value}))}><option value="">Select student</option>{students.map(s=><option key={s.userId} value={s.userId}>{s.email}</option>)}</select></label><label>Date<input type="date" required value={attendanceForm.date} onChange={e=>setAttendanceForm(v=>({...v,date:e.target.value}))}/></label><label>Status<select value={attendanceForm.status} onChange={e=>setAttendanceForm(v=>({...v,status:e.target.value}))}><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="excused">Excused</option></select></label><button className="primary" disabled={busy||!courses.length||!students.length}>Save attendance</button></form><h3>Available courses</h3>{courses.map(c=><article className="collegeRequest" key={c.id}><strong>{c.courseCode} · {c.title}</strong><small>{c.department||"No department"} · {c.academicYear}</small></article>)}</>}
+    {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
+    <p className="collegePrivacyNote">Finance records are manual entries; no payment gateway is connected. Staff directory entries do not create SecureID accounts or grant permissions. Every write is institution-scoped and audited.</p>
+  </section>;
+}
