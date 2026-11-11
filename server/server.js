@@ -602,6 +602,8 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("UPDATE secureid_financial_entries SET created_by=NULL WHERE created_by=?").run(req.user.id);
       database.prepare("UPDATE secureid_sponsorships SET created_by=NULL WHERE created_by=?").run(req.user.id);
       database.prepare("UPDATE secureid_monetization_audit SET actor_user_id=NULL WHERE actor_user_id=?").run(req.user.id);
+      // Subscription state belongs to the institution; only detach the optional updater reference.
+      database.prepare("UPDATE institution_subscriptions SET updated_by=NULL WHERE updated_by=?").run(req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
       // These tables intentionally lack cascading user foreign keys for migration
