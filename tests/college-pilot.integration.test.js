@@ -591,7 +591,35 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     method: "POST", headers: headers("user-e"),
     body: JSON.stringify({ institutionId: "college-a", name: "Warden-managed block" })
   });
+
   assert.equal(wardenBuilding.status, 201, await wardenBuilding.clone().text());
+  const wardenBuildingData = (await wardenBuilding.json()).building;
+  const wardenRenameBuilding = await fetch(base + `/api/institutions/hostel-buildings/${wardenBuildingData.id}`, {
+    method: "PATCH", headers: headers("user-e"), body: JSON.stringify({ name: "Warden-managed block updated" })
+  });
+  assert.equal(wardenRenameBuilding.status, 200, await wardenRenameBuilding.clone().text());
+  const wardenCreateRoom = await fetch(base + "/api/institutions/hostel-rooms", {
+    method: "POST", headers: headers("user-e"),
+    body: JSON.stringify({ institutionId: "college-a", buildingId: wardenBuildingData.id, roomNumber: "W-101", roomType: "shared", capacity: 3, manualOccupiedBeds: 0 })
+  });
+  assert.equal(wardenCreateRoom.status, 201, await wardenCreateRoom.clone().text());
+  const wardenRoom = (await wardenCreateRoom.json()).room;
+  const wardenEditRoom = await fetch(base + `/api/institutions/hostel-rooms/${wardenRoom.id}`, {
+    method: "PATCH", headers: headers("user-e"), body: JSON.stringify({ roomNumber: "W-102", roomType: "dormitory", capacity: 4 })
+  });
+  assert.equal(wardenEditRoom.status, 200, await wardenEditRoom.clone().text());
+  const wardenOccupancyUpdate = await fetch(base + `/api/institutions/hostel-rooms/${wardenRoom.id}/occupancy`, {
+    method: "PATCH", headers: headers("user-e"),
+    body: JSON.stringify({ manualOccupiedBeds: 1, academicYear: "2026-2027" })
+  });
+  assert.equal(wardenOccupancyUpdate.status, 200, await wardenOccupancyUpdate.clone().text());
+  const wardenInventory = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a&academicYear=2026-2027", { headers: headers("user-e") });
+  assert.equal(wardenInventory.status, 200);
+  const wardenInventoryData = await wardenInventory.json();
+  assert.ok(wardenInventoryData.buildings.some(item => item.id === wardenBuildingData.id && item.name === "Warden-managed block updated"));
+  assert.ok(wardenInventoryData.rooms.some(item => item.id === wardenRoom.id && item.roomNumber === "W-102" && item.capacity === 4));
+  assert.ok(wardenInventoryData.occupancyAudit.some(item => item.roomId === wardenRoom.id && item.actorUserId === "user-e" && item.previousManualOccupiedBeds === 0 && item.newManualOccupiedBeds === 1));
+
   const wardenScholarshipWorkspace = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-e") });
   assert.equal(wardenScholarshipWorkspace.status, 403, "Warden must not inherit read-only scholarship access from the underlying membership record.");
   const subscriptionUpdate = await fetch(base + "/api/admin/institutions/college-a/subscription", {
