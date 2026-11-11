@@ -11,6 +11,7 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
+  const [consent,setConsent]=useState(false);
   const isAdmin=adminInstitutions.length>0;
   const hasMembership=memberships.some(item=>item.status==="active");
   const showStudentApply=!isAdmin&&!hasMembership;
@@ -38,8 +39,9 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
   async function submit(event){
     event.preventDefault();setBusy(true);setError("");setMessage("");
     try{
-      await api("/api/admissions/applications",{method:"POST",body:JSON.stringify(form)});
+      await api("/api/admissions/applications",{method:"POST",body:JSON.stringify({...form,consent})});
       setForm(current=>({...emptyForm,institutionId:current.institutionId,admissionYear:String(new Date().getFullYear())}));
+      setConsent(false);
       setMessage("Admission request submitted. Your college will review it.");
       await load();
     }catch(err){setError(err.message||"Admission request could not be submitted.");}
@@ -78,8 +80,8 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
       <label>Admission year<input required maxLength={16} value={form.admissionYear} onChange={e=>update("admissionYear",e.target.value)} /></label>
       <label>Message (optional)<textarea rows={3} maxLength={500} value={form.message} onChange={e=>update("message",e.target.value)} /></label>
       <p className="collegePrivacyNote">Consent (student-admission-v1): I confirm that these details are submitted to the selected institution for admission review. The institution will see the details entered here. No Vault documents are shared by this form.</p>
-      <label className="collegeConsent"><input type="checkbox" required />I confirm and consent to submit these admission details.</label>
-      <button className="primary" type="submit" disabled={busy||!institutions.length}>{busy?"Submitting…":"Submit Admission Request"}</button>
+      <label className="collegeConsent"><input type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)} />I confirm and consent to submit these admission details.</label>
+      <button className="primary" type="submit" disabled={busy||!institutions.length||!consent}>{busy?"Submitting…":"Submit Admission Request"}</button>
     </form>}
     {isAdmin&&applications.length===0&&<p className="lead">No admission requests have been submitted yet.</p>}
     {applications.length>0&&<div className="collegeRequestList">{applications.map(item=><article className="collegeRequest" key={item.id}>
