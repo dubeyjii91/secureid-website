@@ -1708,6 +1708,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!name||name.length>160) return res.status(400).json({success:false,message:"Institution name must be 1–160 characters."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institutions(id,name,created_at) VALUES(?,?,?)").run(id,name,now);
+      database.prepare("INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'pilot','pilot','["hostel","scholarship","student_submissions"]',?,?,?)")
+        .run(id,now,req.user.id,now);
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_CREATED",req);
       res.setHeader("Cache-Control","private, no-store");
       res.status(201).json({success:true,institution:{id,name,createdAt:now}});
