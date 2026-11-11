@@ -222,7 +222,7 @@ export default function DocumentVault(){
 
   async function saveExpiry(doc){
     const raw=(expiryDrafts[doc.id] ?? doc.expiryDate ?? "").trim();
-    if(raw && !/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)){
+    if(raw && !/^\d{4}-\d{2}-\d{2}$/.test(raw)){
       setMessage("Use YYYY-MM-DD for the expiry date.");
       return;
     }
