@@ -116,8 +116,8 @@ export function runEncryptedBackup(){
     const configuredRetention=Number(process.env.BACKUP_RETENTION_COUNT||7);
     // Invalid values must never coerce to NaN: Array.slice(NaN) is slice(0),
     // which would otherwise delete every existing backup during retention cleanup.
-    const retention=Number.isSafeInteger(configuredRetention)
-      ? Math.max(1,Math.min(1000,configuredRetention))
+    const retention=Number.isSafeInteger(configuredRetention) && configuredRetention>=1 && configuredRetention<=1000
+      ? configuredRetention
       : 7;
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
     for(const file of files.slice(retention)) rmSync(path.join(backupDir,file.name),{force:true});
