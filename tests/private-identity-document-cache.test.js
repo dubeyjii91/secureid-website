@@ -6,9 +6,9 @@ const source = await readFile(new URL("../server/production-features.js", import
 
 function routeBlock(route, nextRoute) {
   const start = source.indexOf(route);
-  assert.notEqual(start, -1, \`route not found: \${route}\`);
+  assert.notEqual(start, -1, "route not found: " + route);
   const end = source.indexOf(nextRoute, start + route.length);
-  assert.notEqual(end, -1, \`next route not found: \${nextRoute}\`);
+  assert.notEqual(end, -1, "next route not found: " + nextRoute);
   return source.slice(start, end);
 }
 
@@ -24,7 +24,7 @@ test("private identity and document listing responses are never cacheable", () =
     assert.match(
       block,
       /res\.setHeader\("Cache-Control","private, no-store"\)/,
-      \`\${route} must set private, no-store before returning private data\`,
+      route + " must set private, no-store before returning private data",
     );
   }
 });
