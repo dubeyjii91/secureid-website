@@ -431,6 +431,7 @@ export function registerProductionFeatures({
   });
 
   app.get("/api/identity/verification-status",requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
     try{
       const profileRow=database.prepare("SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id=?").get(req.user.id);
       const proofs=database.prepare("SELECT document_category,created_at FROM secure_documents WHERE user_id=? AND document_category IN ('student_id','institution_proof') AND deleted_at IS NULL ORDER BY created_at DESC").all(req.user.id);
@@ -443,6 +444,7 @@ export function registerProductionFeatures({
   });
 
   app.get("/api/identity/profile",requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
     try{
       const row=database.prepare(
         "SELECT encrypted_data,updated_at FROM identity_profiles WHERE user_id = ?"
@@ -544,6 +546,7 @@ export function registerProductionFeatures({
    * except through the authenticated download endpoint.
    */
   app.get("/api/documents",requireAuth,requireMfaProduction,(req,res,next)=>{
+    res.setHeader("Cache-Control","private, no-store");
     try{
       const documents=database.prepare(`
         SELECT
