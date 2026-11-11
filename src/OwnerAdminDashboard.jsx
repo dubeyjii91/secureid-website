@@ -50,11 +50,30 @@ export default function OwnerAdminDashboard() {
   const [subscriptionPlan, setSubscriptionPlan] = useState("pilot");
   const [subscriptionStatus, setSubscriptionStatus] = useState("pilot");
   const [subscriptionFeatures, setSubscriptionFeatures] = useState(["hostel","scholarship","student_submissions"]);
+  const [subscriptionStartsAt, setSubscriptionStartsAt] = useState("");
+  const [subscriptionEndsAt, setSubscriptionEndsAt] = useState("");
   const [institutionError, setInstitutionError] = useState("");
   const [institutionBusy, setInstitutionBusy] = useState(false);
   const [institutionAudit, setInstitutionAudit] = useState({});
 
 
+
+  useEffect(() => {
+    if (!selectedInstitutionId) return undefined;
+    let cancelled = false;
+    api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/subscription", { cache: "no-store" })
+      .then(result => {
+        if (cancelled || !result.subscription) return;
+        const value = result.subscription;
+        setSubscriptionPlan(value.planKey || "pilot");
+        setSubscriptionStatus(value.status || "pilot");
+        setSubscriptionFeatures(Array.isArray(value.features) ? value.features : []);
+        setSubscriptionStartsAt(value.startsAt ? new Date(value.startsAt).toISOString().slice(0,16) : "");
+        setSubscriptionEndsAt(value.endsAt ? new Date(value.endsAt).toISOString().slice(0,16) : "");
+      })
+      .catch(error => { if (!cancelled) setInstitutionError(error?.message || "Subscription settings could not be loaded."); });
+    return () => { cancelled = true; };
+  }, [selectedInstitutionId]);
 
   async function load() {
     setLoading(true); setError(""); setUsersError(""); setActivityError(""); setNotificationError(""); setNotice("");
@@ -179,7 +198,11 @@ export default function OwnerAdminDashboard() {
     try {
       await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/subscription", {
         method: "PUT",
-        body: JSON.stringify({ planKey: subscriptionPlan, status: subscriptionStatus, features: subscriptionFeatures })
+        body: JSON.stringify({
+          planKey: subscriptionPlan, status: subscriptionStatus, features: subscriptionFeatures,
+          startsAt: subscriptionStartsAt ? new Date(subscriptionStartsAt).toISOString() : null,
+          endsAt: subscriptionEndsAt ? new Date(subscriptionEndsAt).toISOString() : null
+        })
       });
       setNotice("Institution subscription entitlements saved. These entitlements do not change anyone's role.");
     } catch (e) {
@@ -286,6 +309,8 @@ export default function OwnerAdminDashboard() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
             <label>Plan key<input value={subscriptionPlan} maxLength={40} onChange={event => setSubscriptionPlan(event.target.value)} required /></label>
             <label>Subscription status<select value={subscriptionStatus} onChange={event => setSubscriptionStatus(event.target.value)}><option value="pilot">Pilot</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="expired">Expired</option></select></label>
+            <label>Starts at (optional)<input type="datetime-local" value={subscriptionStartsAt} onChange={event => setSubscriptionStartsAt(event.target.value)} /></label>
+            <label>Ends at (optional)<input type="datetime-local" value={subscriptionEndsAt} onChange={event => setSubscriptionEndsAt(event.target.value)} /></label>
           </div>
           <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
             {[
