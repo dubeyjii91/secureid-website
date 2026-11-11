@@ -86,3 +86,16 @@ For every production change, record:
 - Known blockers, owner, due date, and explicit go/no-go decision.
 
 Google Play submission, signing, store listing, and publication are outside this runbook and remain out of scope until explicitly requested by the project owner.
+
+### Production restore-drill evidence — 2026-11-11
+
+After deployment `47ed7540-d7a4-492a-8478-1b8d2ec0ffb7` (commit `ed3d9077162eabb98416b2ce21a18a60082cf301`), the application completed an isolated restore drill at `2026-11-11T11:07:07.873Z` using the encrypted backup created at `2026-11-11T11:06:57.653Z`.
+
+- Result: successful; isolated restore only, not the live production database.
+- SQLite integrity: `ok`.
+- Restored tables: 67.
+- Restored document blobs: 6.
+- Backup artifact SHA-256: not emitted in the production drill log, so it is not recorded here.
+- Evidence source: Railway deployment logs for the deployment above.
+
+This verifies a restore from the current Railway-volume backup after the snapshot-permission and temporary-file-cleanup fixes. It does **not** verify an off-platform copy, independent scheduler, or restore from a different provider/region. Those remain blocked until a zero-budget-compatible option or explicit hosting/storage budget is approved.

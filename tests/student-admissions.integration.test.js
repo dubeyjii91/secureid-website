@@ -26,7 +26,7 @@ test("student admission is encrypted, consented, institution-scoped and only app
     CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,plan_key TEXT,status TEXT,features_json TEXT,starts_at TEXT,ends_at TEXT,updated_at TEXT);
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(institution_id,user_id));
     CREATE TABLE institution_student_profiles(institution_id TEXT NOT NULL,user_id TEXT NOT NULL,student_number TEXT,department TEXT,program TEXT,academic_year TEXT,status TEXT,created_at TEXT,updated_at TEXT,PRIMARY KEY(institution_id,user_id));
-    INSERT INTO users VALUES('student','student@example.test'),('admin','admin@example.test'),('other-admin','other@example.test');
+    INSERT INTO users VALUES('student','student@example.test'),('admin','admin@example.test'),('other-admin','other@example.test'),('student-two','student2@example.test');
     INSERT INTO institutions VALUES('college-a','College A','2026-01-01T00:00:00.000Z'),('college-b','College B','2026-01-01T00:00:00.000Z');
     INSERT INTO institution_subscriptions VALUES('college-a','pilot','pilot','[]',NULL,NULL,'2026-01-01T00:00:00.000Z'),('college-b','pilot','pilot','[]',NULL,NULL,'2026-01-01T00:00:00.000Z');
     INSERT INTO institution_memberships VALUES('admin-a','college-a','admin','institution_admin','active','2026-01-01','2026-01-01');
@@ -74,6 +74,11 @@ test("student admission is encrypted, consented, institution-scoped and only app
   assert.equal(application.fullName,"Test Student");
   assert.equal(application.studentEmail,"student@example.test");
 
+  const correction=await fetch(base+`/api/institutions/college-a/admission-requests/${created.id}`,{method:"PATCH",headers:headers("admin"),body:JSON.stringify({status:"needs_correction",reviewNote:"Please confirm academic year."})});
+  assert.equal(correction.status,200);
+  const stillPending=await fetch(base+"/api/admissions/applications",{method:"POST",headers:headers("student"),body:JSON.stringify(body)});
+  assert.equal(stillPending.status,409,"needs-correction requests must remain unique and open");
+
   const approved=await fetch(base+`/api/institutions/college-a/admission-requests/${created.id}`,{method:"PATCH",headers:headers("admin"),body:JSON.stringify({status:"approved",reviewNote:"Approved"})});
   assert.equal(approved.status,200,await approved.clone().text());
   assert.equal(database.prepare("SELECT role,status FROM institution_memberships WHERE institution_id='college-a' AND user_id='student'").get().role,"student");
@@ -81,5 +86,26 @@ test("student admission is encrypted, consented, institution-scoped and only app
   const secondApproval=await fetch(base+`/api/institutions/college-a/admission-requests/${created.id}`,{method:"PATCH",headers:headers("admin"),body:JSON.stringify({status:"approved"})});
   assert.equal(secondApproval.status,409);
   const mine=await fetch(base+"/api/admissions/mine",{headers:headers("student")});
-  assert.equal((await mine.json()).applications[0].status,"approved");
+  assert.equal((await mine.json()).applications.find(item=>item.id===created.id).status,"approved");
+
+  const secondBody={...body,institutionId:"college-b",fullName:"Second Test Student",studentNumber:"TEST-02"};
+  const secondCreatedResponse=await fetch(base+"/api/admissions/applications",{method:"POST",headers:headers("student-two"),body:JSON.stringify(secondBody)});
+  assert.equal(secondCreatedResponse.status,201);
+  const secondCreated=(await secondCreatedResponse.json()).application;
+  const withdrawn=await fetch(base+`/api/admissions/applications/${secondCreated.id}`,{method:"DELETE",headers:headers("student-two")});
+  assert.equal(withdrawn.status,200);
+  assert.equal(database.prepare("SELECT status FROM institution_admission_requests WHERE id=?").get(secondCreated.id).status,"withdrawn");
+  assert.equal(database.prepare("SELECT action FROM institution_admission_audit WHERE request_id=? ORDER BY created_at DESC LIMIT 1").get(secondCreated.id).action,"withdrawn");
+
+  const resubmittedResponse=await fetch(base+"/api/admissions/applications",{method:"POST",headers:headers("student-two"),body:JSON.stringify(secondBody)});
+  assert.equal(resubmittedResponse.status,201,"a withdrawn request must not block a new application");
+  const resubmitted=(await resubmittedResponse.json()).application;
+  const wrongCollegeAdmin=await fetch(base+`/api/institutions/college-b/admission-requests/${resubmitted.id}`,{method:"PATCH",headers:headers("admin"),body:JSON.stringify({status:"rejected"})});
+  assert.equal(wrongCollegeAdmin.status,403);
+  const rejected=await fetch(base+`/api/institutions/college-b/admission-requests/${resubmitted.id}`,{method:"PATCH",headers:headers("other-admin"),body:JSON.stringify({status:"rejected",reviewNote:"Seats unavailable."})});
+  assert.equal(rejected.status,200);
+  const cannotWithdrawFinal=await fetch(base+`/api/admissions/applications/${resubmitted.id}`,{method:"DELETE",headers:headers("student-two")});
+  assert.equal(cannotWithdrawFinal.status,409,"finalized requests must not be withdrawable");
+  const secondMine=await fetch(base+"/api/admissions/mine",{headers:headers("student-two")});
+  assert.equal((await secondMine.json()).applications.find(item=>item.id===resubmitted.id).status,"rejected");
 });
