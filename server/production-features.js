@@ -1679,6 +1679,16 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       return res.json({success:true,subscription:{planKey:row?.planKey||"none",status:row?.status||"unassigned",active,features:active?features:[],startsAt:row?.startsAt||null,endsAt:row?.endsAt||null}});
     } catch(error) { next(error); }
   });
+  app.get("/api/admin/institutions/:institutionId/subscription", requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
+    try {
+      const institutionId=String(req.params.institutionId||"");
+      const row=database.prepare("SELECT plan_key AS planKey,status,features_json AS featuresJson,starts_at AS startsAt,ends_at AS endsAt,updated_at AS updatedAt FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
+      if(!row) return res.status(404).json({success:false,message:"Subscription record was not found."});
+      let features=[];try{features=JSON.parse(row.featuresJson||"[]");}catch{}
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,subscription:{...row,features}});
+    } catch(error) { next(error); }
+  });
   app.put("/api/admin/institutions/:institutionId/subscription", enforceSameOrigin, requireAuth, requireTrustedInstitutionOperator, (req,res,next) => {
     try {
       const institutionId=String(req.params.institutionId||"");
