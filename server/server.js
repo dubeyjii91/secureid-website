@@ -565,6 +565,19 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("DELETE FROM institution_admission_requests WHERE student_user_id=?").run(req.user.id);
       database.prepare("UPDATE institution_admission_requests SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
       database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(req.user.id,req.user.id);
+      // Remove student-owned hostel and scholarship records before deleting the user.
+      // Their audit rows reference both the application and the acting user.
+      database.prepare("DELETE FROM scholarship_document_access_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM scholarship_applications WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("DELETE FROM scholarship_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM scholarship_applications WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("UPDATE scholarship_applications SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
+      database.prepare("DELETE FROM scholarship_applications WHERE student_user_id=?").run(req.user.id);
+      database.prepare("DELETE FROM hostel_application_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("DELETE FROM hostel_operations_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("DELETE FROM hostel_fee_payments WHERE fee_record_id IN (SELECT id FROM hostel_fee_records WHERE application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?))").run(req.user.id);
+      database.prepare("DELETE FROM hostel_fee_records WHERE application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(req.user.id);
+      database.prepare("DELETE FROM hostel_bed_allocations WHERE application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(req.user.id);
+      database.prepare("UPDATE hostel_applications SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
+      database.prepare("DELETE FROM hostel_applications WHERE student_user_id=?").run(req.user.id);
       // Preserve financial and sponsorship history while anonymizing the deleted owner.
       database.prepare("UPDATE secureid_financial_entries SET created_by=NULL WHERE created_by=?").run(req.user.id);
       database.prepare("UPDATE secureid_sponsorships SET created_by=NULL WHERE created_by=?").run(req.user.id);
