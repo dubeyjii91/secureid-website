@@ -13,7 +13,7 @@ function backupAlertConfiguration(){
     recipientConfigured:Boolean(process.env.SECURITY_ALERT_EMAIL?.trim()),
     senderConfigured:Boolean(process.env.OTP_FROM_EMAIL?.trim()),
     providerConfigured:resendConfigured || brevoConfigured || smtpConfigured,
-    provider:resendConfigured ? "resend" : brevoConfigured ? "brevo" : smtpConfigured ? "smtp" : null
+    provider:brevoConfigured ? "brevo" : resendConfigured ? "resend" : smtpConfigured ? "smtp" : null
   };
 }
 function isBackupAlertingConfigured(){ const config=backupAlertConfiguration(); return config.recipientConfigured && config.senderConfigured && config.providerConfigured; }
