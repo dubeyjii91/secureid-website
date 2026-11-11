@@ -107,6 +107,7 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       `).run(requestId,institutionId,req.user.id,encrypted,timestamp,timestamp,timestamp);
       database.prepare("INSERT INTO institution_admission_audit(id,request_id,institution_id,actor_user_id,action,to_status,created_at) VALUES(?,?,?,?,?,?,?)")
         .run(id(),requestId,institutionId,req.user.id,"submitted","submitted",timestamp);
+      res.setHeader("Cache-Control","private, no-store");
       return res.status(201).json({success:true,application:{id:requestId,institutionId,institutionName:selected.name,status:"submitted",...application,createdAt:timestamp,updatedAt:timestamp}});
     } catch(error) {
       if (String(error?.message||"").includes("UNIQUE constraint failed")) return fail(res,409,"A pending admission request already exists.");
@@ -123,6 +124,7 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       database.prepare("UPDATE institution_admission_requests SET status='withdrawn',updated_at=? WHERE id=? AND student_user_id=?").run(timestamp,row.id,req.user.id);
       database.prepare("INSERT INTO institution_admission_audit(id,request_id,institution_id,actor_user_id,action,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?)")
         .run(id(),row.id,row.institution_id,req.user.id,"withdrawn",row.status,"withdrawn",timestamp);
+      res.setHeader("Cache-Control","private, no-store");
       return res.json({success:true});
     } catch(error) { next(error); }
   });
@@ -191,6 +193,7 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
         try { database.exec("ROLLBACK"); } catch {}
         throw transactionError;
       }
+      res.setHeader("Cache-Control","private, no-store");
       return res.json({success:true,status,message:status==="approved"?"Admission approved and student membership created.":"Admission review updated."});
     } catch(error) {
       if(String(error?.message||"").includes("institution membership") || String(error?.message||"").includes("already been reviewed")) return fail(res,409,error.message);
