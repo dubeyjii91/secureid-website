@@ -575,6 +575,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     body: JSON.stringify({ institutionId: "college-a", name: "Warden-managed block" })
   });
   assert.equal(wardenBuilding.status, 201, await wardenBuilding.clone().text());
+  const wardenScholarshipWorkspace = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-e") });
+  assert.equal(wardenScholarshipWorkspace.status, 403, "Warden must not inherit read-only scholarship access from the underlying membership record.");
   const subscriptionUpdate = await fetch(base + "/api/admin/institutions/college-a/subscription", {
     method: "PUT", headers: headers("user-a", true, "owner"),
     body: JSON.stringify({ planKey: "scholarship-only", status: "active", features: ["scholarship","student_submissions"] })
@@ -584,6 +586,8 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   assert.equal(hostelBlockedByEntitlement.status, 403);
   const scholarshipStillEnabled = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-c") });
   assert.equal(scholarshipStillEnabled.status, 200);
+  const wardenAfterSubscriptionChange = await fetch(base + "/api/institutions/memberships", { headers: headers("user-e") });
+  assert.equal((await wardenAfterSubscriptionChange.json()).memberships[0].role, "warden", "Subscription changes must not alter institution roles.");
 
   const tooLong = await fetch(base + "/api/college-pilot/requests", {
     method: "POST", headers: headers("user-a"), body: JSON.stringify({ ...payload, institutionName: "x".repeat(121) })
