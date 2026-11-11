@@ -81,6 +81,13 @@ export function registerProductionFeatures({
   logEvent,
   ensureSecurityNotification
 }){
+  // Institution APIs carry private student, academic, hostel and financial records.
+  // Apply no-store before registering routes so success and error responses are non-cacheable.
+  app.use("/api/institutions", (req,res,next) => {
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    next();
+  });
+
   const key=createCryptoKey(isProduction);
 
   const dataRoot=process.env.DOCUMENT_STORAGE_PATH || (
