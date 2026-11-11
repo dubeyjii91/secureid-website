@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "./api.js";
 
 const emptyForm = { institutionId:"", fullName:"", studentNumber:"", department:"", course:"", academicYear:"", admissionYear:String(new Date().getFullYear()), message:"" };
@@ -15,8 +15,9 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
   const isAdmin=adminInstitutions.length>0;
   const hasMembership=memberships.some(item=>item.status==="active");
   const showStudentApply=!isAdmin&&!hasMembership;
+  const adminIds=adminInstitutions.map(item=>item.institutionId).join("|");
 
-  async function load(){
+  const load=useCallback(async()=>{
     setError("");
     try{
       if(showStudentApply){
@@ -28,7 +29,7 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
         setApplications(mine.applications||[]);
         setForm(current=>({...current,institutionId:current.institutionId||directory.institutions?.[0]?.id||""}));
       }else if(isAdmin){
-        const results=await Promise.all(adminInstitutions.map(item=>api(`/api/institutions/${encodeURIComponent(item.institutionId)}/admission-requests`,{cache:"no-store"})));
+        const results=await Promise.all(adminIds.split("|").filter(Boolean).map(institutionId=>api(`/api/institutions/${encodeURIComponent(institutionId)}/admission-requests`,{cache:"no-store"})));
         setApplications(results.flatMap(result=>result.applications||[]));
       }
     }catch(err){setError(err.message||"Admission data could not be loaded.");}
