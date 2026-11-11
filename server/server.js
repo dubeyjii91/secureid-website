@@ -562,6 +562,12 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
         { label: "hostel fee payments received by this account", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_fee_payments WHERE received_by=? AND fee_record_id NOT IN (SELECT id FROM hostel_fee_records WHERE application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?))").get(req.user.id,req.user.id).count },
         { label: "warden role grants issued by this account", count: database.prepare("SELECT COUNT(*) AS count FROM institution_membership_role_grants WHERE granted_by=?").get(req.user.id).count },
         { label: "hostel room occupancy audit records", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_room_occupancy_audit WHERE actor_user_id=?").get(req.user.id).count },
+        { label: "institution staff records created by this account", count: database.prepare("SELECT COUNT(*) AS count FROM institution_staff WHERE created_by=?").get(req.user.id).count },
+        { label: "institution courses created by this account", count: database.prepare("SELECT COUNT(*) AS count FROM institution_courses WHERE created_by=?").get(req.user.id).count },
+        { label: "institution attendance and marking history", count: database.prepare("SELECT COUNT(*) AS count FROM institution_attendance WHERE student_user_id=? OR marked_by=?").get(req.user.id,req.user.id).count },
+        { label: "institution fee invoices and payments", count: database.prepare("SELECT COUNT(*) AS count FROM institution_fee_invoices WHERE student_user_id=? OR created_by=?").get(req.user.id,req.user.id).count + database.prepare("SELECT COUNT(*) AS count FROM institution_fee_payments WHERE student_user_id=? OR received_by=?").get(req.user.id,req.user.id).count },
+        { label: "institution assessment and result history", count: database.prepare("SELECT COUNT(*) AS count FROM institution_assessments WHERE created_by=?").get(req.user.id).count + database.prepare("SELECT COUNT(*) AS count FROM institution_assessment_results WHERE student_user_id=? OR recorded_by=?").get(req.user.id,req.user.id).count },
+        { label: "institution operations audit history", count: database.prepare("SELECT COUNT(*) AS count FROM institution_operations_audit WHERE actor_user_id=?").get(req.user.id).count },
       ].filter((item) => Number(item.count || 0) > 0);
       if (deletionBlockers.length) {
         database.exec("ROLLBACK");
@@ -602,6 +608,8 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("UPDATE secureid_financial_entries SET created_by=NULL WHERE created_by=?").run(req.user.id);
       database.prepare("UPDATE secureid_sponsorships SET created_by=NULL WHERE created_by=?").run(req.user.id);
       database.prepare("UPDATE secureid_monetization_audit SET actor_user_id=NULL WHERE actor_user_id=?").run(req.user.id);
+      // Subscription state belongs to the institution; only detach the optional updater reference.
+      database.prepare("UPDATE institution_subscriptions SET updated_by=NULL WHERE updated_by=?").run(req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
       // These tables intentionally lack cascading user foreign keys for migration
