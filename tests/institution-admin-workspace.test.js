@@ -17,7 +17,8 @@ test("Institution Admin receives a dedicated, institution-scoped dashboard", () 
 
 test("Warden remains isolated from Institution Admin and scholarship workspace", () => {
   assert.match(workspace, /const isInstitutionAdminWorkspace = activeInstitutionAdmins\.length > 0 && !hasActiveWarden/);
-  assert.match(workspace, /hasActiveWarden \? \[\] : activeInstitutionRoles/);
+  assert.match(workspace, /const activeReviewers = hasActiveWarden \? \[\] : memberships\.filter/);
+  assert.match(workspace, /const canReview = !hasActiveWarden && memberships\.some/);
   assert.match(workspace, /!hasActiveWarden && activeInstitutionRoles/);
   assert.match(workspace, /WARDEN · HOSTEL OPERATIONS/);
 });
