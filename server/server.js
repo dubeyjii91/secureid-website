@@ -526,6 +526,8 @@ app.post("/api/security/sessions/revoke-others", enforceSameOrigin, requireAuth,
 });
 
 app.get("/api/account/export", requireAuth, requireMfa, (req,res,next)=>{
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
   try{
     const user=database.prepare("SELECT id,email,created_at AS createdAt,password_changed_at AS passwordChangedAt FROM users WHERE id=?").get(req.user.id);
     const wallet=database.prepare("SELECT risk,locked,share_name,share_age,share_date_of_birth,share_address,share_email,share_phone,share_identity_id,share_college,share_student_id,share_government_id,share_verification_status FROM wallet_settings WHERE user_id=?").get(req.user.id);
@@ -544,6 +546,8 @@ app.get("/api/account/export", requireAuth, requireMfa, (req,res,next)=>{
 });
 
 app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (req,res,next)=>{
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
   try{
     const password=String(req.body?.password||"");
     const row=database.prepare("SELECT password_hash FROM users WHERE id=?").get(req.user.id);
@@ -994,6 +998,13 @@ function requireOwner(req, res, next) {
   }
   next();
 }
+
+// Owner-only administration responses may contain personal and security-sensitive data.
+app.use("/api/admin", (req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  next();
+});
 
 app.get("/api/admin/users", requireAuth, requireMfa, requireOwner, (req, res, next) => {
   try {
