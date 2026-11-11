@@ -1957,7 +1957,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
   app.get("/api/institutions/hostel-review-queue", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
-      const memberships=database.prepare("SELECT institution_id FROM institution_memberships WHERE user_id=? AND status='active' AND role IN ('reviewer','institution_admin','read_only')").all(req.user.id);
+      const memberships=database.prepare("SELECT m.institution_id FROM institution_memberships m WHERE m.user_id=? AND m.status='active' AND (m.role IN ('reviewer','institution_admin','read_only') OR EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=m.id AND g.role='warden'))").all(req.user.id);
       const ids=memberships.map(row=>row.institution_id);
       if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
       const requested=String(req.query.institutionId||"");
@@ -2193,7 +2193,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.get("/api/institutions/hostel-operations", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.query.institutionId||"");
-      const member=getHostelMembership(req,institutionId,["reviewer","institution_admin","read_only"]);
+      const member=getHostelMembership(req,institutionId,["reviewer","institution_admin","read_only","warden"]);
       if(!member) return res.status(403).json({success:false,message:"An active institution reviewer, administrator or read-only membership is required."});
       const allocations=database.prepare(`
         SELECT a.id AS allocationId,a.application_id AS applicationId,a.academic_year AS academicYear,
@@ -2370,6 +2370,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.get("/api/institutions/scholarship-workspace", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.query.institutionId||"");
+      if(!hasInstitutionFeature(institutionId,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const membership=getInstitutionMembership(req.user.id,institutionId);
       if(!membership||membership.status!=="active"||!["student","reviewer","institution_admin","read_only"].includes(membership.role))
         return res.status(403).json({success:false,message:"An active institution membership is required for scholarship access."});
@@ -2409,6 +2410,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const institutionId=String(req.body?.institutionId||""),title=String(req.body?.title||"").trim(),
         description=String(req.body?.description||"").trim(),eligibility=String(req.body?.eligibility||"").trim(),
         deadline=String(req.body?.deadline||"").trim(),amount=Number(req.body?.awardAmount);
+      if(!hasInstitutionFeature(institutionId,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||member.role!=="institution_admin")
         return res.status(403).json({success:false,message:"An active institution administrator is required to publish scholarship programs."});
@@ -2431,6 +2433,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const program=database.prepare("SELECT id,institution_id,status FROM scholarship_programs WHERE id=?").get(String(req.params.id||""));
       if(!program) return res.status(404).json({success:false,message:"Scholarship program was not found."});
+      if(!hasInstitutionFeature(program.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const member=getInstitutionMembership(req.user.id,program.institution_id);
       if(!member||member.status!=="active"||member.role!=="institution_admin")
         return res.status(403).json({success:false,message:"An active institution administrator is required to update scholarship programs."});
@@ -2445,6 +2448,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const program=database.prepare("SELECT id,institution_id,title,deadline,status FROM scholarship_programs WHERE id=?").get(String(req.params.id||""));
       if(!program) return res.status(404).json({success:false,message:"Scholarship program was not found."});
+      if(!hasInstitutionFeature(program.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const member=getInstitutionMembership(req.user.id,program.institution_id);
       if(!member||member.status!=="active"||member.role!=="student")
         return res.status(403).json({success:false,message:"An active student membership is required to apply."});
@@ -2489,6 +2493,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM scholarship_applications WHERE id=?").get(String(req.params.id||""));
       if(!row) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      if(!hasInstitutionFeature(row.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const member=getInstitutionMembership(req.user.id,row.institution_id);
       if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role))
         return res.status(403).json({success:false,message:"An active institution reviewer or administrator is required to review applications."});
@@ -2532,6 +2537,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const application=database.prepare("SELECT id,institution_id,student_user_id,status,document_ids_json,consented_at FROM scholarship_applications WHERE id=?").get(applicationId);
       if(!application) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      if(!hasInstitutionFeature(application.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       auditContext={applicationId,institutionId:application.institution_id,documentId,actorUserId:req.user.id};
       const member=getInstitutionMembership(req.user.id,application.institution_id);
       if(!member||member.status!=="active"||!["reviewer","institution_admin"].includes(member.role)) {
@@ -2589,6 +2595,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     try {
       const row=database.prepare("SELECT id,institution_id,student_user_id FROM scholarship_applications WHERE id=?").get(String(req.params.id||""));
       if(!row) return res.status(404).json({success:false,message:"Scholarship application was not found."});
+      if(!hasInstitutionFeature(row.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
       const member=getInstitutionMembership(req.user.id,row.institution_id),isStudent=row.student_user_id===req.user.id;
       if(!isStudent&&(!member||member.status!=="active"||!["reviewer","institution_admin","read_only"].includes(member.role)))
         return res.status(403).json({success:false,message:"You do not have access to this scholarship history."});
