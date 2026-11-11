@@ -33,8 +33,8 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
         setApplications(results.flatMap(result=>result.applications||[]));
       }
     }catch(err){setError(err.message||"Admission data could not be loaded.");}
-  }
-  useEffect(()=>{load();},[showStudentApply,isAdmin,adminInstitutions.map(x=>x.institutionId).join("|")]);
+  },[showStudentApply,isAdmin,adminIds]);
+  useEffect(()=>{load();},[load]);
 
   const update=(key,value)=>setForm(current=>({...current,[key]:value}));
   async function submit(event){
