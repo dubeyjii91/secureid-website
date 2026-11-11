@@ -57,6 +57,19 @@ export function registerInstitutionModules({
     );
     CREATE INDEX IF NOT EXISTS idx_inst_invoice_student ON institution_fee_invoices(institution_id,student_user_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_inst_attendance_course_date ON institution_attendance(institution_id,course_id,attendance_date);
+    CREATE TABLE IF NOT EXISTS institution_assessments (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, exam_date TEXT NOT NULL, total_marks_hundredths INTEGER NOT NULL CHECK(total_marks_hundredths > 0),
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS institution_assessment_results (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      assessment_id TEXT NOT NULL REFERENCES institution_assessments(id) ON DELETE CASCADE,
+      student_user_id TEXT NOT NULL REFERENCES users(id), marks_hundredths INTEGER NOT NULL CHECK(marks_hundredths >= 0),
+      recorded_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(assessment_id,student_user_id)
+    );
     CREATE TABLE IF NOT EXISTS institution_operations_audit (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       actor_user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, entity_type TEXT NOT NULL,
@@ -276,6 +289,55 @@ export function registerInstitutionModules({
       try { result=insert(); } catch (error) { try { database.exec("ROLLBACK"); } catch {} throw error; }
       res.status(result.duplicate?200:201).json({success:true,...result});
     }catch(error){if(error.status)return fail(res,error.status,error.message);if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"This payment key has already been used.");next(error);}
+  });
+
+  app.get("/api/institutions/:institutionId/courses/:courseId/assessments", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),courseId=safeText(req.params.courseId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Assessment access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
+      if(!course)return fail(res,404,"Course was not found.");
+      const studentOnly=member.role==="student";
+      const assessments=database.prepare(`
+        SELECT a.id,a.title,a.exam_date AS examDate,a.total_marks_hundredths AS totalMarksHundredths,
+          r.marks_hundredths AS marksHundredths
+        FROM institution_assessments a
+        LEFT JOIN institution_assessment_results r ON r.assessment_id=a.id ${studentOnly?"AND r.student_user_id=?":""}
+        WHERE a.institution_id=? AND a.course_id=? ORDER BY a.exam_date DESC,a.created_at DESC LIMIT 300
+      `).all(...(studentOnly?[req.user.id,institutionId,courseId]:[institutionId,courseId]));
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,assessments:assessments.map(a=>({...a,totalMarks:a.totalMarksHundredths/100,marksObtained:a.marksHundredths==null?null:a.marksHundredths/100}))});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/courses/:courseId/assessments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics",["institution_admin","reviewer"]))return;
+      const courseId=safeText(req.params.courseId,128),title=safeText(req.body?.title,120),examDate=safeText(req.body?.examDate,10),totalMarks=Number(req.body?.totalMarks);
+      const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
+      if(!course||title.length<2||!/^20\d{2}-\d{2}-\d{2}$/.test(examDate)||!Number.isFinite(totalMarks)||totalMarks<=0||totalMarks>100000||Math.round(totalMarks*100)!==totalMarks*100)return fail(res,400,"Enter a valid course, assessment title, date and total marks (up to two decimals).");
+      const assessmentId=id(),now=iso(),totalMarksHundredths=Math.round(totalMarks*100);
+      database.prepare("INSERT INTO institution_assessments(id,institution_id,course_id,title,exam_date,total_marks_hundredths,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(assessmentId,institutionId,courseId,title,examDate,totalMarksHundredths,req.user.id,now,now);
+      audit(institutionId,req.user.id,"assessment_created","assessment",assessmentId,{courseId,title,examDate,totalMarksHundredths});
+      res.status(201).json({success:true,assessment:{id:assessmentId,title,examDate,totalMarks}});
+    }catch(error){next(error);}
+  });
+  app.put("/api/institutions/:institutionId/assessments/:assessmentId/results/:studentUserId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics",["institution_admin","reviewer"]))return;
+      const assessmentId=safeText(req.params.assessmentId,128),studentUserId=safeText(req.params.studentUserId,128),marks=Number(req.body?.marksObtained);
+      const assessment=database.prepare("SELECT id,total_marks_hundredths AS totalMarks FROM institution_assessments WHERE id=? AND institution_id=?").get(assessmentId,institutionId);
+      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      if(!assessment||!student||!Number.isFinite(marks)||marks<0||Math.round(marks*100)!==marks*100||Math.round(marks*100)>Number(assessment.totalMarks))return fail(res,400,"Choose an active student and enter marks within the assessment maximum.");
+      const now=iso(),resultId=id(),marksHundredths=Math.round(marks*100);
+      database.prepare(`INSERT INTO institution_assessment_results(id,institution_id,assessment_id,student_user_id,marks_hundredths,recorded_by,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,student_user_id) DO UPDATE SET marks_hundredths=excluded.marks_hundredths,recorded_by=excluded.recorded_by,updated_at=excluded.updated_at`)
+        .run(resultId,institutionId,assessmentId,studentUserId,marksHundredths,req.user.id,now,now);
+      const saved=database.prepare("SELECT id FROM institution_assessment_results WHERE assessment_id=? AND student_user_id=?").get(assessmentId,studentUserId);
+      audit(institutionId,req.user.id,"assessment_result_recorded","assessment_result",saved?.id||resultId,{assessmentId,studentUserId,marksHundredths});
+      res.json({success:true,marksObtained:marks});
+    }catch(error){next(error);}
   });
 
   app.get("/api/institutions/:institutionId/operations/audit", requireAuth, requireMfaProduction, (req,res,next) => {
