@@ -2599,6 +2599,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     message: { success: false, message: "Too many document preview requests. Try again later." }
   });
   app.get("/api/institutions/scholarship-applications/:id/documents/:documentId/preview", scholarshipPreviewIpLimiter, requireAuth, requireMfaProduction, async (req,res,next) => {
+    res.setHeader("Cache-Control","private, no-store, max-age=0");
     const applicationId=String(req.params.id||""),documentId=String(req.params.documentId||"");
     let auditContext=null;
     try {
@@ -2643,7 +2644,6 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       }
       database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','success',?)")
         .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
-      res.setHeader("Cache-Control","private, no-store, max-age=0");
       res.setHeader("X-Content-Type-Options","nosniff");
       res.setHeader("Content-Security-Policy","sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
       res.setHeader("Content-Disposition","inline; filename=\""+safeFilename(document.original_name)+"\"");
