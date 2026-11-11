@@ -148,27 +148,35 @@ export default function CollegeWorkspace() {
   }
 
   const activeInstitutionRoles = memberships.filter(item => item.status === "active").map(item => item.role);
-  // The workspace currently aggregates memberships rather than offering an
-  // institution switcher. Apply Warden precedence account-wide to prevent a
-  // second/base Student membership from leaking scholarship UI into Warden mode.
+  // Warden remains an exclusive operational workspace; it never inherits the
+  // broader Institution Admin dashboard or scholarship controls.
   const hasActiveWarden = activeInstitutionRoles.includes("warden");
+  const activeInstitutionAdmins = memberships.filter(item => item.status === "active" && item.role === "institution_admin");
+  const isInstitutionAdminWorkspace = activeInstitutionAdmins.length > 0 && !hasActiveWarden;
   const activeStudents = hasActiveWarden ? [] : memberships.filter(item => item.status === "active" && item.role === "student");
   const activeReviewers = hasActiveWarden ? [] : memberships.filter(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
   const canReview = !hasActiveWarden && memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
   const canSeeHostel = hasActiveWarden || activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
   const canSeeScholarship = !hasActiveWarden && activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
   const hasActiveInstitutionMembership = memberships.some(item => item.status === "active");
+  const activeMembershipCount = memberships.filter(item => item.status === "active").length;
+  const institutionNames = [...new Set(activeInstitutionAdmins.map(item => item.institutionName))];
 
   return <section className="content collegeWorkspace">
     <div className="functionHero">
-      <div><div className="eyebrow dark">INSTITUTIONAL WORKSPACE · PILOT</div><h2>Bring SecureID to your college</h2><p>Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue.</p></div>
+      <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "Bring SecureID to your college"}</h2><p>{isInstitutionAdminWorkspace ? "Manage your institution's student submissions, hostel operations and scholarship workflows. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
       <div className="collegeHeroIcon" aria-hidden="true">🏫</div>
     </div>
-    <div className="collegeValueGrid">
+    {isInstitutionAdminWorkspace && <section className="collegeValueGrid institutionAdminOverview" aria-label="Institution administration overview">
+      <article className="panel"><span className="collegeStep">01</span><h3>Institution access</h3><p>{institutionNames.length ? institutionNames.join(" · ") : "Your assigned institution"}</p><small>{activeMembershipCount} active membership{activeMembershipCount === 1 ? "" : "s"} on this account</small></article>
+      <article className="panel"><span className="collegeStep">02</span><h3>Student review queue</h3><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? "" : "s"} currently visible to your institution role.</p><small>Review decisions are audited</small></article>
+      <article className="panel"><span className="collegeStep">03</span><h3>Institution modules</h3><p>Hostel Management and Scholarship Management</p><small>Access is role- and subscription-controlled</small></article>
+    </section>}
+    {!isInstitutionAdminWorkspace && !hasActiveWarden && <div className="collegeValueGrid">
       <article className="panel"><span className="collegeStep">01</span><h3>Student onboarding</h3><p>Students manage their own SecureID profile and documents, then choose what to submit.</p><small>Explicit consent · Student-controlled</small></article>
       <article className="panel"><span className="collegeStep">02</span><h3>Submission review</h3><p>Assigned reviewers can track submissions and record administrative review outcomes.</p><small>Institution-scoped · Audited</small></article>
       <article className="panel"><span className="collegeStep">03</span><h3>Institution controls</h3><p>Memberships are provisioned by a trusted SecureID operator and protected by MFA.</p><small>No public self-assigned roles</small></article>
-    </div>
+    </div>}
     <section className="panel collegeMembershipPanel" aria-labelledby="college-membership-heading">
       <div className="eyebrow dark">INSTITUTION ACCESS</div><h2 id="college-membership-heading">Your college memberships</h2>
       {loading ? <p>Checking your institution access…</p> : memberships.length === 0
@@ -191,6 +199,8 @@ export default function CollegeWorkspace() {
       <h3>Your submissions</h3>
       {mySubmissions.length === 0 ? <p className="lead">You have not submitted any documents for college review.</p> : <div className="collegeRequestList">{mySubmissions.map(item => <article className="collegeRequest" key={item.id}><strong>{item.documentName}</strong><span className="collegeStatus">{item.status.replaceAll("_", " ")}</span><small>{item.institutionName} · {item.purpose} · Consent {item.consentVersion || "legacy"} · {new Date(item.consentedAt || item.createdAt).toLocaleString()}</small>{item.reviewNote && <p>{item.reviewNote}</p>}{["submitted", "needs_correction"].includes(item.status) && <button type="button" className="secondary" onClick={() => withdrawSubmission(item.id)}>Withdraw submission</button>}<button type="button" className="secondary" onClick={() => showAudit(item.id)}>View audit history</button>{auditHistory[item.id] && <ul className="collegeAuditList">{auditHistory[item.id].map((entry,index) => <li key={index}>{entry.action.replaceAll("_"," ")} · {entry.actorEmail || "account"} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}</article>)}</div>}
     </section>}
+
+    {isInstitutionAdminWorkspace && <div className="panel institutionAdminNotice"><div className="eyebrow dark">ADMINISTRATOR RESPONSIBILITIES</div><h3>Manage operations, not platform ownership</h3><p className="lead">You can administer the institution's operational workflows and review queues. Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner.</p></div>}
 
     {activeReviewers.length > 0 && <section className="panel collegeReviewPanel">
       <div className="eyebrow dark">INSTITUTION REVIEW QUEUE</div><h2>Student submissions</h2>
