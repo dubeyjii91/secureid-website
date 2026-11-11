@@ -36,8 +36,11 @@ export default function CollegeWorkspace() {
       setRequests(requestData.requests || []);
       setMemberships(nextMemberships);
       const active = nextMemberships.filter(item => item.status === "active");
-      const students = active.filter(item => item.role === "student");
-      const reviewers = active.filter(item => ["reviewer", "institution_admin", "read_only"].includes(item.role));
+      // Warden is an exclusive operational role in this workspace. Do not let a
+      // legacy/base Student or Reviewer membership expose scholarship workflows.
+      const hasWardenRole = active.some(item => item.role === "warden");
+      const students = hasWardenRole ? [] : active.filter(item => item.role === "student");
+      const reviewers = hasWardenRole ? [] : active.filter(item => ["reviewer", "institution_admin", "read_only"].includes(item.role));
       if (students.length) {
         const [documentData, submissionData] = await Promise.all([
           api("/api/documents", { cache: "no-store" }),
@@ -144,12 +147,17 @@ export default function CollegeWorkspace() {
     }
   }
 
-  const activeStudents = memberships.filter(item => item.status === "active" && item.role === "student");
-  const activeReviewers = memberships.filter(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
-  const canReview = memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
   const activeInstitutionRoles = memberships.filter(item => item.status === "active").map(item => item.role);
-  const canSeeHostel = activeInstitutionRoles.some(role => ["student", "warden", "reviewer", "institution_admin", "read_only"].includes(role));
-  const canSeeScholarship = activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
+  // The workspace currently aggregates memberships rather than offering an
+  // institution switcher. Apply Warden precedence account-wide to prevent a
+  // second/base Student membership from leaking scholarship UI into Warden mode.
+  const hasActiveWarden = activeInstitutionRoles.includes("warden");
+  const activeStudents = hasActiveWarden ? [] : memberships.filter(item => item.status === "active" && item.role === "student");
+  const activeReviewers = hasActiveWarden ? [] : memberships.filter(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
+  const canReview = !hasActiveWarden && memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
+  const canSeeHostel = hasActiveWarden || activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
+  const canSeeScholarship = !hasActiveWarden && activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
+  const hasActiveInstitutionMembership = memberships.some(item => item.status === "active");
 
   return <section className="content collegeWorkspace">
     <div className="functionHero">
@@ -195,7 +203,7 @@ export default function CollegeWorkspace() {
     {canSeeScholarship && <ScholarshipManagement />}
     {!canSeeHostel && !canSeeScholarship && <div className="panel"><h3>Institution access</h3><p>Your account is currently a normal SecureID user. Ask the institution administrator or SecureID Owner to verify and provision the appropriate institution role before hostel or scholarship tools appear.</p></div>}
 
-    <div className="collegeColumns">
+    {!hasActiveInstitutionMembership && <div className="collegeColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
         <div className="eyebrow dark">PILOT INTEREST</div><h2>Register institutional interest</h2>
         <p className="lead">Use a college name and general workflow needs only. Do not enter student names, identity numbers, documents, OTPs or other sensitive data here.</p>
@@ -209,7 +217,7 @@ export default function CollegeWorkspace() {
       <section className="panel collegeRequestPanel"><div className="eyebrow dark">YOUR REQUESTS</div><h2>Saved pilot interest</h2><p className="lead">Only requests submitted by your signed-in account appear here.</p>
         {loading ? <p>Loading your requests…</p> : requests.length === 0 ? <div className="collegeEmpty"><span>📋</span><strong>No requests yet</strong><p>Submit the form to record a college pilot interest.</p></div> : <div className="collegeRequestList">{requests.map(item => <article key={item.id} className="collegeRequest"><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "received" ? "Interest received" : item.status}</span><small>{new Date(item.createdAt).toLocaleString()}</small><p>{item.workflows.join(" · ")}</p></article>)}</div>}
       </section>
-    </div>
+    </div>}
     {error && <p className="collegeAlert error" role="alert">{error}</p>}{message && <p className="collegeAlert" role="status">{message}</p>}
   </section>;
 }
