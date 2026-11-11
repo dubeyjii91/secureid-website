@@ -77,10 +77,10 @@ export function registerInstitutionModules({
   }
 
   function access(req, res, institutionId, feature, roles = ["institution_admin"]) {
-    if (!institutionId || institutionId.length > 128) return fail(res, 400, "A valid institution is required.");
-    if (!hasInstitutionFeature(institutionId, feature)) return fail(res, 403, "This module is not enabled for the institution.", "FEATURE_NOT_ENTITLED");
+    if (!institutionId || institutionId.length > 128) { fail(res, 400, "A valid institution is required."); return null; }
+    if (!hasInstitutionFeature(institutionId, feature)) { fail(res, 403, "This module is not enabled for the institution.", "FEATURE_NOT_ENTITLED"); return null; }
     const member = getInstitutionMembership(req.user.id, institutionId);
-    if (!member || member.status !== "active" || !roles.includes(member.role)) return fail(res, 403, "Your institution role does not allow this action.");
+    if (!member || member.status !== "active" || !roles.includes(member.role)) { fail(res, 403, "Your institution role does not allow this action."); return null; }
     return member;
   }
   function audit(institutionId, actor, action, type, entityId, details = {}) {
@@ -214,7 +214,8 @@ export function registerInstitutionModules({
       database.prepare(`INSERT INTO institution_attendance(id,institution_id,course_id,student_user_id,attendance_date,status,marked_by,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(course_id,student_user_id,attendance_date) DO UPDATE SET status=excluded.status,marked_by=excluded.marked_by,updated_at=excluded.updated_at`)
         .run(attendanceId,institutionId,courseId,studentUserId,date,status,req.user.id,now,now);
-      audit(institutionId,req.user.id,"attendance_recorded","attendance",attendanceId,{courseId,studentUserId,date,status});
+      const saved=database.prepare("SELECT id FROM institution_attendance WHERE course_id=? AND student_user_id=? AND attendance_date=?").get(courseId,studentUserId,date);
+      audit(institutionId,req.user.id,"attendance_recorded","attendance",saved?.id||attendanceId,{courseId,studentUserId,date,status});
       res.status(201).json({success:true});
     }catch(error){next(error);}
   });
