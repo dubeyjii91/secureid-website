@@ -559,6 +559,11 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
       database.prepare("DELETE FROM institution_review_audit WHERE actor_user_id=? OR submission_id IN (SELECT id FROM institution_review_submissions WHERE student_user_id=?)").run(req.user.id,req.user.id);
       database.prepare("DELETE FROM institution_review_submissions WHERE student_user_id=?").run(req.user.id);
       database.prepare("UPDATE institution_review_submissions SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
+      // Admission requests contain encrypted applicant data and reviewer audit references.
+      // Remove a deleted applicant's requests and actor audit rows, and detach reviewer references.
+      database.prepare("DELETE FROM institution_admission_audit WHERE actor_user_id=? OR request_id IN (SELECT id FROM institution_admission_requests WHERE student_user_id=?)").run(req.user.id,req.user.id);
+      database.prepare("DELETE FROM institution_admission_requests WHERE student_user_id=?").run(req.user.id);
+      database.prepare("UPDATE institution_admission_requests SET reviewed_by=NULL WHERE reviewed_by=?").run(req.user.id);
       database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(req.user.id,req.user.id);
       database.prepare("DELETE FROM secure_documents WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM identity_profiles WHERE user_id=?").run(req.user.id);
