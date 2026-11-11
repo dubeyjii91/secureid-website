@@ -85,7 +85,8 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       const selected = database.prepare(activeInstitutionSql).all(timestamp,timestamp).find(item => item.id === institutionId);
       if (!selected) return fail(res,404,"This institution is not accepting admission requests right now.");
       const existingMembership = getInstitutionMembership(req.user.id,institutionId);
-      if (existingMembership && existingMembership.status === "active") return fail(res,409,"You already have an active membership at this institution.");
+      if (existingMembership) return fail(res,409,"This account already has an institution membership here. Contact the institution administrator if you need an admission change.");
+      if (req.body?.consent !== true) return fail(res,400,"Confirm the student-admission-v1 consent before submitting.");
       const name = clean(req.body?.fullName,120);
       const course = clean(req.body?.course,120);
       const department = clean(req.body?.department,120);
@@ -162,8 +163,9 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       const timestamp=now();
       const application=decrypt(JSON.parse(row.encrypted_application));
       const review=database.transaction(()=>{
-        database.prepare("UPDATE institution_admission_requests SET status=?,review_note=?,reviewed_by=?,updated_at=? WHERE id=? AND institution_id=? AND status IN ('submitted','needs_correction')")
+        const changed=database.prepare("UPDATE institution_admission_requests SET status=?,review_note=?,reviewed_by=?,updated_at=? WHERE id=? AND institution_id=? AND status IN ('submitted','needs_correction')")
           .run(status,note||null,req.user.id,timestamp,requestId,institutionId);
+        if(changed.changes!==1) throw new Error("This admission request has already been reviewed.");
         if(status==="approved"){
           const existing=database.prepare("SELECT id,status,role FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,row.student_user_id);
           if(existing && existing.status==="active" && existing.role!=="student") throw new Error("This account already has a non-student institution membership; an Owner must resolve it before admission approval.");
