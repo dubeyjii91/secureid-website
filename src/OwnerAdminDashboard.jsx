@@ -153,9 +153,15 @@ export default function OwnerAdminDashboard() {
     if (!selectedInstitutionId || !selectedMemberUserId) return;
     setInstitutionBusy(true); setInstitutionError(""); setNotice("");
     try {
+      const baseRole = selectedMemberRole === "warden" ? "read_only" : selectedMemberRole;
       await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/memberships", {
-        method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: selectedMemberRole })
+        method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: baseRole })
       });
+      if (selectedMemberRole === "warden") {
+        await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/membership-roles", {
+          method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: "warden", action: "grant" })
+        });
+      }
       await load();
       setNotice("Institution membership provisioned and audit entry recorded.");
     } catch (e) {
@@ -253,7 +259,7 @@ export default function OwnerAdminDashboard() {
         <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
           <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
-          <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="read_only">Read only</option></select></label>
+          <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="warden">Warden (hostel operations)</option><option value="read_only">Read only</option></select></label>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button>
         </form>
         <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"10px 0"}}>
