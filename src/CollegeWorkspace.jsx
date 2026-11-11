@@ -3,6 +3,7 @@ import "./college-workspace.css";
 import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
+import InstitutionModules from "./InstitutionModules.jsx";
 
 const initialForm = { institutionName: "", role: "Student", studentCount: "Under 500", workflows: ["Student onboarding", "Document submission tracking"], notes: "" };
 
@@ -199,6 +200,8 @@ export default function CollegeWorkspace() {
       <h3>Your submissions</h3>
       {mySubmissions.length === 0 ? <p className="lead">You have not submitted any documents for college review.</p> : <div className="collegeRequestList">{mySubmissions.map(item => <article className="collegeRequest" key={item.id}><strong>{item.documentName}</strong><span className="collegeStatus">{item.status.replaceAll("_", " ")}</span><small>{item.institutionName} · {item.purpose} · Consent {item.consentVersion || "legacy"} · {new Date(item.consentedAt || item.createdAt).toLocaleString()}</small>{item.reviewNote && <p>{item.reviewNote}</p>}{["submitted", "needs_correction"].includes(item.status) && <button type="button" className="secondary" onClick={() => withdrawSubmission(item.id)}>Withdraw submission</button>}<button type="button" className="secondary" onClick={() => showAudit(item.id)}>View audit history</button>{auditHistory[item.id] && <ul className="collegeAuditList">{auditHistory[item.id].map((entry,index) => <li key={index}>{entry.action.replaceAll("_"," ")} · {entry.actorEmail || "account"} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}</article>)}</div>}
     </section>}
+
+    {isInstitutionAdminWorkspace && <InstitutionModules institutionId={activeInstitutionAdmins[0]?.institutionId} />}
 
     {isInstitutionAdminWorkspace && <div className="panel institutionAdminNotice"><div className="eyebrow dark">ADMINISTRATOR RESPONSIBILITIES</div><h3>Manage operations, not platform ownership</h3><p className="lead">You can administer the institution's operational workflows and review queues. Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner.</p></div>}
 

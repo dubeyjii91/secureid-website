@@ -5,6 +5,7 @@ import multer from "multer";
 import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
 import { enforceShareRateLimit } from "./share-rate-limit.js";
+import { registerInstitutionModules } from "./institution-modules.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
@@ -2664,6 +2665,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,audit});
     } catch(error){next(error);}
   });
+
+  registerInstitutionModules({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
 
   console.log(JSON.stringify({
     level:"info",
