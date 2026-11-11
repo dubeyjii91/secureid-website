@@ -2446,11 +2446,17 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       assertWalletUnlocked(application.student_user_id);
       const payload=JSON.parse(fs.readFileSync(document.encrypted_path,"utf8"));
       const buffer=decryptBuffer(payload,key);
-      if(buffer.length!==Number(document.size_bytes)||!ALLOWED_MIME.has(document.mime_type))
+      if(buffer.length!==Number(document.size_bytes)||!ALLOWED_MIME.has(document.mime_type)) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','error',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
         return res.status(422).json({success:false,message:"The stored document failed its integrity check."});
+      }
       const actual=await fileTypeFromBuffer(buffer);
-      if(!actual||actual.mime!==document.mime_type)
+      if(!actual||actual.mime!==document.mime_type) {
+        database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','error',?)")
+          .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
         return res.status(422).json({success:false,message:"The document content does not match its stored file type."});
+      }
       database.prepare("INSERT INTO scholarship_document_access_audit(id,application_id,institution_id,document_id,actor_user_id,action,outcome,created_at) VALUES(?,?,?,?,?,'preview','success',?)")
         .run(crypto.randomUUID(),application.id,application.institution_id,documentId,req.user.id,new Date().toISOString());
       res.setHeader("Cache-Control","private, no-store, max-age=0");
