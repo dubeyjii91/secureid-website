@@ -1763,7 +1763,8 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       `).all();
       const memberships=database.prepare(`
         SELECT m.id,m.institution_id AS institutionId,m.user_id AS userId,u.email,
-          m.role,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt
+          CASE WHEN EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=m.id AND g.role='warden') THEN 'warden' ELSE m.role END AS role,
+          m.role AS baseRole,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt
         FROM institution_memberships m INNER JOIN users u ON u.id=m.user_id
         ORDER BY m.institution_id,m.created_at DESC LIMIT 500
       `).all();
