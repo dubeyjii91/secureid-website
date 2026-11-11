@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createCipheriv, randomBytes, createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 function backupAlertConfiguration(){
@@ -86,8 +86,14 @@ export function runEncryptedBackup(){
   const tmp=path.resolve(backupDir,".secureid-"+stamp+".sqlite");
   const out=path.resolve(backupDir,"secureid-"+stamp+".backup.json");
   const db=new DatabaseSync(dbPath,{timeout:5000});
-  try{ db.exec("PRAGMA wal_checkpoint(PASSIVE); VACUUM INTO '"+tmp.replaceAll("'","''")+"'"); }
-  finally{ db.close(); }
+  try{
+    // VACUUM INTO creates a plaintext SQLite snapshot. Apply a restrictive
+    // process umask before creation, then enforce owner-only permissions before reading it.
+    const previousUmask=process.umask(0o077);
+    try{ db.exec("PRAGMA wal_checkpoint(PASSIVE); VACUUM INTO '"+tmp.replaceAll("'","''")+"'"); }
+    finally{ process.umask(previousUmask); }
+  }finally{ db.close(); }
+  chmodSync(tmp,0o600);
   try{
     const databaseBytes=readFileSync(tmp);
     const documents=existsSync(documentDir)
