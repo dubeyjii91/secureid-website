@@ -2052,7 +2052,17 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
         FROM hostel_rooms r JOIN hostel_buildings b ON b.id=r.building_id
         WHERE r.institution_id IN (${marks}) ORDER BY b.name,r.room_number
       `).all(academicYear,...visible).map(room=>({...room,occupiedBeds:room.manualOccupiedBeds+room.allocatedBeds,availableBeds:Math.max(0,room.capacity-room.manualOccupiedBeds-room.allocatedBeds)}));
-      res.setHeader("Cache-Control","private, no-store");res.json({success:true,buildings,rooms});
+      const occupancyAudit=database.prepare(`
+        SELECT a.id,a.room_id AS roomId,b.name AS buildingName,r.room_number AS roomNumber,
+          a.actor_user_id AS actorUserId,a.previous_manual_occupied_beds AS previousManualOccupiedBeds,
+          a.new_manual_occupied_beds AS newManualOccupiedBeds,a.created_at AS createdAt
+        FROM hostel_room_occupancy_audit a
+        JOIN hostel_rooms r ON r.id=a.room_id
+        JOIN hostel_buildings b ON b.id=r.building_id
+        WHERE a.institution_id IN (${marks})
+        ORDER BY a.created_at DESC LIMIT 100
+      `).all(...visible);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,buildings,rooms,occupancyAudit});
     } catch(error){next(error);}
   });
 
@@ -2084,6 +2094,33 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       database.prepare("INSERT INTO hostel_rooms(id,institution_id,building_id,room_number,room_type,capacity,manual_occupied_beds,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)")
         .run(id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,now,now);
       res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,room:{id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,status:"active"}});
+    } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"That room number already exists in this building."});next(error);}
+  });
+
+  app.patch("/api/institutions/hostel-buildings/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const id=String(req.params.id||""),name=String(req.body?.name||"").trim();
+      const building=database.prepare("SELECT id,institution_id FROM hostel_buildings WHERE id=?").get(id);
+      if(!building) return res.status(404).json({success:false,message:"Hostel building was not found."});
+      if(!getHostelMembership(req,building.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
+      if(name.length<2||name.length>80) return res.status(400).json({success:false,message:"Building name must be 2–80 characters."});
+      database.prepare("UPDATE hostel_buildings SET name=?,updated_at=? WHERE id=?").run(name,new Date().toISOString(),id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,building:{id,name}});
+    } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"A building with this name already exists."});next(error);}
+  });
+
+  app.patch("/api/institutions/hostel-rooms/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const id=String(req.params.id||""),room=database.prepare("SELECT id,institution_id,capacity,manual_occupied_beds AS manualOccupiedBeds FROM hostel_rooms WHERE id=?").get(id);
+      if(!room) return res.status(404).json({success:false,message:"Hostel room was not found."});
+      if(!getHostelMembership(req,room.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
+      const roomNumber=String(req.body?.roomNumber||"").trim(),roomType=String(req.body?.roomType||"");
+      const capacity=Number(req.body?.capacity);
+      if(!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,19}$/.test(roomNumber)||!["single","shared","dormitory"].includes(roomType)||!Number.isInteger(capacity)||capacity<1||capacity>12) return res.status(400).json({success:false,message:"Enter a valid room number, room type and capacity (1–12 beds)."});
+      const allocated=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=? AND status='allocated'").get(id).count;
+      if(capacity<room.manualOccupiedBeds+allocated) return res.status(409).json({success:false,message:"Room capacity cannot be lower than its occupied and allocated beds."});
+      database.prepare("UPDATE hostel_rooms SET room_number=?,room_type=?,capacity=?,updated_at=? WHERE id=?").run(roomNumber,roomType,capacity,new Date().toISOString(),id);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,room:{id,roomNumber,roomType,capacity}});
     } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"That room number already exists in this building."});next(error);}
   });
 

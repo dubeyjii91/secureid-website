@@ -21,8 +21,9 @@ export default function HostelManagement() {
   const [paymentDrafts, setPaymentDrafts] = useState({});
   const [form, setForm] = useState(initialForm);
   const [buildingName, setBuildingName] = useState("");
-  const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2" });
+  const [roomForm, setRoomForm] = useState({ buildingId: "", roomNumber: "", roomType: "shared", capacity: "2", manualOccupiedBeds: "0" });
   const [occupancyDrafts, setOccupancyDrafts] = useState({});
+  const [occupancyAudit, setOccupancyAudit] = useState([]);
   const [allocationRooms, setAllocationRooms] = useState({});
   const [notes, setNotes] = useState({});
   const [consent, setConsent] = useState(false);
@@ -60,6 +61,7 @@ export default function HostelManagement() {
       if (institutionIds.length) {
         const inventoryData = await api("/api/institutions/hostel-inventory", { cache: "no-store" });
         setInventory({ buildings: inventoryData.buildings || [], rooms: inventoryData.rooms || [] });
+        setOccupancyAudit(inventoryData.occupancyAudit || []);
         setOccupancyDrafts(Object.fromEntries((inventoryData.rooms || []).map(room => [room.id, String(room.manualOccupiedBeds ?? 0)])));
         setRoomForm(value => ({ ...value, buildingId: value.buildingId || inventoryData.buildings?.[0]?.id || "" }));
       } else setInventory({ buildings: [], rooms: [] });
@@ -108,8 +110,8 @@ export default function HostelManagement() {
   async function addBuilding(event) {
     event.preventDefault(); setError(""); setMessage(""); setSaving(true);
     try {
-      const institutionId = memberships.find(item => item.status === "active" && item.role === "institution_admin")?.institutionId;
-      if (!institutionId) throw new Error("An active institution administrator membership is required.");
+      const institutionId = memberships.find(item => item.status === "active" && ["institution_admin", "warden"].includes(item.role))?.institutionId;
+      if (!institutionId) throw new Error("An active institution administrator or Warden membership is required.");
       await api("/api/institutions/hostel-buildings", { method: "POST", body: JSON.stringify({ institutionId, name: buildingName }) });
       setBuildingName(""); setMessage("Hostel building added."); await load();
     } catch (err) { setError(err.message || "Building could not be added."); }
@@ -119,12 +121,36 @@ export default function HostelManagement() {
   async function addRoom(event) {
     event.preventDefault(); setError(""); setMessage(""); setSaving(true);
     try {
-      const institutionId = memberships.find(item => item.status === "active" && item.role === "institution_admin" && inventory.buildings.some(building => building.id === roomForm.buildingId))?.institutionId;
-      if (!institutionId) throw new Error("Choose a building in an institution you administer.");
+      const institutionId = memberships.find(item => item.status === "active" && ["institution_admin", "warden"].includes(item.role) && inventory.buildings.some(building => building.id === roomForm.buildingId && building.institutionId === item.institutionId))?.institutionId;
+      if (!institutionId) throw new Error("Choose a building in an institution where you are an administrator or Warden.");
       await api("/api/institutions/hostel-rooms", { method: "POST", body: JSON.stringify({ ...roomForm, institutionId, capacity: Number(roomForm.capacity), manualOccupiedBeds: Number(roomForm.manualOccupiedBeds) }) });
       setRoomForm(value => ({ ...value, roomNumber: "", manualOccupiedBeds: "0" })); setMessage("Hostel room added."); await load();
     } catch (err) { setError(err.message || "Room could not be added."); }
     finally { setSaving(false); }
+  }
+
+  async function renameBuilding(building) {
+    const name = window.prompt("Enter the updated building name", building.name);
+    if (name === null || name.trim() === building.name) return;
+    try {
+      await api(`/api/institutions/hostel-buildings/${encodeURIComponent(building.id)}`, { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+      setMessage("Building updated successfully."); await load();
+    } catch (err) { setError(err.message || "Building could not be updated."); }
+  }
+
+  async function editRoom(room) {
+    const roomNumber = window.prompt("Room number", room.roomNumber);
+    if (roomNumber === null) return;
+    const capacityText = window.prompt("Total bed capacity (1–12)", String(room.capacity));
+    if (capacityText === null) return;
+    const roomType = window.prompt("Room type: single, shared, or dormitory", room.roomType);
+    if (roomType === null) return;
+    try {
+      await api(`/api/institutions/hostel-rooms/${encodeURIComponent(room.id)}`, {
+        method: "PATCH", body: JSON.stringify({ roomNumber: roomNumber.trim(), capacity: Number(capacityText), roomType })
+      });
+      setMessage("Room details updated successfully."); await load();
+    } catch (err) { setError(err.message || "Room could not be updated."); }
   }
 
   async function updateRoomOccupancy(roomId) {
@@ -212,11 +238,12 @@ export default function HostelManagement() {
 
       {canManageInventory && <div className="hostelApplications">
         <h3>Hostel inventory management</h3>
-        <p className="collegePrivacyNote">Only an institution administrator can create buildings and rooms. Room capacity is limited to 1–12 beds per room.</p>
+        <p className="collegePrivacyNote">Institution administrators and Wardens can add or edit buildings and rooms. Every occupancy update is recorded with the actor, previous value, new value and timestamp. Room capacity is limited to 1–12 beds per room.</p>
         <form className="collegeSubmissionForm" onSubmit={addBuilding}>
           <label>New building name<input required minLength={2} maxLength={80} value={buildingName} onChange={event => setBuildingName(event.target.value)} placeholder="e.g. Boys Hostel A" /></label>
           <button className="primary" type="submit" disabled={saving}>Add building</button>
         </form>
+        {inventory.buildings.map(building => <article className="collegeRequest" key={building.id}><strong>{building.name}</strong><button type="button" className="secondary" onClick={() => renameBuilding(building)}>Edit building</button></article>)}
         {inventory.buildings.length > 0 && <form className="collegeSubmissionForm" onSubmit={addRoom}>
           <label>Building<select required value={roomForm.buildingId} onChange={event => setRoomForm(value => ({ ...value, buildingId: event.target.value }))}>{inventory.buildings.map(building => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>
           <label>Room number<input required maxLength={20} value={roomForm.roomNumber} onChange={event => setRoomForm(value => ({ ...value, roomNumber: event.target.value }))} placeholder="101" /></label>
@@ -230,10 +257,11 @@ export default function HostelManagement() {
       <div className="hostelApplications">
         <h3>Room availability</h3>
         {inventory.rooms.length === 0 ? <p className="lead">No rooms have been added yet. An institution administrator can create buildings and rooms.</p> : <div className="collegeRequestList">{inventory.rooms.map(room => <article className="collegeRequest" key={room.id}>
-          <strong>{room.buildingName} · Room {room.roomNumber}</strong><span className="collegeStatus">{room.availableBeds} / {room.capacity} beds available</span>
+          <strong>{room.buildingName} · Room {room.roomNumber}</strong>{canManageInventory && <button type="button" className="secondary" onClick={() => editRoom(room)}>Edit room</button>}<span className="collegeStatus">{room.availableBeds} / {room.capacity} beds available</span>
           <small>{room.roomType.replaceAll("_", " ")} · {room.occupiedBeds} occupied · {room.status}</small>
           {canManageInventory && <div className="collegeReviewActions"><label>Existing occupied beds (warden update)<input type="number" min="0" max={room.capacity} value={occupancyDrafts[room.id] ?? String(room.manualOccupiedBeds ?? 0)} onChange={event => setOccupancyDrafts(current => ({ ...current, [room.id]: event.target.value }))} /></label><button type="button" className="secondary" onClick={() => updateRoomOccupancy(room.id)}>Update occupancy</button></div>}
         </article>)}</div>}
+        {occupancyAudit.length > 0 && <div className="collegeRequestList"><h4>Occupancy change history</h4>{occupancyAudit.slice(0, 50).map(item => <article className="collegeRequest" key={item.id}><strong>{item.buildingName} · Room {item.roomNumber}</strong><small>{item.previousManualOccupiedBeds} → {item.newManualOccupiedBeds} occupied beds · By {item.actorUserId} · {new Date(item.createdAt).toLocaleString()}</small></article>)}</div>}
       </div>
 
       {activeStudents.length > 0 && <div className="hostelApplications">
