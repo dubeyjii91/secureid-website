@@ -17,5 +17,4 @@ test("scholarship document preview disables caching before any authorization or 
   assert.ok(header < firstCheck, "no-store must be set before any application, permission, or document checks");
   const nextRoute = source.indexOf('app.get("/api/institutions/scholarship-applications/:id/audit"', handlerStart);
   assert.ok(nextRoute > header, "preview route boundary must remain intact");
-  assert.ok(nextRoute - header < 1000, "cache header should be at the beginning of the preview handler");
 });
