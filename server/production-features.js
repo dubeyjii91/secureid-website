@@ -2,6 +2,7 @@
 import path from "node:path";
 import crypto from "node:crypto";
 import multer from "multer";
+import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
 import { enforceShareRateLimit } from "./share-rate-limit.js";
 
@@ -2407,7 +2408,14 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   // CONSENTED SCHOLARSHIP DOCUMENT PREVIEW — view-only, scoped to the submitted application.
-  app.get("/api/institutions/scholarship-applications/:id/documents/:documentId/preview", requireAuth, requireMfaProduction, async (req,res,next) => {
+  const scholarshipPreviewIpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { success: false, message: "Too many document preview requests. Try again later." }
+  });
+  app.get("/api/institutions/scholarship-applications/:id/documents/:documentId/preview", scholarshipPreviewIpLimiter, requireAuth, requireMfaProduction, async (req,res,next) => {
     const applicationId=String(req.params.id||""),documentId=String(req.params.documentId||"");
     let auditContext=null;
     try {
