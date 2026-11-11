@@ -8,6 +8,13 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
+function toLocalDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function eventLabel(action) {
   const labels = {
     ACCOUNT_CREATED: "New account registered",
@@ -68,8 +75,8 @@ export default function OwnerAdminDashboard() {
         setSubscriptionPlan(value.planKey || "pilot");
         setSubscriptionStatus(value.status || "pilot");
         setSubscriptionFeatures(Array.isArray(value.features) ? value.features : []);
-        setSubscriptionStartsAt(value.startsAt ? new Date(value.startsAt).toISOString().slice(0,16) : "");
-        setSubscriptionEndsAt(value.endsAt ? new Date(value.endsAt).toISOString().slice(0,16) : "");
+        setSubscriptionStartsAt(toLocalDateTime(value.startsAt));
+        setSubscriptionEndsAt(toLocalDateTime(value.endsAt));
       })
       .catch(error => { if (!cancelled) setInstitutionError(error?.message || "Subscription settings could not be loaded."); });
     return () => { cancelled = true; };
