@@ -1,19 +1,31 @@
 # SecureID Production Security Test Plan
 
-Last updated: 2026-10-20
+Last updated: 2026-11-11
 
 This is a repeatable release checklist, not a claim that every item has passed. Record evidence for each test and rerun after authentication, storage, sharing, or deployment changes. Use synthetic data and a separate test account. Never use real PAN/Aadhaar values in test fixtures.
 
+## Latest recorded production verification — 2026-11-11
+
+The following automated checks completed successfully against production commit `6db2842dd59c11d44ec6884f19fc0c38c13635b0`:
+
+- SecureID CI: https://github.com/dubeyjii91/secureid-website/actions/runs/43019902358
+- Owner-console browser smoke: https://github.com/dubeyjii91/secureid-website/actions/runs/43019902419
+- Production smoke test: https://github.com/dubeyjii91/secureid-website/actions/runs/43020098596
+- Production passive OWASP ZAP scan: https://github.com/dubeyjii91/secureid-website/actions/runs/43020127567
+
+The CI run reports successful dependency installation/audit, Trivy filesystem scan, CodeQL analysis, frontend build, lint, security unit tests, native Android TypeScript checks, deployed native-auth bootstrap smoke test, and isolated encrypted backup/restore test. The EAS preview APK, OTA update, signed production AAB, and artifact-upload steps were **skipped**, not passed. These results do not complete the manual checks below, prove a full penetration test, or establish legal/operational launch readiness. Do not infer a manual pass from a successful deployment.
+
 ## 1. Automated checks
 Run on the exact release commit in CI:
-- [ ] `npm ci` (prefer a committed lockfile and reproducible installs).
-- [ ] `npm audit --audit-level=low`; triage every finding and document any exception.
-- [ ] Trivy filesystem scan for vulnerabilities, misconfiguration, and secrets.
-- [ ] CodeQL JavaScript/TypeScript security-extended analysis.
-- [ ] `npm run build`.
-- [ ] `npm run lint`.
-- [ ] `npm test` (Node test runner).
-- [ ] Confirm CI results are attached to the release commit; a deployment status alone is not a CI result.
+- [x] Dependency installation completed in CI (`npm ci`).
+- [x] `npm audit --audit-level=low` completed in CI.
+- [x] Trivy filesystem scan completed in CI.
+- [x] CodeQL JavaScript/TypeScript analysis completed in CI.
+- [x] `npm run build` completed in CI.
+- [x] `npm run lint` completed in CI.
+- [x] Security unit tests (`npm test`) completed in CI.
+- [x] CI results are attached to the exact release commit (links above).
+- [ ] Confirm a committed lockfile and reproducible installs for every separately built app/package; native EAS artifact steps were skipped in this run.
 
 ## 2. Authentication, sessions and MFA
 - [ ] New account registration with a valid email; duplicate email/phone behavior is safe and non-enumerating.
