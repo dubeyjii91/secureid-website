@@ -147,6 +147,9 @@ export default function CollegeWorkspace() {
   const activeStudents = memberships.filter(item => item.status === "active" && item.role === "student");
   const activeReviewers = memberships.filter(item => item.status === "active" && ["reviewer", "institution_admin", "read_only"].includes(item.role));
   const canReview = memberships.some(item => item.status === "active" && ["reviewer", "institution_admin"].includes(item.role));
+  const activeInstitutionRoles = memberships.filter(item => item.status === "active").map(item => item.role);
+  const canSeeHostel = activeInstitutionRoles.some(role => ["student", "warden", "reviewer", "institution_admin", "read_only"].includes(role));
+  const canSeeScholarship = activeInstitutionRoles.some(role => ["student", "reviewer", "institution_admin", "read_only"].includes(role));
 
   return <section className="content collegeWorkspace">
     <div className="functionHero">
@@ -188,8 +191,9 @@ export default function CollegeWorkspace() {
       <p className="collegePrivacyNote">“Approved” and “rejected” are institution workflow decisions only. They do not mean SecureID or a government authority has verified the document or the student's identity.</p>
     </section>}
 
-    <HostelManagement />
-    <ScholarshipManagement />
+    {canSeeHostel && <HostelManagement />}
+    {canSeeScholarship && <ScholarshipManagement />}
+    {!canSeeHostel && !canSeeScholarship && <div className="panel"><h3>Institution access</h3><p>Your account is currently a normal SecureID user. Ask the institution administrator or SecureID Owner to verify and provision the appropriate institution role before hostel or scholarship tools appear.</p></div>}
 
     <div className="collegeColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>

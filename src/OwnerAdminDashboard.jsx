@@ -8,6 +8,13 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
+function toLocalDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function eventLabel(action) {
   const labels = {
     ACCOUNT_CREATED: "New account registered",
@@ -47,11 +54,33 @@ export default function OwnerAdminDashboard() {
   const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
   const [selectedMemberUserId, setSelectedMemberUserId] = useState("");
   const [selectedMemberRole, setSelectedMemberRole] = useState("student");
+  const [subscriptionPlan, setSubscriptionPlan] = useState("pilot");
+  const [subscriptionStatus, setSubscriptionStatus] = useState("pilot");
+  const [subscriptionFeatures, setSubscriptionFeatures] = useState(["hostel","scholarship","student_submissions"]);
+  const [subscriptionStartsAt, setSubscriptionStartsAt] = useState("");
+  const [subscriptionEndsAt, setSubscriptionEndsAt] = useState("");
   const [institutionError, setInstitutionError] = useState("");
   const [institutionBusy, setInstitutionBusy] = useState(false);
   const [institutionAudit, setInstitutionAudit] = useState({});
 
 
+
+  useEffect(() => {
+    if (!selectedInstitutionId) return undefined;
+    let cancelled = false;
+    api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/subscription", { cache: "no-store" })
+      .then(result => {
+        if (cancelled || !result.subscription) return;
+        const value = result.subscription;
+        setSubscriptionPlan(value.planKey || "pilot");
+        setSubscriptionStatus(value.status || "pilot");
+        setSubscriptionFeatures(Array.isArray(value.features) ? value.features : []);
+        setSubscriptionStartsAt(toLocalDateTime(value.startsAt));
+        setSubscriptionEndsAt(toLocalDateTime(value.endsAt));
+      })
+      .catch(error => { if (!cancelled) setInstitutionError(error?.message || "Subscription settings could not be loaded."); });
+    return () => { cancelled = true; };
+  }, [selectedInstitutionId]);
 
   async function load() {
     setLoading(true); setError(""); setUsersError(""); setActivityError(""); setNotificationError(""); setNotice("");
@@ -153,13 +182,38 @@ export default function OwnerAdminDashboard() {
     if (!selectedInstitutionId || !selectedMemberUserId) return;
     setInstitutionBusy(true); setInstitutionError(""); setNotice("");
     try {
+      const baseRole = selectedMemberRole === "warden" ? "read_only" : selectedMemberRole;
       await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/memberships", {
-        method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: selectedMemberRole })
+        method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: baseRole })
       });
+      if (selectedMemberRole === "warden") {
+        await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/membership-roles", {
+          method: "POST", body: JSON.stringify({ userId: selectedMemberUserId, role: "warden", action: "grant" })
+        });
+      }
       await load();
       setNotice("Institution membership provisioned and audit entry recorded.");
     } catch (e) {
       setInstitutionError(e?.message || "Membership could not be provisioned.");
+    } finally { setInstitutionBusy(false); }
+  }
+
+  async function saveInstitutionSubscription(event) {
+    event.preventDefault();
+    if (!selectedInstitutionId || institutionBusy) return;
+    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
+    try {
+      await api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/subscription", {
+        method: "PUT",
+        body: JSON.stringify({
+          planKey: subscriptionPlan, status: subscriptionStatus, features: subscriptionFeatures,
+          startsAt: subscriptionStartsAt ? new Date(subscriptionStartsAt).toISOString() : null,
+          endsAt: subscriptionEndsAt ? new Date(subscriptionEndsAt).toISOString() : null
+        })
+      });
+      setNotice("Institution subscription entitlements saved. These entitlements do not change anyone's role.");
+    } catch (e) {
+      setInstitutionError(e?.message || "Subscription entitlements could not be saved.");
     } finally { setInstitutionBusy(false); }
   }
 
@@ -171,6 +225,20 @@ export default function OwnerAdminDashboard() {
     } catch (e) {
       setInstitutionError(e?.message || "Institution audit history could not be loaded.");
     }
+  }
+
+  async function updateWardenRole(membership, action) {
+    if (institutionBusy) return;
+    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
+    try {
+      await api("/api/admin/institutions/" + encodeURIComponent(membership.institutionId) + "/membership-roles", {
+        method: "POST", body: JSON.stringify({ userId: membership.userId, role: "warden", action })
+      });
+      await load();
+      setNotice(action === "grant" ? "Warden role granted and recorded." : "Warden role revoked and recorded.");
+    } catch (e) {
+      setInstitutionError(e?.message || "Warden role could not be updated.");
+    } finally { setInstitutionBusy(false); }
   }
 
   async function updateMembership(membership, status) {
@@ -253,15 +321,33 @@ export default function OwnerAdminDashboard() {
         <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
           <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
-          <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="read_only">Read only</option></select></label>
+          <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="warden">Warden (hostel operations)</option><option value="read_only">Read only</option></select></label>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button>
+        </form>
+        <form onSubmit={saveInstitutionSubscription} style={{border:"1px solid var(--border,#ddd)",borderRadius:12,padding:14,margin:"16px 0",display:"grid",gap:10}}>
+          <strong>Institution subscription & feature access</strong>
+          <p className="collegePrivacyNote">Subscription controls enabled modules only. It never grants Student, Warden, Reviewer or Institution Admin permissions.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+            <label>Plan key<input value={subscriptionPlan} maxLength={40} onChange={event => setSubscriptionPlan(event.target.value)} required /></label>
+            <label>Subscription status<select value={subscriptionStatus} onChange={event => setSubscriptionStatus(event.target.value)}><option value="pilot">Pilot</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="expired">Expired</option></select></label>
+            <label>Starts at (optional)<input type="datetime-local" value={subscriptionStartsAt} onChange={event => setSubscriptionStartsAt(event.target.value)} /></label>
+            <label>Ends at (optional)<input type="datetime-local" value={subscriptionEndsAt} onChange={event => setSubscriptionEndsAt(event.target.value)} /></label>
+          </div>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            {[
+              ["hostel","Hostel management"],
+              ["scholarship","Scholarship management"],
+              ["student_submissions","Student document submissions"]
+            ].map(([feature,label]) => <label key={feature} style={{display:"inline-flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={subscriptionFeatures.includes(feature)} onChange={event => setSubscriptionFeatures(current => event.target.checked ? [...current,feature] : current.filter(item => item!==feature))} />{label}</label>)}
+          </div>
+          <button className="secondary" type="submit" disabled={institutionBusy || !selectedInstitutionId}>Save subscription entitlements</button>
         </form>
         <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"10px 0"}}>
           <button type="button" className="secondary" disabled={!selectedInstitutionId} onClick={() => loadInstitutionAudit(selectedInstitutionId)}>View selected institution audit</button>
           {institutionAudit[selectedInstitutionId] && <small>{institutionAudit[selectedInstitutionId].length} recent audit events</small>}
         </div>
         {institutionAudit[selectedInstitutionId] && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"8px"}}>Time</th><th style={{padding:"8px"}}>Action</th><th style={{padding:"8px"}}>Account</th><th style={{padding:"8px"}}>Role / status</th></tr></thead><tbody>{institutionAudit[selectedInstitutionId].map((event,index)=><tr key={index}><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(event.createdAt)}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.action.replaceAll("_"," ")}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.fromRole || "—"} → {event.toRole || "—"} · {event.fromStatus || "—"} → {event.toStatus || "—"}</td></tr>)}</tbody></table></div>}
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Role</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.role.replaceAll("_"," ")}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Role</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.role.replaceAll("_"," ")}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status === "active" && <button className="secondary" disabled={institutionBusy} onClick={() => updateWardenRole(member,member.role === "warden" ? "revoke" : "grant")}>{member.role === "warden" ? "Revoke Warden" : "Grant Warden"}</button>} <button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
       </>}
       {institutions.length === 0 && <p>No institutions have been provisioned yet.</p>}
       <small>Never provision a student or staff role based only on an unverified email or college name. Membership does not itself authorize document downloads.</small>
