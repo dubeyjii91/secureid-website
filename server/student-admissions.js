@@ -193,7 +193,7 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
       }
       return res.json({success:true,status,message:status==="approved"?"Admission approved and student membership created.":"Admission review updated."});
     } catch(error) {
-      if(String(error?.message||"").includes("non-student institution membership") || String(error?.message||"").includes("suspended institution membership")) return fail(res,409,error.message);
+      if(String(error?.message||"").includes("institution membership") || String(error?.message||"").includes("already been reviewed")) return fail(res,409,error.message);
       next(error);
     }
   });
