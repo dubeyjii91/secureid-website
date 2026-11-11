@@ -1911,6 +1911,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   app.post("/api/institutions/hostel-applications", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=String(req.body?.institutionId||"");
+      if(!hasInstitutionFeature(institutionId,"hostel")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Hostel management is not enabled for this institution's subscription."});
       if(req.body?.consent!==true) return res.status(400).json({success:false,message:"Explicit consent is required before submitting a hostel application."});
       const academicYear=String(req.body?.academicYear||"").trim();
       const stayType=String(req.body?.stayType||"");
@@ -1963,7 +1964,10 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
       const requested=String(req.query.institutionId||"");
       if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
-      const visible=requested?[requested]:ids,placeholders=visible.map(()=>"?").join(",");
+      if(requested&&!hasInstitutionFeature(requested,"hostel")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Hostel management is not enabled for this institution's subscription."});
+      const visible=(requested?[requested]:ids).filter(id=>hasInstitutionFeature(id,"hostel"));
+      if(!visible.length) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Hostel management is not enabled for your institution subscription."});
+      const placeholders=visible.map(()=>"?").join(",");
       const rows=database.prepare(`
         SELECT h.id,h.institution_id AS institutionId,i.name AS institutionName,h.student_user_id AS studentUserId,
           h.academic_year AS academicYear,h.stay_type AS stayType,h.room_preference AS roomPreference,
@@ -2017,7 +2021,10 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!ids.length) return res.status(403).json({success:false,message:"An active institution membership is required."});
       const requested=String(req.query.institutionId||"");
       if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
-      const visible=requested?[requested]:ids,marks=visible.map(()=>"?").join(",");
+      if(requested&&!hasInstitutionFeature(requested,"hostel")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Hostel management is not enabled for this institution's subscription."});
+      const visible=(requested?[requested]:ids).filter(id=>hasInstitutionFeature(id,"hostel"));
+      if(!visible.length) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Hostel management is not enabled for your institution subscription."});
+      const marks=visible.map(()=>"?").join(",");
       const requestedYear=String(req.query.academicYear||"");
       const academicYear=/^20\d{2}-20\d{2}$/.test(requestedYear)?requestedYear:`${new Date().getFullYear()}-${new Date().getFullYear()+1}`;
       const buildings=database.prepare(`SELECT id,institution_id AS institutionId,name FROM hostel_buildings WHERE institution_id IN (${marks}) ORDER BY name`).all(...visible);
