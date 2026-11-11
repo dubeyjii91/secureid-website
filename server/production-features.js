@@ -1806,7 +1806,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
   app.get("/api/institutions/my-review-submissions", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
-      const rows=database.prepare(`
+      const rows=database.prepare(`      const rows=database.prepare(`
         SELECT s.id,s.institution_id AS institutionId,i.name AS institutionName,s.document_id AS documentId,
           d.original_name AS documentName,d.document_category AS documentCategory,s.purpose,s.status,
           s.encrypted_review_note AS encryptedReviewNote,s.consent_version AS consentVersion,s.consented_at AS consentedAt,s.created_at AS createdAt,s.updated_at AS updatedAt
@@ -1825,6 +1825,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const allowedPurposes = new Set(["College enrollment review","Scholarship application","Hostel admission","Exam registration","Student identity record"]);
       if(req.body?.consent!==true) return res.status(400).json({success:false,message:"Explicit consent is required before submitting a document for review."});
       if(!institutionId||institutionId.length>128||!documentId||documentId.length>128||!allowedPurposes.has(purpose)) return res.status(400).json({success:false,message:"Choose an institution, one of your documents and a purpose up to 160 characters."});
+      if(!hasInstitutionFeature(institutionId,"student_submissions")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Student document submissions are not enabled for this institution's subscription."});
       const membership=getInstitutionMembership(req.user.id,institutionId);
       if(!membership||membership.status!=="active"||membership.role!=="student") return res.status(403).json({success:false,code:"ACTIVE_STUDENT_MEMBERSHIP_REQUIRED",message:"An active student membership is required."});
       const doc=database.prepare("SELECT id,original_name,document_category FROM secure_documents WHERE id=? AND user_id=? AND deleted_at IS NULL").get(documentId,req.user.id);
@@ -1853,7 +1854,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const memberships=database.prepare("SELECT institution_id FROM institution_memberships WHERE user_id=? AND status='active' AND role IN ('reviewer','institution_admin','read_only')").all(req.user.id);
       const ids=memberships.map(row=>row.institution_id);
       if(!ids.length) return res.status(403).json({success:false,code:"REVIEWER_MEMBERSHIP_REQUIRED",message:"An active reviewer, institution administrator or read-only membership is required."});
-      const requested=String(req.query.institutionId||"");
+      const requested=String(req.query.institutionId||"");      const requested=String(req.query.institutionId||"");
       if(requested&&!ids.includes(requested)) return res.status(403).json({success:false,message:"You do not have access to this institution."});
       const visible=requested?[requested]:ids, placeholders=visible.map(()=>"?").join(",");
       const rows=database.prepare(`
