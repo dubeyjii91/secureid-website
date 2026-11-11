@@ -1880,7 +1880,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const row=database.prepare("SELECT id,institution_id,status FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
       if(!row) return res.status(404).json({success:false,message:"Review submission was not found."});
       if(!hasInstitutionFeature(row.institution_id,"student_submissions")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Student document submissions are not enabled for this institution's subscription."});
-      const membership=getInstitutionMembership(req.user.id,row.institution_id);      const membership=getInstitutionMembership(req.user.id,row.institution_id);
+      const membership=getInstitutionMembership(req.user.id,row.institution_id);
       if(!membership||membership.status!=="active"||!["reviewer","institution_admin"].includes(membership.role)) return res.status(403).json({success:false,code:"REVIEW_ACTION_FORBIDDEN",message:"An active reviewer or institution administrator membership is required."});
       const status=String(req.body?.status||""),note=String(req.body?.reviewNote||"").trim();
       if(!["needs_correction","approved","rejected"].includes(status)||note.length>500) return res.status(400).json({success:false,message:"Choose a valid outcome and keep the note within 500 characters."});
@@ -1897,7 +1897,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const row=database.prepare("SELECT id,institution_id,student_user_id FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
       if(!row) return res.status(404).json({success:false,message:"Review submission was not found."});
       if(!hasInstitutionFeature(row.institution_id,"student_submissions")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Student document submissions are not enabled for this institution's subscription."});
-      const member=getInstitutionMembership(req.user.id,row.institution_id),student=row.student_user_id===req.user.id;      const member=getInstitutionMembership(req.user.id,row.institution_id),student=row.student_user_id===req.user.id;
+      const member=getInstitutionMembership(req.user.id,row.institution_id),student=row.student_user_id===req.user.id;
       if(!student&&(!member||member.status!=="active"||!["reviewer","institution_admin","read_only"].includes(member.role))) return res.status(403).json({success:false,message:"You do not have access to this review history."});
       const audit=database.prepare(`
         SELECT a.action,a.from_status AS fromStatus,a.to_status AS toStatus,
