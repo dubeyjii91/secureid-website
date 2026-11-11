@@ -1644,7 +1644,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     next();
   }
   function getInstitutionMembership(userId, institutionId) {
-    return database.prepare("SELECT id, institution_id, role, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
+    return database.prepare("SELECT id, institution_id, CASE WHEN EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=institution_memberships.id AND g.role='warden') THEN 'warden' ELSE role END AS role, role AS baseRole, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
   }
   function hasInstitutionFeature(institutionId, feature) {
     const row=database.prepare("SELECT status,features_json,starts_at,ends_at FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
@@ -1708,7 +1708,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!name||name.length>160) return res.status(400).json({success:false,message:"Institution name must be 1–160 characters."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institutions(id,name,created_at) VALUES(?,?,?)").run(id,name,now);
-      database.prepare("INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'pilot','pilot','["hostel","scholarship","student_submissions"]',?,?,?)")
+      database.prepare(`INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'pilot','pilot','["hostel","scholarship","student_submissions"]',?,?,?)`)
         .run(id,now,req.user.id,now);
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_CREATED",req);
       res.setHeader("Cache-Control","private, no-store");
@@ -1843,7 +1843,6 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const row=database.prepare("SELECT id,institution_id,student_user_id,status FROM institution_review_submissions WHERE id=?").get(String(req.params.id||""));
       if(!row||row.student_user_id!==req.user.id) return res.status(404).json({success:false,message:"Review submission was not found."});
       if(!hasInstitutionFeature(row.institution_id,"student_submissions")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Student document submissions are not enabled for this institution's subscription."});
-      if(!row||row.student_user_id!==req.user.id) return res.status(404).json({success:false,message:"Review submission was not found."});
       if(!["submitted","needs_correction"].includes(row.status)) return res.status(409).json({success:false,message:"This review can no longer be withdrawn."});
       const now=new Date().toISOString();
       database.prepare("UPDATE institution_review_submissions SET status='withdrawn',updated_at=? WHERE id=? AND student_user_id=?").run(now,row.id,req.user.id);
