@@ -26,6 +26,7 @@ test("account deletion blocks safely when institution-owned records still refere
     "FROM hostel_fee_payments WHERE received_by=?",
     "FROM institution_membership_role_grants WHERE granted_by=?",
     "FROM hostel_room_occupancy_audit WHERE actor_user_id=?",
+    "UPDATE institution_subscriptions SET updated_by=NULL WHERE updated_by=?",
     'code: "INSTITUTION_RECORDS_REQUIRE_RETENTION"',
     "status(409)",
   ];
