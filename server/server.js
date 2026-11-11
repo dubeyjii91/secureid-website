@@ -552,6 +552,26 @@ app.delete("/api/account", enforceSameOrigin, requireAuth, requireMfa, async (re
     const docs=database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=?").all(req.user.id);
     database.exec("BEGIN");
     try{
+      // Institution-owned history must not be silently deleted or reassigned when a staff account is removed.
+      // Check non-null user foreign keys inside the transaction and fail safely before changing any records.
+      const deletionBlockers = [
+        { label: "scholarship programs created by this account", count: database.prepare("SELECT COUNT(*) AS count FROM scholarship_programs WHERE created_by=?").get(req.user.id).count },
+        { label: "hostel buildings created by this account", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_buildings WHERE created_by=?").get(req.user.id).count },
+        { label: "hostel bed allocations recorded by this account", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE allocated_by=? AND application_id NOT IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").get(req.user.id,req.user.id).count },
+        { label: "hostel fee records created by this account", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_fee_records WHERE created_by=? AND (application_id IS NULL OR application_id NOT IN (SELECT id FROM hostel_applications WHERE student_user_id=?))").get(req.user.id,req.user.id).count },
+        { label: "hostel fee payments received by this account", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_fee_payments WHERE received_by=? AND fee_record_id NOT IN (SELECT id FROM hostel_fee_records WHERE application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?))").get(req.user.id,req.user.id).count },
+        { label: "warden role grants issued by this account", count: database.prepare("SELECT COUNT(*) AS count FROM institution_membership_role_grants WHERE granted_by=?").get(req.user.id).count },
+        { label: "hostel room occupancy audit records", count: database.prepare("SELECT COUNT(*) AS count FROM hostel_room_occupancy_audit WHERE actor_user_id=?").get(req.user.id).count },
+      ].filter((item) => Number(item.count || 0) > 0);
+      if (deletionBlockers.length) {
+        database.exec("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          code: "INSTITUTION_RECORDS_REQUIRE_RETENTION",
+          message: "This account is still linked to institution records. Ask the institution owner to transfer or retain these records before deleting the account.",
+          blockers: deletionBlockers.map(({ label, count }) => ({ label, count: Number(count) })),
+        });
+      }
       database.prepare("DELETE FROM secure_document_shares WHERE user_id=?").run(req.user.id);
       database.prepare("DELETE FROM secure_shares WHERE user_id=?").run(req.user.id);
       // Remove institution audit rows before deleting referenced memberships,
