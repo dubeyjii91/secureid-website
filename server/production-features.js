@@ -1733,14 +1733,14 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const action=String(req.body?.action||"grant");
       if(!userId||userId.length>128||role!=="warden"||!["grant","revoke"].includes(action))
         return res.status(400).json({success:false,message:"Choose a valid account, Warden role and grant/revoke action."});
-      const membership=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId);
+      const membership=database.prepare("SELECT id,role,status FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId);
       if(!membership) return res.status(404).json({success:false,message:"Create an institution membership before assigning the Warden role."});
-      if(action==="grant") {
-        database.prepare("INSERT OR IGNORE INTO institution_membership_role_grants(id,membership_id,role,granted_by,created_at) VALUES(?,?,'warden',?,?)")
-          .run(crypto.randomUUID(),membership.id,req.user.id,new Date().toISOString());
-      } else {
-        database.prepare("DELETE FROM institution_membership_role_grants WHERE membership_id=? AND role='warden'").run(membership.id);
-      }
+      const now=new Date().toISOString();
+      const changed=action==="grant"
+        ? database.prepare("INSERT OR IGNORE INTO institution_membership_role_grants(id,membership_id,role,granted_by,created_at) VALUES(?,?,'warden',?,?)").run(crypto.randomUUID(),membership.id,req.user.id,now).changes
+        : database.prepare("DELETE FROM institution_membership_role_grants WHERE membership_id=? AND role='warden'").run(membership.id).changes;
+      if(changed) database.prepare("INSERT INTO institution_membership_audit(id,institution_id,membership_id,actor_user_id,target_user_id,action,from_role,to_role,from_status,to_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .run(crypto.randomUUID(),institutionId,membership.id,req.user.id,userId,action==="grant"?"warden_role_granted":"warden_role_revoked",membership.role,action==="grant"?"warden":membership.role,membership.status,membership.status,now);
       if(typeof logEvent==="function") logEvent(req.user.id,action==="grant"?"INSTITUTION_WARDEN_GRANTED":"INSTITUTION_WARDEN_REVOKED",req);
       res.setHeader("Cache-Control","private, no-store");
       return res.json({success:true,userId,role:"warden",action});
