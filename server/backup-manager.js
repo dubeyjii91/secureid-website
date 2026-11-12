@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createCipheriv, randomBytes, createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 function backupAlertConfiguration(){
@@ -210,7 +210,7 @@ export async function getLatestEncryptedBackup(){
   const backupDir=path.resolve(process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups"));
   if(!existsSync(backupDir)) throw new Error("Encrypted backup directory does not exist.");
   const candidates=readdirSync(backupDir,{withFileTypes:true})
-    .filter(entry=>entry.isFile() && /^secureid-.*\\.backup\\.json$/.test(entry.name))
+    .filter(entry=>entry.isFile() && /^secureid-.*\.backup\.json$/.test(entry.name))
     .map(entry=>({name:entry.name,fullPath:path.join(backupDir,entry.name),mtime:statSync(path.join(backupDir,entry.name)).mtimeMs}))
     .sort((a,b)=>b.mtime-a.mtime);
   if(!candidates.length) throw new Error("No encrypted backup is available for off-platform transfer.");
@@ -218,16 +218,7 @@ export async function getLatestEncryptedBackup(){
   const metadata=statSync(selected.fullPath);
   if(!metadata.isFile() || metadata.size<1) throw new Error("Encrypted backup artifact is not a regular non-empty file.");
   const hash=createHash("sha256");
-  for await (const chunk of (await import("node:fs")).createReadStream(selected.fullPath)) hash.update(chunk);
-  let createdAt=new Date(metadata.mtimeMs).toISOString();
-  try{
-    const header=JSON.parse(readFileSync(selected.fullPath,"utf8"));
-    if(typeof header.createdAt==="string" && Number.isFinite(Date.parse(header.createdAt))) createdAt=header.createdAt;
-    if(header.version!==2 || typeof header.iv!=="string" || typeof header.tag!=="string" || typeof header.data!=="string" || !/^[a-f0-9]{64}$/i.test(String(header.sha256||""))) {
-      throw new Error("Encrypted backup artifact format is invalid.");
-    }
-  }catch(error){
-    throw new Error(error?.message==="Encrypted backup artifact format is invalid." ? error.message : "Encrypted backup artifact could not be validated.");
-  }
+  for await (const chunk of createReadStream(selected.fullPath)) hash.update(chunk);
+  const createdAt=new Date(metadata.mtimeMs).toISOString();
   return {filePath:selected.fullPath,fileName:selected.name,size:metadata.size,sha256:hash.digest("hex"),createdAt};
 }
