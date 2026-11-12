@@ -217,6 +217,7 @@ export async function getLatestEncryptedBackup(){
   const selected=candidates[0];
   const metadata=statSync(selected.fullPath);
   if(!metadata.isFile() || metadata.size<1) throw new Error("Encrypted backup artifact is not a regular non-empty file.");
+  if(metadata.size>400*1024*1024) throw new Error("Encrypted backup exceeds the off-site transfer limit.");
   const hash=createHash("sha256");
   for await (const chunk of createReadStream(selected.fullPath)) hash.update(chunk);
   const createdAt=new Date(metadata.mtimeMs).toISOString();
