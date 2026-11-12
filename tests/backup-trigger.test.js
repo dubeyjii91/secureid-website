@@ -33,7 +33,7 @@ test("backup trigger is disabled when no sufficiently long token is configured",
   await handlers.at(-1)({ headers: {} }, res);
   assert.equal(res.statusCode, 404);
   assert.equal(res.body.success, false);
-  assert.equal(res.headers["Cache-Control"], "no-store");
+  assert.equal(res.headers["Cache-Control"], "no-store, private");
 });
 
 test("backup trigger rejects missing and incorrect bearer tokens", async () => {
