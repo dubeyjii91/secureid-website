@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createCipheriv, randomBytes, createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 function backupAlertConfiguration(){
@@ -200,4 +200,26 @@ export function startAutomaticBackup(){
   // does not remain without a recovery point for the first five minutes.
   setTimeout(run,10_000).unref();
   setInterval(run,intervalHours*60*60*1000).unref();
+}
+
+
+// Return metadata for the newest encrypted artifact without exposing its storage path.
+// Hash the exact file bytes as a stream so callers can verify the downloaded copy
+// without loading a potentially large document archive into memory.
+export async function getLatestEncryptedBackup(){
+  const backupDir=path.resolve(process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups"));
+  if(!existsSync(backupDir)) throw new Error("Encrypted backup directory does not exist.");
+  const candidates=readdirSync(backupDir,{withFileTypes:true})
+    .filter(entry=>entry.isFile() && /^secureid-.*\.backup\.json$/.test(entry.name))
+    .map(entry=>({name:entry.name,fullPath:path.join(backupDir,entry.name),mtime:statSync(path.join(backupDir,entry.name)).mtimeMs}))
+    .sort((a,b)=>b.mtime-a.mtime);
+  if(!candidates.length) throw new Error("No encrypted backup is available for off-platform transfer.");
+  const selected=candidates[0];
+  const metadata=statSync(selected.fullPath);
+  if(!metadata.isFile() || metadata.size<1) throw new Error("Encrypted backup artifact is not a regular non-empty file.");
+  if(metadata.size>400*1024*1024) throw new Error("Encrypted backup exceeds the off-site transfer limit.");
+  const hash=createHash("sha256");
+  for await (const chunk of createReadStream(selected.fullPath)) hash.update(chunk);
+  const createdAt=new Date(metadata.mtimeMs).toISOString();
+  return {filePath:selected.fullPath,fileName:selected.name,size:metadata.size,sha256:hash.digest("hex"),createdAt};
 }
