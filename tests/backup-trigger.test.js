@@ -2,13 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { once } from "node:events";
+import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { registerBackupTrigger } from "../server/backup-trigger.js";
 
 function setup({ token = "a".repeat(43), runBackup = () => ({ success: true, sha256: "b".repeat(64) }) } = {}) {
   const routes = new Map();
-  const app = { post: (path, ...handlers) => routes.set(path, handlers) };
-  registerBackupTrigger({ app, runBackup, env: { BACKUP_TRIGGER_TOKEN: token }, now: () => new Date("2026-11-12T00:00:00.000Z") });
-  return routes.get("/api/internal/backup/run");
+  const app = { post: (path, ...handlers) => routes.set("POST "+path, handlers), get: (path, ...handlers) => routes.set("GET "+path, handlers) };
+  registerBackupTrigger({ app, runBackup, getBackupFile: async () => ({ filePath: "/tmp/not-used", fileName: "secureid-test.backup.json", size: 1, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }), env: { BACKUP_TRIGGER_TOKEN: token }, now: () => new Date("2026-11-12T00:00:00.000Z") });
+  return routes.get("POST /api/internal/backup/run");
 }
 
 function response() {
@@ -86,4 +90,54 @@ test("backup trigger enforces a per-process request limit", async (t) => {
   }
   assert.deepEqual(statuses.slice(0, 10), Array(10).fill(200));
   assert.equal(statuses[10], 429);
+});
+
+
+test("off-site download requires the bearer token and streams only the encrypted artifact with a raw-file digest", async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), "secureid-offsite-test-"));
+  const filePath = path.join(directory, "secureid-2026-11-12T00-00-00-000Z.backup.json");
+  const bytes = Buffer.from(JSON.stringify({ version: 2, iv: "encrypted", tag: "tag", data: "ciphertext" }));
+  writeFileSync(filePath, bytes, { mode: 0o600 });
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  const token = "z".repeat(43);
+  const app = express();
+  registerBackupTrigger({
+    app,
+    runBackup: () => ({ success: true, sha256: "a".repeat(64) }),
+    getBackupFile: async () => ({ filePath, fileName: path.basename(filePath), size: bytes.length, sha256: digest, createdAt: "2026-11-12T00:00:00.000Z" }),
+    env: { BACKUP_TRIGGER_TOKEN: token },
+  });
+  const server = app.listen(0);
+  await once(server, "listening");
+  t.after(() => {
+    server.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const url = `http://127.0.0.1:${server.address().port}/api/internal/backup/download`;
+  const denied = await fetch(url);
+  assert.equal(denied.status, 401);
+  await denied.arrayBuffer();
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store, private");
+  assert.equal(response.headers.get("x-backup-sha256"), digest);
+  assert.equal(response.headers.get("content-disposition"), `attachment; filename="${path.basename(filePath)}"`);
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+});
+
+test("off-site download rejects artifacts above the hard transfer limit", async (t) => {
+  const token = "y".repeat(43);
+  const app = express();
+  registerBackupTrigger({
+    app,
+    runBackup: () => ({ success: true, sha256: "a".repeat(64) }),
+    getBackupFile: async () => ({ filePath: "/tmp/not-used", fileName: "secureid-test.backup.json", size: 400 * 1024 * 1024 + 1, sha256: "b".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
+    env: { BACKUP_TRIGGER_TOKEN: token },
+  });
+  const server = app.listen(0);
+  await once(server, "listening");
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/internal/backup/download`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).success, false);
 });
