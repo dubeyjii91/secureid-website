@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { rateLimit } from "express-rate-limit";
 
 const MINIMUM_TOKEN_LENGTH = 32;
 
@@ -10,13 +11,21 @@ function authorized(request, configuredToken) {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
+const backupTriggerRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many backup requests. Try again later." },
+});
+
 export function registerBackupTrigger({ app, runBackup, env = process.env, now = () => new Date() }) {
   if (!app || typeof app.post !== "function") throw new TypeError("An Express-compatible app is required.");
   if (typeof runBackup !== "function") throw new TypeError("A backup function is required.");
 
   let running = false;
 
-  app.post("/api/internal/backup/run", async (req, res) => {
+  app.post("/api/internal/backup/run", backupTriggerRateLimit, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Pragma", "no-cache");
 
