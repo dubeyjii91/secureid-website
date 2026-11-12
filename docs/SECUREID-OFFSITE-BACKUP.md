@@ -2,23 +2,24 @@
 
 ## What is stored
 
-The scheduled GitHub Actions workflow calls SecureID's token-protected backup trigger, downloads the newest AES-256-GCM encrypted backup over HTTPS, verifies the SHA-256 digest of the exact downloaded file, and uploads it as a private-repository Actions artifact.
+The scheduled GitHub Actions workflow is designed to call SecureID's token-protected backup trigger, download the newest AES-256-GCM encrypted backup over HTTPS, verify the SHA-256 digest of the exact downloaded file, and upload it as a private-repository Actions artifact. It first checks the repository visibility and fails closed unless the destination is private. **The current `dubeyjii91/secureid-website` repository is public, so the off-site transfer is intentionally blocked until the workflow runs from a private repository.**
 
 - Artifact name: `secureid-encrypted-backup-<workflow-run-id>`
 - Retention: 30 days
 - Maximum transfer size: 400 MiB per backup
 - GitHub Free artifact storage: shared repository/account quota; this workflow does not reserve capacity.
+- The current public source repository is not an approved backup destination; no backup payload may be uploaded there.
 - The artifact includes the encrypted backup and a non-secret manifest (filename, byte count, SHA-256, creation time, encryption type).
 - `BACKUP_ENCRYPTION_KEY` is never sent to GitHub, written to the artifact, or included in workflow logs.
 - The endpoint requires the existing `BACKUP_TRIGGER_TOKEN` bearer secret and is rate limited. It exposes no filesystem path or plaintext backup endpoint.
 
-This is an additional temporary off-site copy, not permanent disaster recovery. Artifacts expire after 30 days, can be deleted with workflow runs, and may fail to upload if the shared GitHub Actions storage quota is exhausted. Continue retaining the Railway-volume backup and monitoring workflow success.
+Until the workflow is hosted in a private repository, the GitHub off-site copy is not active. This is intended as an additional temporary off-site copy, not permanent disaster recovery. Artifacts expire after 30 days, can be deleted with workflow runs, and may fail to upload if the shared GitHub Actions storage quota is exhausted. Continue retaining the Railway-volume backup and monitoring workflow success.
 
 ## Restore from a GitHub artifact
 
 Perform recovery only on an isolated machine or disposable environment. Never restore a test artifact over the live production database.
 
-1. Open the private repository's **Actions** tab and select a successful **SecureID scheduled encrypted backup** run.
+1. After the workflow has been moved to a private repository, open that repository's **Actions** tab and select a successful **SecureID scheduled encrypted backup** run.
 2. Download the `secureid-encrypted-backup-<run-id>` artifact ZIP and extract it into a restricted local directory.
 3. Verify the extracted encrypted backup against the `sha256` value in `secureid-backup-manifest.txt`:
    `sha256sum secureid-*.backup.json`.
