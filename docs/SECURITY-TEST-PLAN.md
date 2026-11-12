@@ -62,6 +62,8 @@ Run on the exact release commit in CI:
 - [ ] Backup artifact is encrypted, access-controlled, and stored outside the application source tree.
 - [ ] Backup logs never contain identity values, OTPs, session tokens, keys, or document contents.
 - [ ] A backup is created on schedule and alert delivery is tested end-to-end.
+- [ ] If the external GitHub Actions trigger is enabled, verify missing/incorrect bearer tokens are rejected, a valid token returns only a SHA-256 digest and completion time, and the scheduled/manual workflow completes successfully.
+- [ ] Confirm the external workflow's encrypted backup is still only on the Railway volume; do not count it as off-platform disaster recovery.
 - [ ] Restore is tested on an isolated disposable instance, never over the live production database.
 - [ ] Restored records and encrypted documents can be read with the correct key; corruption/wrong-key cases fail safely.
 - [ ] Retention, deletion, recovery-point objective, recovery-time objective, and off-platform copy are documented.

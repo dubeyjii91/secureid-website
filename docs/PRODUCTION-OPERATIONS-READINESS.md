@@ -17,7 +17,9 @@ This runbook records operational controls that must be evidenced before SecureID
 
 ### 1. Backup scheduling independent of API uptime
 
-The current backup scheduler uses `setTimeout` and `setInterval` in the web/API process. These timers do not run while the process is stopped or sleeping. Therefore, a successful backup on startup does not prove a continuous 24-hour schedule.
+The existing backup scheduler still uses `setTimeout` and `setInterval` in the web/API process. Those timers do not run while the process is stopped or sleeping. This change adds an optional GitHub Actions schedule that calls a token-protected endpoint to run the existing encrypted backup independently of the API timer. It is not active until the same random `BACKUP_TRIGGER_TOKEN` is configured in Railway and the GitHub Actions secret `SECUREID_BACKUP_TRIGGER_TOKEN` is configured, the new application version is deployed, and a manual workflow run succeeds. The workflow retries requests while Railway wakes from sleep.
+
+This external scheduler still writes the encrypted artifact to the existing Railway persistent volume. It does not create an off-platform copy and does not protect against loss of that volume, Railway account, or region. Do not mark off-site backup or disaster recovery as complete.
 
 Before relying on a defined recovery-point objective:
 - Configure an external scheduler or a dedicated Railway cron/worker service that invokes the backup command against the same protected persistent data, or use a managed database backup facility.
