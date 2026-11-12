@@ -45,3 +45,13 @@ test("native sessions use a server-issued bearer token and keep browser cookie a
   assert.match(server, /csrfToken \} : \{\}/);
   assert.match(server, /nativeBearer = Boolean\(bearerToken && database\.prepare/);
 });
+
+test("logout revokes the exact server-side session so a replayed token cannot authenticate", () => {
+  const logoutRoute = server.match(/app\\.post\\("\/api\/auth\/logout"[\\s\\S]*?\\n\\}\\);/);
+  assert.ok(logoutRoute, "logout route must remain registered");
+  assert.match(logoutRoute[0], /DELETE FROM sessions WHERE token_hash = \\?/);
+  assert.match(logoutRoute[0], /req\\.session\\.token_hash/);
+  assert.match(logoutRoute[0], /clearSessionCookie\\(res\\)/);
+  assert.match(logoutRoute[0], /res\\.json\\(\\{ success: true \\}\\)/);
+  assert.match(server, /SELECT s\\.token_hash, s\\.expires_at[\\s\\S]*?WHERE s\\.token_hash = \\?/);
+});
