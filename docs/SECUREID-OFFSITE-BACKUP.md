@@ -2,7 +2,7 @@
 
 ## What is stored
 
-The scheduled GitHub Actions workflow is designed to call SecureID's token-protected backup trigger, download the newest AES-256-GCM encrypted backup over HTTPS, verify the SHA-256 digest of the exact downloaded file, and upload it as a private-repository Actions artifact. It first checks the repository visibility and fails closed unless the destination is private. **The current `dubeyjii91/secureid-website` repository is public, so the off-site transfer is intentionally blocked until the workflow runs from a private repository.**
+The scheduled GitHub Actions workflow is designed to call SecureID's token-protected backup trigger, download the newest AES-256-GCM encrypted backup over HTTPS, verify the SHA-256 digest of the exact downloaded file, and upload it as a private-repository Actions artifact. It first checks the repository visibility and fails closed unless the destination is private. **The current `dubeyjii91/secureid-website` repository is public, so the off-site transfer is intentionally blocked until the workflow runs from a private repository. The workflow may still trigger a new encrypted backup on the Railway volume; the privacy gate runs before downloading or exporting the backup.**
 
 - Artifact name: `secureid-encrypted-backup-<workflow-run-id>`
 - Retention: 30 days
