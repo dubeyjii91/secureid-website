@@ -101,3 +101,18 @@ After deployment `47ed7540-d7a4-492a-8478-1b8d2ec0ffb7` (commit `ed3d9077162eabb
 - Evidence source: Railway deployment logs for the deployment above.
 
 This verifies a restore from the current Railway-volume backup after the snapshot-permission and temporary-file-cleanup fixes. It does **not** verify an off-platform copy, independent scheduler, or restore from a different provider/region. Those remain blocked until a zero-budget-compatible option or explicit hosting/storage budget is approved.
+
+
+### Off-site backup export implementation — 2026-11-12
+
+- PR: https://github.com/dubeyjii91/secureid-website/pull/147
+- Merge commit: `ba02250a55d4936bb0396c3f18f40472c8bf0a63`
+- Railway deployment: `0d8deaef-88de-4555-bbdc-10983a47535b` — SUCCESS
+- Production service: online, one running replica, no active warnings or critical issues.
+- New authenticated export route: `GET /api/internal/backup/download`; it returns only the encrypted artifact, is bearer-token protected, no-store, rate-limited, SHA-256 verified, and capped at 400 MiB.
+- The scheduled workflow verifies repository visibility before downloading/exporting; it still creates the on-volume backup first so the existing external scheduler remains useful while the destination is not private.
+- Startup backup after deployment: `secureid-2026-11-12T15-18-25-719Z.backup.json`.
+- Isolated restore drill after deployment: success; SQLite integrity `ok`; 67 tables; 2 document blobs; isolated restore only.
+- CI: build/lint and security unit tests passed; CodeQL passed; visual smoke and owner-console browser checks passed.
+- **Off-site artifact upload remains blocked:** the current source repository `dubeyjii91/secureid-website` is public. The workflow deliberately stops before downloading/exporting the encrypted artifact. A separate private GitHub repository is still required; do not change the source repository's visibility without the owner's explicit decision.
+- No paid hosting or storage resources were provisioned. The GitHub Actions artifact retention and shared-quota limitations remain applicable once the private destination is configured.
