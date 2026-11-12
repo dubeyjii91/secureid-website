@@ -32,7 +32,7 @@ function rejectUnauthorized(req, res, token) {
 }
 
 export function registerBackupTrigger({ app, runBackup, env = process.env, now = () => new Date() }) {
-  if (!app || typeof app.post !== "function" || typeof app.get !== "function") throw new TypeError("An Express-compatible app is required.");
+  if (!app || typeof app.post !== "function") throw new TypeError("An Express-compatible app is required.");
   if (typeof runBackup !== "function") throw new TypeError("A backup function is required.");
 
   const backupTriggerRateLimit = rateLimit({
@@ -63,7 +63,7 @@ export function registerBackupTrigger({ app, runBackup, env = process.env, now =
     running = true;
     try {
       const result = await Promise.resolve().then(runBackup);
-      if (!result?.success || !/^[a-f0-9]{64}$/i.test(String(result.sha256 || "")) || typeof result.file !== "string") {
+      if (!result?.success || !/^[a-f0-9]{64}$/i.test(String(result.sha256 || ""))) {
         throw new Error("Backup did not return a verified encrypted backup file and digest.");
       }
       const filePath = path.resolve(result.file);
@@ -93,7 +93,7 @@ export function registerBackupTrigger({ app, runBackup, env = process.env, now =
     }
   });
 
-  app.get("/api/internal/backup/download", backupDownloadRateLimit, (req, res) => {
+  if (typeof app.get === "function") app.get("/api/internal/backup/download", backupDownloadRateLimit, (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Pragma", "no-cache");
     const token = configuredToken(env);
