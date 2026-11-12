@@ -57,7 +57,7 @@ test("backup trigger runs only after bearer-token authorization and returns inte
   assert.equal(res.body.sha256, "c".repeat(64));
   assert.equal(res.body.completedAt, "2026-11-12T00:00:00.000Z");
   assert.equal("file" in res.body, false);
-  assert.equal(res.headers["Cache-Control"], "no-store");
+  assert.equal(res.headers["Cache-Control"], "no-store, private");
 });
 
 test("backup trigger returns a generic failure and does not expose internal errors", async () => {
@@ -75,6 +75,7 @@ test("backup trigger enforces a per-process request limit", async (t) => {
   registerBackupTrigger({
     app,
     runBackup: () => ({ success: true, sha256: "e".repeat(64) }),
+    getBackupFile: async () => ({ filePath: "/tmp/not-used", fileName: "secureid-test.backup.json", size: 1, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
     env: { BACKUP_TRIGGER_TOKEN: token },
   });
   const server = app.listen(0);
