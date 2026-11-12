@@ -1,0 +1,57 @@
+/* Site-wide spacing polish. Deliberately changes layout only: no colour, typography or copy overrides. */
+:root {
+  --sid-layout-gap: clamp(14px, 1.8vw, 22px);
+  --sid-layout-section-gap: clamp(20px, 2.5vw, 30px);
+}
+#root .shell, #root .main, #root .content, #root .sidebar, #root .topbar, #root .topbarActions { min-width: 0; }
+#root .sidebar nav { gap: 8px; padding-bottom: 10px; }
+#root .navItem { min-height: 44px; padding: 12px 14px; gap: 12px; }
+#root .sideBottom { margin-top: auto; padding-top: 16px; }
+#root .privacy { gap: 12px; padding: 15px 12px; }
+#root .topbar { min-height: 104px; height: auto; padding: 18px clamp(18px, 4vw, 56px); gap: 18px 24px; }
+#root .topbarActions { margin-left: auto; gap: 12px 16px; align-items: center; justify-content: flex-end; }
+#root .topbarSignOut { flex: 0 0 auto; width: auto; min-width: 88px; min-height: 42px; margin: 0; padding: 10px 15px; white-space: nowrap; align-self: center; }
+#root .content { padding-top: clamp(24px, 3vw, 38px); padding-bottom: clamp(26px, 3.2vw, 42px); }
+#root .content > * + * { margin-top: var(--sid-layout-section-gap); }
+#root .functionHero { gap: clamp(18px, 2.4vw, 28px); margin-bottom: 22px; }
+#root .profileGrid, #root .actionGrid, #root .claimGrid, #root .formGrid, #root .securecloudServiceList { gap: var(--sid-layout-gap); }
+#root .panel { padding: clamp(18px, 2.4vw, 28px); }
+#root .panelHead { gap: 14px 20px; margin-bottom: 16px; }
+#root .sectionTitle { margin-top: 32px; margin-bottom: 18px; }
+#root .actionCard { padding: clamp(18px, 2.2vw, 24px); }
+#root .actionIcon { margin-bottom: 17px; }
+#root .formGrid { margin: 20px 0 22px; }
+#root form:not(.urlForm):not(.studentProofForm) { row-gap: 20px; column-gap: 20px; }
+#root form label:has(> input:not([type="checkbox"]):not([type="radio"])), #root form label:has(> select), #root form label:has(> textarea) { gap: 10px; }
+#root .formActions { gap: 12px 16px; margin-top: 6px; }
+#root .tips { margin-top: 22px; }
+#root .tips > div { padding: 16px 0; }
+#root .tips strong { margin-bottom: 5px; }
+#root .details { gap: 18px 22px; }
+#root .securityRow { padding-top: 13px; margin-top: 13px; }
+#root .tableWrap { margin: 22px 0; }
+#root .tableWrap th, #root .tableWrap td { padding: 14px 16px; }
+#root .documentPagination { gap: 14px 20px; margin-top: 22px; }
+#root .shareLinkActions { gap: 12px; }
+#root footer { margin-top: 24px; padding-top: 24px; padding-bottom: 30px; gap: 12px 20px; flex-wrap: wrap; }
+#root .legalCombined { gap: 22px; }
+#root .legalCombined > section { min-width: 0; }
+#root .legalCombined > section h2 { margin-bottom: 12px; }
+@media (max-width: 900px) { #root .topbar { padding-inline: 22px; } }
+@media (max-width: 760px) {
+  #root .topbar { align-items: flex-start; }
+  #root .topbarActions { width: 100%; justify-content: flex-end; margin-left: 0; gap: 10px 12px; }
+  #root .topbarSignOut { margin-left: auto; }
+  #root .content > * + * { margin-top: 18px; }
+  #root .panel { padding: 18px; }
+  #root form:not(.urlForm):not(.studentProofForm) { row-gap: 17px; }
+  #root .tips > div { padding: 14px 0; }
+  #root footer { margin-inline: 14px; }
+}
+@media (max-width: 420px) {
+  #root .topbar { padding: 16px 12px; }
+  #root .topbarActions { justify-content: space-between; }
+  #root .topbarSignOut { min-width: 82px; padding-inline: 12px; }
+  #root .panel { padding: 15px; }
+  #root .tableWrap th, #root .tableWrap td { padding: 11px 12px; }
+}
