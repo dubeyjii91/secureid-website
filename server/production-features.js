@@ -1657,7 +1657,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     next();
   }
   function getInstitutionMembership(userId, institutionId) {
-    return database.prepare("SELECT id, institution_id, CASE WHEN EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=institution_memberships.id AND g.role='warden') THEN 'warden' ELSE role END AS role, role AS baseRole, status FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
+    return database.prepare("SELECT id, institution_id, CASE WHEN EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=institution_memberships.id AND g.role='warden') AND role!='institution_admin' THEN 'warden' ELSE role END AS role, role AS baseRole, status, EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=institution_memberships.id AND g.role='warden') AS hasWardenRole FROM institution_memberships WHERE user_id=? AND institution_id=? LIMIT 1").get(userId, institutionId);
   }
   function hasInstitutionFeature(institutionId, feature) {
     const row=database.prepare("SELECT status,features_json,starts_at,ends_at FROM institution_subscriptions WHERE institution_id=?").get(institutionId);

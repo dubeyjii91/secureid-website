@@ -320,6 +320,9 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   // Provision institution-admin membership as a trusted operator.
   database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
     .run("membership-admin", "college-a", "user-d", "institution_admin", "active", new Date().toISOString(), new Date().toISOString());
+  // Warden is an additive grant: it must not erase the member's base Institution Admin role.
+  database.prepare("INSERT INTO institution_membership_role_grants(id,membership_id,role,granted_by,created_at) VALUES(?,?,'warden',?,?)")
+    .run("warden-grant-admin", "membership-admin", "user-a", new Date().toISOString());
   const adminBuildingResponse = await fetch(base + "/api/institutions/hostel-buildings", {
     method: "POST", headers: headers("user-d"),
     body: JSON.stringify({ institutionId: "college-a", name: "North Hostel" })
