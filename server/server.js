@@ -15,7 +15,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { database } from "./database.js";
-import { startAutomaticBackup, getBackupStatus, runEncryptedBackup } from "./backup-manager.js";
+import { startAutomaticBackup, getBackupStatus, runEncryptedBackup, getLatestEncryptedBackup } from "./backup-manager.js";
 import { registerBackupTrigger } from "./backup-trigger.js";
 
 const envFile = path.resolve(process.cwd(), ".env");
@@ -853,7 +853,7 @@ registerProductionFeatures({
   ensureSecurityNotification
 });
 registerSecureCloudControlPlane({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin });
-registerBackupTrigger({ app, runBackup: runEncryptedBackup });
+registerBackupTrigger({ app, runBackup: runEncryptedBackup, getBackupFile: getLatestEncryptedBackup });
 startAutomaticBackup();
 // Optional live URL reputation lookup. Keep the API key server-side only.
 const googleSafeBrowsingApiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY || "";
