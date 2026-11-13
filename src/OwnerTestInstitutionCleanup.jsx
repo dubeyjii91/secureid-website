@@ -53,6 +53,17 @@ export default function OwnerTestInstitutionCleanup() {
               ". Do not run cleanup again. Contact the SecureID maintainer and retain the backup."
           });
         }
+      } else if (result?.cleanupStatus?.completed === true &&
+          missing.length === 2 && institutions.length === 0 &&
+          unsupported.length === 0 && totalRecords === 0) {
+        const audit = result.cleanupStatus;
+        setStatus({
+          type: "success",
+          message: "Cleanup already completed and verified from the committed Owner audit record. " +
+            audit.deletedRows + " database records removed. Encrypted backup: " + audit.backupFile +
+            ". Isolated restore verified. Owner account, user accounts and shared plans preserved. " +
+            "No further deletion is available or required."
+        });
       } else if (missing.length || unsupported.length || !institutions.length) {
         const reasons = [];
         if (missing.length) reasons.push("Missing approved institution(s): " + missing.join(", "));
@@ -197,10 +208,10 @@ export default function OwnerTestInstitutionCleanup() {
               onClick={executeCleanup}
               disabled={busy || loading}
               aria-disabled={busy || loading}
-              title={busy || loading ? "Please wait for the inventory or cleanup operation to finish." : "Click to validate the confirmation details and show any safety blocker."}
+              title={preview.cleanupStatus?.completed === true ? "Cleanup is already verified complete." : busy || loading ? "Please wait for the inventory or cleanup operation to finish." : "Click to validate the confirmation details and show any safety blocker."}
               style={{cursor: busy || loading ? "not-allowed" : "pointer"}}
             >
-              {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
+              {preview.cleanupStatus?.completed === true ? "Cleanup already verified · no further deletion" : busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
           </div>
         </>
