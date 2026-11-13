@@ -50,7 +50,7 @@ export default function CollegeWorkspace() {
         ]);
         setDocuments(documentData.documents || []);
         setMySubmissions(submissionData.submissions || []);
-        setSelectedInstitutionId(current => students.some(item => item.institutionId === current) ? current : students[0].institutionId);
+        setSelectedInstitutionId(current => students.some(item => item.institutionId === current) ? current : "");
         setSelectedDocumentId(current => (documentData.documents || []).some(item => item.id === current) ? current : (documentData.documents || [])[0]?.id || "");
       } else {
         setDocuments([]);
@@ -190,8 +190,8 @@ export default function CollegeWorkspace() {
       <div className="eyebrow dark">STUDENT DOCUMENT SUBMISSION</div><h2>Submit a document for college review</h2>
       <p className="lead">Choose a document already in your SecureID Vault. Your college receives its name, category and submission purpose for tracking. This endpoint does not grant staff permission to download or view the encrypted file.</p>
       <form className="collegeSubmissionForm" onSubmit={submitDocument}>
-        <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)} required>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select></label>
-        <label>Document from your vault<select value={selectedDocumentId} onChange={event => setSelectedDocumentId(event.target.value)} required><option value="">Choose a document</option>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select></label>
+        <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)} required><option value="">Choose institution…</option>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select><button type="button" className="secondary" disabled={!selectedInstitutionId || saving} onClick={() => setSelectedInstitutionId("")}>Clear selection</button></label>
+        <label>Document from your vault<select value={selectedDocumentId} onChange={event => setSelectedDocumentId(event.target.value)} required><option value="">Choose a document</option>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select><button type="button" className="secondary" disabled={!selectedDocumentId || saving} onClick={() => setSelectedDocumentId("")}>Clear selection</button></label>
         <label>Purpose<select value={submissionPurpose} onChange={event => setSubmissionPurpose(event.target.value)} required><option>College enrollment review</option><option>Scholarship application</option><option>Hostel admission</option><option>Exam registration</option><option>Student identity record</option></select></label>
         <p className="collegePrivacyNote">Consent text (college-review-v1): “I consent to submit the selected document reference, filename, document category, selected institution, and stated review purpose to that institution for the purpose shown. I understand that this workflow shares document metadata only and does not grant the institution access to the document file itself. I can withdraw an open submission while it is still awaiting review or correction. An institution’s review outcome is an administrative decision and is not government or identity verification.”</p>
         <label className="collegeConsent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />I agree to the college-review-v1 consent text above.</label>
