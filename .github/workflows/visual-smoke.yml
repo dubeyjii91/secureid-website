@@ -90,9 +90,9 @@ jobs:
                 launcherSvgCount: document.querySelectorAll('.quickAccessCard .quickAccessIcon svg').length,
                 rootWidth: document.documentElement.scrollWidth,
                 viewportWidth: window.innerWidth,
-                background: getComputedStyle(document.body).backgroundImage,
+                background: getComputedStyle(document.body).backgroundImage,\n                bodyColor: getComputedStyle(document.body).color,
                 rootColor: getComputedStyle(document.documentElement).backgroundColor,
-                cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,
+                cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,\n                cardColor: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundColor,
                 primaryText: getComputedStyle(document.querySelector('.quickAccessCard strong')).color,
                 navText: getComputedStyle(document.querySelector('.sidebar .navItem')).color,
                 navFill: getComputedStyle(document.querySelector('.sidebar .navItem')).webkitTextFillColor,
@@ -103,9 +103,9 @@ jobs:
               if (checks.navCount < 10 || checks.navSvgCount !== checks.navCount) failures.push(viewport.name + ': sidebar navigation icons are missing.');
               if (checks.launcherCount !== 11 || checks.launcherSvgCount !== 11) failures.push(viewport.name + ': expected 11 owner workspace cards with SVG icons.');
               if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
-              if (!checks.background.includes('radial-gradient') || checks.rootColor !== 'rgb(7, 17, 31)') failures.push(viewport.name + ': SecureID dark navy/cyan page background is missing.');
-              if (!checks.cardBackground.includes('linear-gradient')) failures.push(viewport.name + ': dashboard launcher cards lost their branded surface treatment.');
-              if (checks.primaryText !== 'rgb(240, 247, 255)' || checks.navText === 'rgb(0, 0, 0)' || checks.navFill === 'rgb(33, 56, 93)' || checks.metricText !== 'rgb(242, 247, 255)' || !['rgb(237, 245, 255)','rgb(121, 228, 180)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard or navigation text contrast is not using the accessible light palette.');
+              if (checks.rootColor !== 'rgb(244, 247, 251)' || checks.bodyColor !== 'rgb(20, 36, 58)') failures.push(viewport.name + ': premium light page background or readable body text is missing.');
+              if (checks.cardColor !== 'rgb(255, 255, 255)') failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
+              if (checks.primaryText !== 'rgb(23, 43, 69)' || checks.navText !== 'rgb(210, 222, 235)' || checks.metricText !== 'rgb(23, 43, 69)' || !['rgb(38, 60, 86)','rgb(22, 132, 93)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard or navigation text contrast is not using the premium light palette.');
               await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
 
               if (viewport.name === 'desktop') {
@@ -131,7 +131,7 @@ jobs:
             console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
             process.exit(1);
           }
-          console.log('PASS: PR build renders; desktop/mobile navigation has SVG icons; owner dashboard has 12 working workspace cards; normal user sees only 9; Document Vault shortcut navigates; no horizontal overflow.');
+          console.log('PASS: PR build renders; premium light theme contrast is verified; desktop/mobile navigation has SVG icons; owner dashboard has 11 workspace cards; normal user sees only 9; Document Vault shortcut navigates; no horizontal overflow.');
           NODE
       - name: Upload desktop and mobile screenshots
         if: always()
