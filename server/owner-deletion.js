@@ -59,6 +59,77 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     next();
   };
 
+  app.get("/api/admin/users/bulk-delete-preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
+    const targets = database.prepare("SELECT id,email,role FROM users WHERE lower(email)<>? AND role<>'owner' ORDER BY created_at,id").all(ownerEmail);
+    const blockers = [];
+    let relatedRecords = 0;
+    for (const target of targets) {
+      const inventory = getAccountInventory(database, target.id);
+      relatedRecords += inventory.reduce((sum, item) => sum + item.count, 0);
+      for (const item of getRestrictiveReferences(database, target.id)) blockers.push({ email: target.email, ...item });
+    }
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      success: true,
+      protectedOwnerEmail: ownerEmail,
+      accountsToDelete: targets.length,
+      relatedRecordsToDelete: relatedRecords,
+      blockedDependencies: blockers,
+      deletionAllowed: blockers.length === 0,
+      message: "Preview only. No account or record has been changed."
+    });
+  });
+
+  app.delete("/api/admin/users/bulk-delete", enforceSameOrigin, requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (req, res) => {
+    const confirmationEmail = String(req.body?.confirmationEmail || "").trim().toLowerCase();
+    const confirmationPhrase = String(req.body?.confirmationPhrase || "").trim();
+    if (confirmationEmail !== ownerEmail || confirmationPhrase !== "DELETE ALL NON-OWNER ACCOUNTS") {
+      return res.status(400).json({ success: false, message: "Type the configured Owner email and exact bulk deletion phrase." });
+    }
+    const targets = database.prepare("SELECT id,email,role FROM users WHERE lower(email)<>? AND role<>'owner' ORDER BY created_at,id").all(ownerEmail);
+    const blockers = [];
+    const inventories = new Map();
+    let relatedRecords = 0;
+    for (const target of targets) {
+      const inventory = getAccountInventory(database, target.id);
+      inventories.set(target.id, inventory);
+      relatedRecords += inventory.reduce((sum, item) => sum + item.count, 0);
+      for (const item of getRestrictiveReferences(database, target.id)) blockers.push({ email: target.email, ...item });
+    }
+    if (blockers.length) {
+      return res.status(409).json({ success: false, code: "BULK_DEPENDENCY_REVIEW_REQUIRED", message: "Bulk cleanup was not started because some accounts have restrictive operational dependencies.", blockers });
+    }
+
+    const documentRows = database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id IN (SELECT id FROM users WHERE lower(email)<>? AND role<>'owner')").all(ownerEmail);
+    const now = Date.now();
+    try {
+      database.exec("BEGIN IMMEDIATE");
+      for (const target of targets) {
+        for (const item of inventories.get(target.id) || []) {
+          database.prepare("DELETE FROM " + quoteIdentifier(item.table) + " WHERE " + quoteIdentifier(item.column) + "=?").run(target.id);
+        }
+        database.prepare("DELETE FROM users WHERE id=? AND lower(email)<>? AND role<>'owner'").run(target.id, ownerEmail);
+        database.prepare("INSERT INTO admin_audit_log (id,actor_user_id,actor_email,action,target_user_id,target_email,details_json,created_at) VALUES (?,?,?,?,?,?,?,?)")
+          .run(randomUUID(), req.user.id, req.user.email, "USER_PERMANENTLY_DELETED", target.id, target.email, JSON.stringify({ bulk: true, relatedRecordsRemoved: (inventories.get(target.id) || []).reduce((sum, item) => sum + item.count, 0) }), now);
+      }
+      database.exec("COMMIT");
+    } catch {
+      try { database.exec("ROLLBACK"); } catch {}
+      return res.status(409).json({ success: false, code: "BULK_DELETE_ROLLED_BACK", message: "Bulk cleanup was fully rolled back because a dependency prevented safe deletion." });
+    }
+
+    const dataRoot = path.resolve(process.env.DOCUMENT_STORAGE_PATH || (process.env.NODE_ENV === "production" ? "/data/secureid-documents" : path.join(process.cwd(), "data", "secureid-documents")));
+    let filesRemoved = 0;
+    for (const row of documentRows) {
+      const candidate = path.resolve(String(row.encrypted_path || ""));
+      if (candidate.startsWith(dataRoot + path.sep) && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        try { fs.unlinkSync(candidate); filesRemoved += 1; } catch {}
+      }
+    }
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({ success: true, deletedAccounts: targets.length, relatedRecordsRemoved: relatedRecords, encryptedFilesRemoved: filesRemoved, protectedOwnerEmail: ownerEmail, message: "All eligible non-Owner accounts were deleted. Owner account and administrative audit evidence were retained." });
+  });
+
   app.get("/api/admin/users/:userId/details", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (req, res) => {
     const user = getUser(database, String(req.params.userId || "").trim());
     if (!user) return res.status(404).json({ success: false, message: "Account not found." });
