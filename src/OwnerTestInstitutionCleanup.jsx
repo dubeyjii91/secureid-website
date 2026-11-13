@@ -32,7 +32,22 @@ export default function OwnerTestInstitutionCleanup() {
 
   async function executeCleanup(event) {
     event.preventDefault();
-    if (!preview?.previewHash || !acknowledged || confirmationPhrase !== CONFIRMATION_PHRASE) return;
+    if (!preview?.previewHash) {
+      setError("Refresh the inventory and resolve any preview warnings before continuing.");
+      return;
+    }
+    if (confirmationPhrase !== CONFIRMATION_PHRASE) {
+      setError("Enter the exact confirmation phrase shown in the field.");
+      return;
+    }
+    if (!acknowledged) {
+      setError("Tick the confirmation checkbox before continuing.");
+      return;
+    }
+    if (!confirmationEmail.trim()) {
+      setError("Enter the configured Owner email before continuing.");
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -126,7 +141,14 @@ export default function OwnerTestInstitutionCleanup() {
                 I confirm the RVS College and SecureID Test College records in this preview are test data and authorize deleting their institution-linked records, including fake/manual payment entries.
               </label>
             </div>
-            <button className="primary" type="submit" disabled={busy || blocked || !confirmationEmail.trim() || confirmationPhrase !== CONFIRMATION_PHRASE || !acknowledged}>
+            <button
+              className="primary"
+              type="submit"
+              disabled={busy || blocked}
+              aria-disabled={busy || blocked}
+              title={blocked ? "Refresh the inventory and resolve preview warnings first." : "Click to validate the confirmation details and start the protected cleanup."}
+              style={{cursor: busy || blocked ? "not-allowed" : "pointer"}}
+            >
               {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
           </form>
