@@ -42,7 +42,8 @@ export default function OwnerTestInstitutionCleanup() {
         body: JSON.stringify({
           confirmationEmail,
           confirmationPhrase,
-          previewHash: preview.previewHash
+          previewHash: preview.previewHash,
+          testDataConfirmed: acknowledged
         })
       });
       setNotice(
