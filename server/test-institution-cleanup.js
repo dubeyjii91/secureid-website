@@ -342,9 +342,47 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
   app.get("/api/admin/test-institution-cleanup/preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
     try {
       const inventory = buildInstitutionInventory(database);
+      let cleanupStatus = { completed: false };
+      try {
+        const audit = database.prepare(
+          "SELECT details_json, created_at FROM admin_audit_log WHERE action=? ORDER BY created_at DESC LIMIT 1"
+        ).get("TEST_INSTITUTION_DATA_CLEANUP");
+        if (audit?.details_json) {
+          const details = JSON.parse(audit.details_json);
+          const auditedTargets = new Set((Array.isArray(details.institutions) ? details.institutions : []).map(normalizeInstitutionName));
+          const auditCoversBothTargets = TARGET_KEYS.size === 2 && [...TARGET_KEYS].every((key) => auditedTargets.has(key));
+          const verifiedAudit = auditCoversBothTargets &&
+            Number(details.removedRows) >= 2 &&
+            typeof details.backupFile === "string" && details.backupFile.length > 0 &&
+            /^[a-f0-9]{64}$/i.test(String(details.backupSha256 || "")) &&
+            details.isolatedRestoreVerified === true &&
+            details.ownerAccountPreserved === true &&
+            details.userAccountsPreserved === true &&
+            details.sharedPlansPreserved === true;
+          if (verifiedAudit && inventory.institutions.length === 0 &&
+              inventory.missingTargets.length === TARGETS.length &&
+              inventory.unsupported.length === 0 && inventory.totalRecords === 0) {
+            cleanupStatus = {
+              completed: true,
+              deletedRows: Number(details.removedRows),
+              deletedInstitutions: details.institutions,
+              backupFile: details.backupFile,
+              backupSha256: details.backupSha256,
+              isolatedRestoreVerified: true,
+              ownerAccountPreserved: true,
+              userAccountsPreserved: true,
+              sharedPlansPreserved: true,
+              auditedAt: Number(audit.created_at)
+            };
+          }
+        }
+      } catch {
+        // An unreadable/missing audit record must never be treated as success.
+      }
       res.setHeader("Cache-Control", "private, no-store");
       return res.json({
         success: true,
+        cleanupStatus,
         protectedOwnerEmail: ownerEmail,
         protectedTables: [...PROTECTED_TABLES],
         institutions: inventory.institutions,
@@ -354,7 +392,9 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
         categories: inventory.categories,
         totalRecords: inventory.totalRecords,
         previewHash: inventory.previewHash,
-        note: "Read-only recursive inventory. Includes indirect FK children such as test payments and audit rows. User accounts, Owner data, shared plan catalogs, and unrelated institutions are excluded. No records have been changed."
+        note: cleanupStatus.completed
+          ? "Verified cleanup completion from the protected audit log and current zero-record inventory. Owner, user accounts, and shared plan catalogs are preserved."
+          : "Read-only recursive inventory. Includes indirect FK children such as test payments and audit rows. User accounts, Owner data, shared plan catalogs, and unrelated institutions are excluded. No cleanup completion is assumed without a matching verified audit record."
       });
     } catch {
       return res.status(500).json({ success: false, message: "The recursive cleanup inventory could not be completed. No records were changed." });
