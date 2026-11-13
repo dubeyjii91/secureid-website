@@ -30,8 +30,9 @@ export default function OwnerTestInstitutionCleanup() {
 
   useEffect(() => { loadPreview(); }, [loadPreview]);
 
-  async function executeCleanup(event) {
-    event.preventDefault();
+  async function executeCleanup() {
+    setError("");
+    setNotice("Delete button click received. Checking the preview and owner confirmations…");
     if (!preview?.previewHash) {
       setError("Refresh the inventory before continuing.");
       return;
@@ -58,7 +59,7 @@ export default function OwnerTestInstitutionCleanup() {
     }
     setBusy(true);
     setError("");
-    setNotice("");
+    setNotice("Safety checks passed. Sending the authenticated cleanup request…");
     try {
       const result = await api("/api/admin/test-institution-cleanup/execute", {
         method: "POST",
