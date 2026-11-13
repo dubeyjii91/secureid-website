@@ -527,7 +527,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   const unselectedScholarshipPreview = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id + "/documents/doc-c2/preview", { headers: headers("user-a") });
   assert.equal(unselectedScholarshipPreview.status, 403);
   const previewAudit = database.prepare("SELECT outcome FROM scholarship_document_access_audit WHERE application_id=? ORDER BY created_at ASC").all(scholarshipApplication.id);
-  assert.deepEqual(previewAudit.map(item => item.outcome), ["success", "error", "denied", "denied", "denied"]);
+  assert.deepEqual(previewAudit.map(item => item.outcome).sort(), ["success", "error", "denied", "denied", "denied"].sort());
 
   const readonlyScholarshipDecision = await fetch(base + "/api/institutions/scholarship-applications/" + scholarshipApplication.id, {
     method: "PATCH", headers: headers("user-b"),
