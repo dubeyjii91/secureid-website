@@ -81,6 +81,18 @@ function makeDatabase() {
   return database;
 }
 
+test("institution matching normalizes dotted and spaced RVS initialisms without changing stored names", () => {
+  const database = makeDatabase();
+  try {
+    database.prepare("UPDATE institutions SET name=? WHERE id='rvs'").run("R V S COLLEGE OF ENGINEERING AND TECHNOLOGY");
+    const inventory = buildInstitutionInventory(database);
+    assert.deepEqual(inventory.missingTargets, []);
+    assert.equal(inventory.institutions.find((item) => item.id === "rvs")?.name, "R V S COLLEGE OF ENGINEERING AND TECHNOLOGY");
+  } finally {
+    database.close();
+  }
+});
+
 test("recursive inventory includes indirect test payments and audits, but excludes accounts and shared data", () => {
   const database = makeDatabase();
   try {
