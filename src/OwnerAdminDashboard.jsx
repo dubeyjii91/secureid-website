@@ -55,6 +55,8 @@ export default function OwnerAdminDashboard() {
   const [accountDetails, setAccountDetails] = useState(null);
   const [detailsBusy, setDetailsBusy] = useState("");
   const [bulkPreview, setBulkPreview] = useState(null);
+  const [freshStartPreview, setFreshStartPreview] = useState(null);
+  const [freshStartBusy, setFreshStartBusy] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [backupInventory, setBackupInventory] = useState(null);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -205,6 +207,16 @@ export default function OwnerAdminDashboard() {
     } catch (e) {
       setUsersError(e?.message || "Fresh encrypted backup could not be created.");
     } finally { setBackupBusy(false); }
+  }
+
+  async function previewFreshStart() {
+    setFreshStartBusy(true); setUsersError(""); setFreshStartPreview(null);
+    try {
+      const result = await api("/api/admin/fresh-start-preview", { cache: "no-store" });
+      setFreshStartPreview(result);
+    } catch (e) {
+      setUsersError(e?.message || "Fresh-start category preview could not be loaded.");
+    } finally { setFreshStartBusy(false); }
   }
 
   async function previewBulkCleanup() {
@@ -422,6 +434,24 @@ export default function OwnerAdminDashboard() {
         <button className="primary" onClick={() => load(userOffset)} disabled={loading || Boolean(busyUser)}>{loading ? "Refreshing…" : "Refresh dashboard"}</button>
       </div>
       {accountDetails && <div className="panel" style={{marginTop:16}}><div className="eyebrow dark">ACCOUNT INSPECTION</div><h3>{accountDetails.user.email}</h3><p>Account ID: {accountDetails.user.id} · Created: {formatDate(accountDetails.user.createdAt)} · {accountDetails.user.protectedOwner ? "Protected Owner" : "User account"}</p><p>Related user-owned records detected: {accountDetails.totalRelatedRecords}</p><p>Deletion readiness: {accountDetails.deletionAllowed ? "No restrictive database dependencies detected" : "Blocked — dependency review required"}</p>{accountDetails.inventory?.length > 0 && <ul>{accountDetails.inventory.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count}</li>)}</ul>}{accountDetails.blockers?.length > 0 && <ul>{accountDetails.blockers.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count} dependent rows ({item.onDelete})</li>)}</ul>}<button className="secondary" onClick={() => setAccountDetails(null)}>Close details</button></div>}
+      <div className="panel" style={{marginTop:16,border:"1px solid var(--border,#ddd)"}}>
+        <div className="eyebrow dark">COMPLETE FRESH-START INVENTORY</div>
+        <h3>Category-wise cleanup preview</h3>
+        <p>Read-only inventory across non-Owner accounts and every institution. Nothing is deleted by this preview. SecureID Test College is flagged as a test candidate; RVS College and any other real institution require separate test-only confirmation.</p>
+        <button className="secondary" type="button" disabled={freshStartBusy} onClick={previewFreshStart}>{freshStartBusy ? "Counting records…" : "Preview all cleanup categories"}</button>
+        {freshStartPreview && <div style={{marginTop:12}}>
+          <p>Protected Owner: <strong>{freshStartPreview.protectedOwnerEmail}</strong></p>
+          <p>Non-Owner accounts: <strong>{freshStartPreview.nonOwnerAccounts}</strong> · Account-linked records: <strong>{freshStartPreview.accountRelatedRows}</strong></p>
+          {freshStartPreview.accountCategories?.map(item => <p key={item.category}>{item.category}: <strong>{item.count}</strong></p>)}
+          {freshStartPreview.institutions?.map(item => <div key={item.id} style={{padding:"10px 0",borderTop:"1px solid var(--border,#ddd)"}}>
+            <strong>{item.name}</strong> {item.testCandidate ? "· Test candidate" : item.manualReviewRequired ? "· Manual test-only confirmation required" : ""}
+            <p>Total institution-linked records: <strong>{item.totalRelatedRows}</strong></p>
+            {item.categories.map(category => <small key={category.category} style={{display:"block"}}>{category.category}: {category.count}</small>)}
+            {item.tables.map(table => <small key={table.table} style={{display:"block",color:"var(--muted,#666)"}}>{table.table}: {table.count}</small>)}
+          </div>)}
+          <p>{freshStartPreview.note}</p>
+        </div>}
+      </div>
       <div className="panel" style={{marginTop:16,border:"1px solid var(--border,#ddd)"}}><div className="eyebrow dark">FRESH-START CLEANUP</div><h3>Delete all non-Owner accounts</h3><p>Preview first. The configured Owner account is excluded by the server. Cleanup is blocked if any account has unresolved restrictive dependencies; administrative audit evidence is retained.</p><button className="secondary" type="button" disabled={bulkBusy} onClick={previewBulkCleanup}>{bulkBusy ? "Checking…" : "Preview all non-Owner accounts"}</button>{bulkPreview && <div style={{marginTop:12}}><p>Accounts to delete: <strong>{bulkPreview.accountsToDelete}</strong></p><p>Related records to delete: <strong>{bulkPreview.relatedRecordsToDelete}</strong></p><p>Owner protected: <strong>{bulkPreview.protectedOwnerEmail}</strong></p>{bulkPreview.blockedDependencies?.length > 0 && <ul>{bulkPreview.blockedDependencies.map((item,index)=><li key={item.email + item.table + index}>{item.email}: {item.table}.{item.column} — {item.count} dependent records</li>)}</ul>}<p>{bulkPreview.deletionAllowed ? "Dependency preflight passed. This action is permanent." : "Blocked until dependency review is completed."}</p><button className="primary" type="button" disabled={!bulkPreview.deletionAllowed || bulkBusy || bulkPreview.accountsToDelete===0} onClick={permanentlyDeleteAllNonOwners}>Permanently delete all non-Owner accounts</button></div>}</div>
       <div className="panel" style={{marginTop:16,border:"1px solid var(--border,#ddd)"}}>
         <div className="eyebrow dark">ON-VOLUME ENCRYPTED BACKUPS</div>
