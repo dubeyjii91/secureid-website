@@ -1,0 +1,72 @@
+/* SecureID wide-workspace layout: desktop uses the available horizontal canvas instead of a long slide-like column. */
+:root {
+  --sid-workspace-gap: clamp(18px, 1.8vw, 28px);
+  --sid-section-gap: clamp(24px, 2.4vw, 36px);
+}
+#root .shell { min-height: 100vh; }
+#root .sidebar { width: 264px; padding: 26px 18px; }
+#root .main { margin-left: 264px; width: calc(100% - 264px); min-width: 0; }
+#root .topbar { min-height: 88px; height: auto; padding: 18px clamp(24px, 3vw, 52px); gap: 18px 28px; }
+#root .content { width: 100%; max-width: 1680px; padding: clamp(24px, 2.4vw, 38px) clamp(22px, 3vw, 52px); }
+#root .content.narrow { max-width: 1240px; margin-inline: auto; }
+#root .content > * + * { margin-top: var(--sid-section-gap); }
+#root .panel { min-width: 0; padding: clamp(22px, 2vw, 32px); border-radius: 16px; }
+#root .panelHead { align-items: center; gap: 16px 24px; margin-bottom: 20px; }
+#root .sectionTitle { margin: 34px 0 20px; }
+#root .profileGrid { grid-template-columns: minmax(0, 1.6fr) minmax(300px, .9fr); gap: var(--sid-workspace-gap); }
+#root .actionGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sid-workspace-gap); }
+#root .profileGrid > *, #root .actionGrid > *, #root .panel > * { min-width: 0; }
+#root .actionCard { min-height: 190px; padding: clamp(20px, 1.8vw, 28px); }
+#root .formGrid, #root .details { gap: 18px 24px; }
+#root form:not(.urlForm):not(.studentProofForm) { row-gap: 22px; column-gap: 24px; }
+#root .collegeSubmissionForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 20px 24px; }
+#root .collegeSubmissionForm > label,
+#root .collegeSubmissionForm > .collegePrivacyNote,
+#root .collegeSubmissionForm > .hostelConsent,
+#root .collegeSubmissionForm > button { min-width: 0; }
+#root .collegeSubmissionForm > label:has(textarea),
+#root .collegeSubmissionForm > .collegePrivacyNote,
+#root .collegeSubmissionForm > .hostelConsent { grid-column: 1 / -1; }
+#root .collegeSubmissionForm > button[type="submit"] { justify-self: start; min-width: 190px; }
+#root .hostelApplications { min-width: 0; margin-top: 26px; padding: clamp(20px, 2vw, 28px); border-radius: 14px; }
+#root .collegeRequestList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#root .collegeRequest { min-width: 0; padding: 18px; border-radius: 12px; }
+#root .tableWrap { max-width: 100%; overflow-x: auto; }
+#root .documentPagination { justify-content: flex-end; flex-wrap: wrap; gap: 12px 18px; }
+#root input, #root select, #root textarea { max-width: 100%; min-width: 0; }
+#root button { min-height: 40px; }
+#root .navItem { min-height: 46px; padding: 12px 14px; gap: 12px; }
+#root .sidebar nav { gap: 7px; }
+#root footer { max-width: 1680px; margin-inline: auto; padding-inline: clamp(22px, 3vw, 52px); }
+@media (min-width: 1500px) {
+  #root .content { padding-inline: 58px; }
+  #root .collegeRequestList { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  #root .sidebar { width: 224px; }
+  #root .main { margin-left: 224px; width: calc(100% - 224px); }
+  #root .profileGrid { grid-template-columns: minmax(0, 1fr); }
+  #root .collegeRequestList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  #root .shell { display: block; }
+  #root .sidebar { position: relative; inset: auto; width: 100%; height: auto; padding: 14px; }
+  #root .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root .main { margin: 0; width: 100%; }
+  #root .topbar { align-items: flex-start; flex-wrap: wrap; padding: 18px 18px; }
+  #root .topbarActions { width: 100%; margin-left: 0; justify-content: flex-start; }
+  #root .content { padding: 22px 16px; }
+  #root .actionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root .collegeSubmissionForm { grid-template-columns: minmax(0, 1fr); }
+  #root .collegeSubmissionForm > label:has(textarea),
+  #root .collegeSubmissionForm > .collegePrivacyNote,
+  #root .collegeSubmissionForm > .hostelConsent { grid-column: auto; }
+  #root .collegeRequestList { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  #root .actionGrid { grid-template-columns: minmax(0, 1fr); }
+  #root .sidebar nav { grid-template-columns: minmax(0, 1fr); }
+  #root .panel { padding: 17px; }
+  #root .hostelApplications { padding: 16px; }
+  #root .topbar { padding-inline: 14px; }
+}
