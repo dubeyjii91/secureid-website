@@ -226,10 +226,17 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
         const count = Number(database.prepare("SELECT COUNT(*) AS total FROM " + quoteIdentifier(table) + " WHERE institution_id=?").get(institution.id).total || 0);
         if (count) tableCounts.push({ table, count });
       }
-      const grouped = categories.map(([category, pattern]) => ({
-        category,
-        count: tableCounts.filter(item => pattern.test(item.table)).reduce((sum, item) => sum + item.count, 0)
-      })).filter(item => item.count > 0);
+      // Assign each table to exactly one category. The previous independent
+      // regex totals overlapped (for example hostel audit tables counted in
+      // both Hostel operations and Audit), making category sums exceed totals.
+      const groupedCounts = new Map(categories.map(([category]) => [category, 0]));
+      for (const item of tableCounts) {
+        const match = categories.find(([, pattern]) => pattern.test(item.table));
+        if (match) groupedCounts.set(match[0], groupedCounts.get(match[0]) + item.count);
+      }
+      const grouped = [...groupedCounts.entries()]
+        .filter(([, count]) => count > 0)
+        .map(([category, count]) => ({ category, count }));
       return {
         id: institution.id,
         name: institution.name,
@@ -250,10 +257,16 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
         accountTables.set(item.table, (accountTables.get(item.table) || 0) + item.count);
       }
     }
-    const accountCategories = categories.map(([category, pattern]) => ({
-      category,
-      count: [...accountTables.entries()].filter(([table]) => pattern.test(table)).reduce((sum, [, count]) => sum + count, 0)
-    })).filter(item => item.count > 0);
+    // Keep account category totals disjoint for the same reason as the
+    // institution preview above.
+    const accountCategoryCounts = new Map(categories.map(([category]) => [category, 0]));
+    for (const [table, count] of accountTables.entries()) {
+      const match = categories.find(([, pattern]) => pattern.test(table));
+      if (match) accountCategoryCounts.set(match[0], accountCategoryCounts.get(match[0]) + count);
+    }
+    const accountCategories = [...accountCategoryCounts.entries()]
+      .filter(([, count]) => count > 0)
+      .map(([category, count]) => ({ category, count }));
     res.setHeader("Cache-Control", "private, no-store");
     return res.json({
       success: true,
