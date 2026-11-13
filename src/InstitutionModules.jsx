@@ -5,11 +5,16 @@ import InstitutionStaff from "./institution-modules/InstitutionStaff.jsx";
 import InstitutionFinance from "./institution-modules/InstitutionFinance.jsx";
 import InstitutionAcademics from "./institution-modules/InstitutionAcademics.jsx";
 
-const tabs = ["Students","Staff","Finance","Academics"];
+const moduleCards = [
+  { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"🎓" },
+  { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"👥" },
+  { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"📚" },
+  { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"₹" }
+];
 const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 export default function InstitutionModules({ institutionId }) {
-  const [tab,setTab]=useState("Students");
+  const [tab,setTab]=useState("Overview");
   const [students,setStudents]=useState([]);
   const [staff,setStaff]=useState([]);
   const [invoices,setInvoices]=useState([]);
@@ -65,17 +70,34 @@ export default function InstitutionModules({ institutionId }) {
 
   if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
   return <section className="panel institutionModules">
-    <div className="eyebrow dark">INSTITUTION OPERATIONS</div><h2>Institution management modules</h2>
-    {overview&&<div className="collegeValueGrid institutionAdminOverview">
-      <article className="panel"><h3>Students</h3><p>{overview.students}</p></article><article className="panel"><h3>Staff</h3><p>{overview.staff}</p></article><article className="panel"><h3>Courses</h3><p>{overview.courses}</p></article><article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
+    <div className="eyebrow dark">INSTITUTION OPERATIONS</div>
+    <h2>{tab==="Overview"?"Institution Management":moduleCards.find(item=>item.key===tab)?.title||"Institution module"}</h2>
+    {tab==="Overview"&&<>
+      <p className="lead">Each department has its own workspace. The figures below are shared institution-wide summaries; open a module to manage its records separately.</p>
+      {overview&&<div className="collegeValueGrid institutionAdminOverview">
+        <article className="panel"><h3>Students</h3><p>{overview.students}</p></article>
+        <article className="panel"><h3>Staff</h3><p>{overview.staff}</p></article>
+        <article className="panel"><h3>Courses</h3><p>{overview.courses}</p></article>
+        <article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
+      </div>}
+      <div className="institutionModuleLauncherGrid" aria-label="Separate institution workspaces">
+        {moduleCards.map(item=><button key={item.key} type="button" className="institutionModuleLauncher" onClick={()=>{setMessage("");setError("");setTab(item.key);}}>
+          <span className="institutionModuleLauncherIcon" aria-hidden="true">{item.icon}</span>
+          <span className="institutionModuleLauncherCopy"><strong>{item.title}</strong><small>{item.description}</small></span>
+          <span className="institutionModuleLauncherAction">Open workspace <span aria-hidden="true">→</span></span>
+        </button>)}
+      </div>
+      <p className="collegePrivacyNote">Staff records do not create SecureID accounts or grant permissions. Fee entries are manual records; no payment gateway is connected. All writes remain institution-scoped and audited.</p>
+    </>}
+    {tab!=="Overview"&&<div className="institutionModuleHeader">
+      <button type="button" className="secondary" onClick={()=>{setMessage("");setError("");setTab("Overview");}}>← All institution modules</button>
+      <span>Separate workspace · Institution-scoped access</span>
     </div>}
-    <div className="collegeReviewButtons" role="tablist" aria-label="Institution modules">{tabs.map(item=><button type="button" key={item} className={tab===item?"primary":"secondary"} onClick={()=>setTab(item)} role="tab" aria-selected={tab===item}>{item}</button>)}</div>
     {busy&&<p>Loading / saving securely…</p>}
     {tab==="Students"&&<InstitutionStudents students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} busy={busy}/>}
     {tab==="Staff"&&<InstitutionStaff institutionId={institutionId} staff={staff} staffForm={staffForm} setStaffForm={setStaffForm} saveStaff={saveStaff} busy={busy} run={run}/>}
     {tab==="Finance"&&<InstitutionFinance students={students} invoiceForm={invoiceForm} setInvoiceForm={setInvoiceForm} saveInvoice={saveInvoice} invoices={invoices} money={money} paymentForm={paymentForm} setPaymentForm={setPaymentForm} receivePayment={receivePayment} busy={busy}/>}
     {tab==="Academics"&&<InstitutionAcademics courses={courses} courseForm={courseForm} setCourseForm={setCourseForm} saveCourse={saveCourse} attendanceForm={attendanceForm} setAttendanceForm={setAttendanceForm} markAttendance={markAttendance} students={students} assessmentForm={assessmentForm} setAssessmentForm={setAssessmentForm} loadAssessments={loadAssessments} saveAssessment={saveAssessment} assessments={assessments} resultForm={resultForm} setResultForm={setResultForm} saveResult={saveResult} busy={busy}/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
-    <p className="collegePrivacyNote">Finance records are manual entries; no payment gateway is connected. Staff directory entries do not create SecureID accounts or grant permissions. Every write is institution-scoped and audited.</p>
   </section>;
 }
