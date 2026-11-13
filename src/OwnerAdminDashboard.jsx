@@ -461,25 +461,25 @@ export default function OwnerAdminDashboard() {
       <p>Provision institution access only after verifying the institution and the user's account. Every membership creation or status change is recorded in the institution audit trail. All actions require owner authorization and MFA on the server.</p>
       {institutionError && <p role="alert">{institutionError}</p>}
       <form onSubmit={createInstitution} style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
-        <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New college / institution name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} />
+        <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New college / institution name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} /><button type="button" className="secondary" onClick={() => setInstitutionName("")} disabled={!institutionName}>Clear value</button>
         <button className="primary" disabled={institutionBusy}>{institutionBusy ? "Saving…" : "Create institution"}</button>
       </form>
       {institutions.length > 0 && <>
         <p className="collegePrivacyNote">Provision a specific account for this institution. You may also assign the platform owner account an explicit institution role when needed; this creates an audited, institution-scoped membership and does not grant access to other colleges.</p>
         <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
           <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
+          <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}><option value="">Choose account…</option>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
           <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="warden">Warden (hostel operations)</option><option value="read_only">Read only</option></select></label>
-          <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button>
+          <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSelectedMemberUserId(""); setSelectedMemberRole("student"); }}>Clear selection</button>
         </form>
         <form onSubmit={saveInstitutionSubscription} style={{border:"1px solid var(--border,#ddd)",borderRadius:12,padding:14,margin:"16px 0",display:"grid",gap:10}}>
           <strong>Institution subscription & feature access</strong>
           <p className="collegePrivacyNote">Subscription controls enabled modules only. It never grants Student, Warden, Reviewer or Institution Admin permissions.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
-            <label>Plan key<input value={subscriptionPlan} maxLength={40} onChange={event => setSubscriptionPlan(event.target.value)} required /></label>
-            <label>Subscription status<select value={subscriptionStatus} onChange={event => setSubscriptionStatus(event.target.value)}><option value="pilot">Pilot</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="expired">Expired</option></select></label>
-            <label>Starts at (optional)<input type="datetime-local" value={subscriptionStartsAt} onChange={event => setSubscriptionStartsAt(event.target.value)} /></label>
-            <label>Ends at (optional)<input type="datetime-local" value={subscriptionEndsAt} onChange={event => setSubscriptionEndsAt(event.target.value)} /></label>
+            <label>Plan key<input value={subscriptionPlan} maxLength={40} onChange={event => setSubscriptionPlan(event.target.value)} required /><button type="button" className="secondary" onClick={() => setSubscriptionPlan("")} disabled={!subscriptionPlan}>Clear value</button></label>
+            <label>Subscription status<select value={subscriptionStatus} onChange={event => setSubscriptionStatus(event.target.value)}><option value="">Clear / choose status</option><option value="pilot">Pilot</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="expired">Expired</option></select></label>
+            <label>Starts at (optional)<input type="datetime-local" value={subscriptionStartsAt} onChange={event => setSubscriptionStartsAt(event.target.value)} /><button type="button" className="secondary" onClick={() => setSubscriptionStartsAt("")} disabled={!subscriptionStartsAt}>Clear value</button></label>
+            <label>Ends at (optional)<input type="datetime-local" value={subscriptionEndsAt} onChange={event => setSubscriptionEndsAt(event.target.value)} /><button type="button" className="secondary" onClick={() => setSubscriptionEndsAt("")} disabled={!subscriptionEndsAt}>Clear value</button></label>
           </div>
           <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
             {[
@@ -488,7 +488,7 @@ export default function OwnerAdminDashboard() {
               ["student_submissions","Student document submissions"]
             ].map(([feature,label]) => <label key={feature} style={{display:"inline-flex",gap:7,alignItems:"center"}}><input type="checkbox" checked={subscriptionFeatures.includes(feature)} onChange={event => setSubscriptionFeatures(current => event.target.checked ? [...current,feature] : current.filter(item => item!==feature))} />{label}</label>)}
           </div>
-          <button className="secondary" type="submit" disabled={institutionBusy || !selectedInstitutionId}>Save subscription entitlements</button>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSubscriptionPlan(""); setSubscriptionStartsAt(""); setSubscriptionEndsAt(""); setSubscriptionFeatures([]); setSubscriptionStatus(""); }}>Clear values</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSubscriptionPlan("pilot"); setSubscriptionStatus("pilot"); setSubscriptionFeatures(["hostel","scholarship","student_submissions"]); setSubscriptionStartsAt(""); setSubscriptionEndsAt(""); }}>Reset defaults</button><button className="secondary" type="submit" disabled={institutionBusy || !selectedInstitutionId || !subscriptionPlan.trim() || !subscriptionStatus}>Save subscription entitlements</button></div>
         </form>
         <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"10px 0"}}>
           <button type="button" className="secondary" disabled={!selectedInstitutionId} onClick={() => loadInstitutionAudit(selectedInstitutionId)}>View selected institution audit</button>
