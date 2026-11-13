@@ -212,3 +212,50 @@ test("owner deletion clears only the target account's three restrictive audit de
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
   database.close();
 });
+
+
+test("individual deletion removes hostel application descendants but preserves shared room data", () => {
+  const { database, routes } = setup();
+  database.exec(`
+    CREATE TABLE hostel_applications(id TEXT PRIMARY KEY, student_user_id TEXT NOT NULL REFERENCES users(id));
+    CREATE TABLE hostel_rooms(id TEXT PRIMARY KEY, room_number TEXT NOT NULL);
+    CREATE TABLE hostel_bed_allocations(
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES hostel_applications(id),
+      room_id TEXT NOT NULL REFERENCES hostel_rooms(id)
+    );
+    CREATE TABLE hostel_fee_records(
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL REFERENCES hostel_applications(id),
+      allocation_id TEXT NOT NULL REFERENCES hostel_bed_allocations(id)
+    );
+    CREATE TABLE hostel_fee_payments(
+      id TEXT PRIMARY KEY,
+      fee_record_id TEXT NOT NULL REFERENCES hostel_fee_records(id)
+    );
+    INSERT INTO hostel_applications VALUES('hostel-app-1','user-id');
+    INSERT INTO hostel_rooms VALUES('shared-room-1','A-101');
+    INSERT INTO hostel_bed_allocations VALUES('bed-allocation-1','hostel-app-1','shared-room-1');
+    INSERT INTO hostel_fee_records VALUES('hostel-fee-1','hostel-app-1','bed-allocation-1');
+    INSERT INTO hostel_fee_payments VALUES('hostel-payment-1','hostel-fee-1');
+  `);
+  const preview = response();
+  routes.get("GET /api/admin/users/:userId/details").at(-1)({params:{userId:"user-id"}},preview);
+  assert.equal(preview.statusCode,200);
+  assert.equal(preview.body.deletionAllowed,true);
+  const res = response();
+  routes.get("DELETE /api/admin/users/:userId").at(-1)({
+    params:{userId:"user-id"},
+    body:{confirmationEmail:"student@example.test",confirmationPhrase:"DELETE student@example.test"},
+    user:{id:"owner-id",email:"owner@example.test",role:"owner"}
+  },res);
+  assert.equal(res.statusCode,200,JSON.stringify(res.body));
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='user-id'").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_applications").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_bed_allocations").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_fee_records").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_fee_payments").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_rooms WHERE id='shared-room-1'").get().n,1);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
+  database.close();
+});
