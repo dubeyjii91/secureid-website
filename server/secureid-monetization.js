@@ -7,13 +7,6 @@ const statuses = new Set(["pending", "paid", "void"]);
 const clean = (value, max = 180) => String(value ?? "").trim().slice(0, max);
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 
-const draftPlans = [
-  { key: "pilot", name: "Pilot", monthlyPaise: 0, annualPaise: 0, status: "free_pilot", note: "Free pilot; no automatic renewal or charge." },
-  { key: "starter", name: "Starter", monthlyPaise: 299900, annualPaise: 2999000, status: "draft", note: "Proposed price only; requires a signed institution agreement." },
-  { key: "growth", name: "Growth", monthlyPaise: 599900, annualPaise: 5999000, status: "draft", note: "Proposed price only; requires a signed institution agreement." },
-  { key: "enterprise", name: "Enterprise", monthlyPaise: null, annualPaise: null, status: "custom_quote", note: "Custom quote; no payment collection enabled." }
-];
-
 export function registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin }) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS secureid_financial_entries (
@@ -92,7 +85,6 @@ export function registerSecureIdMonetization({ app, database, requireAuth, requi
         success: true,
         billingMode: "manual_ledger_only",
         livePaymentsEnabled: false,
-        plans: draftPlans,
         totals: {
           paidPaise: Number(totals.paidPaise || 0),
           pendingPaise: Number(totals.pendingPaise || 0),

@@ -39,7 +39,7 @@ test("SecureID monetization is owner/MFA-only, paise-based, idempotent and keeps
   const summary = await overview.json();
   assert.equal(summary.livePaymentsEnabled,false);
   assert.equal(summary.billingMode,"manual_ledger_only");
-  assert.equal(summary.plans.find(plan=>plan.key==="starter").status,"draft");
+  assert.equal(Object.hasOwn(summary,"plans"),false);
 
   const payload = {category:"admission_service_fee",status:"pending",amountPaise:15000,institutionId:"college-a",description:"Agreed fee for confirmed admission",reference:"ADM-2026-001",idempotencyKey:"admission-fee-2026-001"};
   const createdResponse = await fetch(base + "/api/admin/monetization/entries",{method:"POST",headers:headers(),body:JSON.stringify(payload)});
