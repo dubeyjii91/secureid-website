@@ -13,7 +13,7 @@ The private vault repository is the **single daily backup scheduler**:
 
 The public application repository does not run the backup scheduler and is not a backup destination. The same private workflow can be started manually from the vault repository's Actions tab; manual and scheduled runs follow the same trigger, verification, and export path.
 
-The first manual vault run on 2026-11-13 successfully uploaded artifact secureid-encrypted-backup-43358708649 (9,102,329 bytes), containing the encrypted backup and manifest. Its ZIP integrity test passed. That was the initial download-and-upload path before the workflow was changed to create a fresh backup itself. The updated self-contained trigger-plus-export workflow must still have its first successful execution verified; a prior manual artifact does not prove that new end-to-end path or an off-site restore.
+The first manual vault run on 2026-11-13 successfully uploaded artifact secureid-encrypted-backup-43358708649 (9,102,329 bytes), containing an encrypted backup and manifest. Its ZIP integrity test passed. That was the initial download-and-upload path before the workflow was changed to create a fresh backup itself; the later verified run below now confirms the updated create-and-export path. Neither artifact upload alone nor that earlier manual run proves an off-site restore.
 
 ### Verified self-contained export (2026-11-13)
 
