@@ -546,3 +546,58 @@ body {
 @media(prefers-reduced-motion:reduce) {
   #root *,#root *::before,#root *::after { animation-duration:.01ms!important;transition-duration:.01ms!important; }
 }
+
+
+/* SecureID signature atmosphere — warmer, more distinctive page canvas.
+   Keep the approved typography, component surfaces, navigation and SVG icons intact. */
+:root {
+  --sid-bg:#f7f4ed;
+}
+html {
+  background-color:#f7f4ed!important;
+}
+body {
+  color:#14243a!important;
+  background-color:#f7f4ed!important;
+  background-image:
+    radial-gradient(ellipse 48rem 34rem at 2% 0%,rgba(105,190,190,.19),transparent 72%),
+    radial-gradient(ellipse 42rem 34rem at 100% 5%,rgba(142,151,220,.16),transparent 72%),
+    radial-gradient(ellipse 40rem 30rem at 82% 100%,rgba(226,190,132,.15),transparent 74%),
+    linear-gradient(132deg,#fcfaf5 0%,#f3f7f3 48%,#f2f2fa 100%)!important;
+  background-attachment:fixed!important;
+}
+body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:
+    linear-gradient(rgba(20,36,58,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,36,58,.018) 1px,transparent 1px);
+  background-size:72px 72px;
+  opacity:.42;
+  -webkit-mask-image:radial-gradient(ellipse at 50% 28%,#000 0%,transparent 82%);
+  mask-image:radial-gradient(ellipse at 50% 28%,#000 0%,transparent 82%);
+}
+#root {
+  position:relative;
+  z-index:1;
+  background:transparent!important;
+}
+#root .shell,#root .main,#root .content {
+  background:transparent!important;
+}
+#root .authShell {
+  background:
+    radial-gradient(ellipse at 8% 0%,rgba(105,190,190,.18),transparent 38rem),
+    radial-gradient(ellipse at 100% 100%,rgba(142,151,220,.14),transparent 34rem),
+    linear-gradient(135deg,#fbf9f3,#f0f4f2)!important;
+}
+@media(max-width:650px) {
+  body { background-attachment:scroll!important; }
+  body::before { position:absolute; }
+}
+@media(prefers-reduced-motion:reduce) {
+  body { background-attachment:scroll!important; }
+}
