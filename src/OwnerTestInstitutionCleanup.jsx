@@ -130,7 +130,7 @@ export default function OwnerTestInstitutionCleanup() {
           {preview.missingTargets?.length > 0 && <p role="alert">Missing approved institution(s): {preview.missingTargets.join(", ")}</p>}
           {preview.unsupportedRelationships?.length > 0 && <p role="alert">Cleanup blocked until these relationships are reviewed: {preview.unsupportedRelationships.join("; ")}</p>}
           <p><strong>Backup safety:</strong> before deleting anything, the server creates a fresh encrypted database + document backup, decrypts it into an isolated temporary SQLite database, and verifies SQLite integrity and foreign-key consistency. If any step fails, deletion is blocked.</p>
-          <form onSubmit={executeCleanup} style={{display:"grid",gap:10,borderTop:"1px solid var(--border,#ddd)",paddingTop:14}}>
+          <div style={{display:"grid",gap:10,borderTop:"1px solid var(--border,#ddd)",paddingTop:14}}>
             <label>Configured Owner email
               <input type="email" value={confirmationEmail} onChange={(event) => setConfirmationEmail(event.target.value)} placeholder="Enter Owner email" required autoComplete="email" />
             </label>
@@ -151,7 +151,8 @@ export default function OwnerTestInstitutionCleanup() {
             </div>
             <button
               className="primary"
-              type="submit"
+              type="button"
+              onClick={executeCleanup}
               disabled={busy || loading}
               aria-disabled={busy || loading}
               title={busy || loading ? "Please wait for the inventory or cleanup operation to finish." : "Click to validate the confirmation details and show any safety blocker."}
@@ -159,7 +160,7 @@ export default function OwnerTestInstitutionCleanup() {
             >
               {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
-          </form>
+          </div>
         </>
       )}
     </div>
