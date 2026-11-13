@@ -2110,6 +2110,49 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
     } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"That room number already exists in this building."});next(error);}
   });
 
+  app.delete("/api/institutions/hostel-buildings/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const id=String(req.params.id||"");
+      const building=database.prepare("SELECT id,institution_id FROM hostel_buildings WHERE id=?").get(id);
+      if(!building) return res.status(404).json({success:false,message:"Hostel building was not found."});
+      if(!getHostelMembership(req,building.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
+      const roomCount=database.prepare("SELECT COUNT(*) AS count FROM hostel_rooms WHERE building_id=?").get(id).count;
+      if(roomCount>0) return res.status(409).json({success:false,code:"BUILDING_HAS_ROOMS",roomCount,message:"Delete the rooms in this building first. Rooms with allocations or related records are protected."});
+      database.prepare("DELETE FROM hostel_buildings WHERE id=? AND institution_id=?").run(id,building.institution_id);
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_BUILDING_DELETED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,deleted:true});
+    } catch(error){next(error);}
+  });
+
+  app.delete("/api/institutions/hostel-rooms/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const id=String(req.params.id||"");
+      const room=database.prepare("SELECT id,institution_id FROM hostel_rooms WHERE id=?").get(id);
+      if(!room) return res.status(404).json({success:false,message:"Hostel room was not found."});
+      if(!getHostelMembership(req,room.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
+      const allocations=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=?").get(id).count;
+      if(allocations>0) return res.status(409).json({success:false,code:"ROOM_HAS_ALLOCATIONS",allocationCount:allocations,message:"This room has allocation history. Release or remove linked test allocations first; no allocation or fee/payment history was deleted."});
+      database.transaction(() => {
+        database.prepare("DELETE FROM hostel_room_occupancy_audit WHERE room_id=? AND institution_id=?").run(id,room.institution_id);
+        database.prepare("DELETE FROM hostel_rooms WHERE id=? AND institution_id=?").run(id,room.institution_id);
+      })();
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_ROOM_DELETED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,deleted:true});
+    } catch(error){next(error);}
+  });
+
+  app.delete("/api/institutions/hostel-rooms/:id/occupancy-history", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const id=String(req.params.id||"");
+      const room=database.prepare("SELECT id,institution_id FROM hostel_rooms WHERE id=?").get(id);
+      if(!room) return res.status(404).json({success:false,message:"Hostel room was not found."});
+      if(!getHostelMembership(req,room.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
+      const result=database.prepare("DELETE FROM hostel_room_occupancy_audit WHERE room_id=? AND institution_id=?").run(id,room.institution_id);
+      if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_OCCUPANCY_HISTORY_CLEARED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,deletedCount:result.changes});
+    } catch(error){next(error);}
+  });
+
   app.patch("/api/institutions/hostel-buildings/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const id=String(req.params.id||""),name=String(req.body?.name||"").trim();
@@ -2500,6 +2543,21 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_PROGRAM_CREATED",req);
       res.setHeader("Cache-Control","private, no-store");
       res.status(201).json({success:true,program:{id,institutionId,title,description,eligibility,awardAmountPaise,deadline,status:"active",createdAt:now}});
+    } catch(error){next(error);}
+  });
+
+  app.delete("/api/institutions/scholarship-programs/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const program=database.prepare("SELECT id,institution_id FROM scholarship_programs WHERE id=?").get(String(req.params.id||""));
+      if(!program) return res.status(404).json({success:false,message:"Scholarship program was not found."});
+      if(!hasInstitutionFeature(program.institution_id,"scholarship")) return res.status(403).json({success:false,code:"FEATURE_NOT_ENTITLED",message:"Scholarship management is not enabled for this institution's subscription."});
+      const member=getInstitutionMembership(req.user.id,program.institution_id);
+      if(!member||member.status!=="active"||member.role!=="institution_admin") return res.status(403).json({success:false,message:"An active institution administrator is required to delete scholarship programs."});
+      const applicationCount=database.prepare("SELECT COUNT(*) AS count FROM scholarship_applications WHERE program_id=?").get(program.id).count;
+      if(applicationCount>0) return res.status(409).json({success:false,code:"SCHOLARSHIP_HAS_APPLICATIONS",applicationCount,message:"This program has applications. Close it instead; application and review history is protected from deletion."});
+      database.prepare("DELETE FROM scholarship_programs WHERE id=? AND institution_id=?").run(program.id,program.institution_id);
+      if(typeof logEvent==="function") logEvent(req.user.id,"SCHOLARSHIP_PROGRAM_DELETED",req);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,deleted:true});
     } catch(error){next(error);}
   });
 
