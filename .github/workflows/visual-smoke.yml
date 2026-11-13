@@ -3,7 +3,7 @@ name: SecureID visual appearance smoke test
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     paths:
       - "src/**"
       - "public/**"
@@ -130,9 +130,7 @@ jobs:
           }
 
           if (failures.length) {
-            console.error('VISUAL CHECK FAILURES\
-' + failures.join('\
-'));
+            console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
             process.exit(1);
           }
           console.log('PASS: PR build renders; premium light theme contrast is verified; desktop/mobile navigation has SVG icons; owner dashboard has 11 workspace cards; normal user sees only 9; Document Vault shortcut navigates; no horizontal overflow.');
