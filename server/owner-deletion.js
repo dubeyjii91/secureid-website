@@ -229,7 +229,8 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     if (user.role === "owner" || user.email.toLowerCase() === ownerEmail || user.email.toLowerCase() === req.user.email.toLowerCase()) {
       return res.status(403).json({ success: false, code: "OWNER_PROTECTED", message: "The configured Owner account is permanently protected from deletion." });
     }
-    if (confirmationEmail !== user.email.toLowerCase() || confirmationPhrase !== "DELETE " + user.email) {
+    const normalizedPhrase = confirmationPhrase.toLowerCase();
+    if (confirmationEmail !== user.email.toLowerCase() || normalizedPhrase !== ("DELETE " + user.email).toLowerCase()) {
       return res.status(400).json({ success: false, message: "Exact email and DELETE confirmation phrase are required." });
     }
 
