@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import api from "./api.js";
+import SecureIcon from "./SecureIcon.jsx";
 import InstitutionStudents from "./institution-modules/InstitutionStudents.jsx";
 import InstitutionStaff from "./institution-modules/InstitutionStaff.jsx";
 import InstitutionFinance from "./institution-modules/InstitutionFinance.jsx";
 import InstitutionAcademics from "./institution-modules/InstitutionAcademics.jsx";
 
 const moduleCards = [
-  { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"🎓" },
-  { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"👥" },
-  { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"📚" },
-  { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"₹" }
+  { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"graduation" },
+  { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"users" },
+  { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"book" },
+  { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" }
 ];
 const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -82,7 +83,7 @@ export default function InstitutionModules({ institutionId }) {
       </div>}
       <div className="institutionModuleLauncherGrid" aria-label="Separate institution workspaces">
         {moduleCards.map(item=><button key={item.key} type="button" className="institutionModuleLauncher" onClick={()=>{setMessage("");setError("");setTab(item.key);}}>
-          <span className="institutionModuleLauncherIcon" aria-hidden="true">{item.icon}</span>
+          <span className="institutionModuleLauncherIcon" aria-hidden="true"><SecureIcon name={item.icon} size={23} /></span>
           <span className="institutionModuleLauncherCopy"><strong>{item.title}</strong><small>{item.description}</small></span>
           <span className="institutionModuleLauncherAction">Open workspace <span aria-hidden="true">→</span></span>
         </button>)}
