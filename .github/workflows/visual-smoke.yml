@@ -103,7 +103,7 @@ jobs:
 
               if (viewport.name === 'desktop') {
                 await page.getByRole('button', { name: /Document vault/ }).last().click();
-                await page.getByRole('heading', { name: 'Document vault' }).waitFor({ state: 'visible', timeout: 10000 });
+                await page.getByRole('heading', { name: 'Documents & Identity' }).waitFor({ state: 'visible', timeout: 10000 });
                 const active = await page.locator('.sidebar .navItem.active').innerText();
                 if (!/Document vault/i.test(active)) failures.push('Dashboard Document Vault shortcut did not activate its matching navigation item.');
               }
