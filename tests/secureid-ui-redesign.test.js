@@ -16,8 +16,7 @@ test("SecureID primary navigation uses a shared SVG icon component", () => {
   assert.ok(icon.includes('viewBox="0 0 24 24"'));
   assert.ok(icon.includes('strokeLinecap="round"'));
   assert.ok(icon.includes('paths[name] || paths.shield'));
-  const nav = app.match(/const navItems = \[([\s\S]*?)
-\];/)?.[1] || "";
+  const nav = app.match(/const navItems = \[([\s\S]*?)\n\];/)?.[1] || "";
   assert.ok(nav.includes('"dashboard"') && nav.includes('"documents"') && nav.includes('"college"'));
   assert.doesNotMatch(nav, /[🏠🛡️🗂️🪪📁🔗📊💻🏫⚙️📜]/u);
 });
