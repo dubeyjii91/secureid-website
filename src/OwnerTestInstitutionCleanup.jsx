@@ -87,6 +87,9 @@ export default function OwnerTestInstitutionCleanup() {
               <div key={institution.id} style={{border:"1px solid var(--border,#ddd)",borderRadius:10,padding:12}}>
                 <strong>{institution.name}</strong>
                 <div style={{fontSize:13,marginTop:5}}>Institution ID: {institution.id}</div>
+                <div style={{fontSize:14,fontWeight:700,marginTop:8}}>{institution.totalRecords} linked records</div>
+                {institution.categories?.length > 0 && <div style={{fontSize:12,marginTop:5}}>{institution.categories.map((item) => item.category + ": " + item.count).join(" · ")}</div>}
+                {institution.tables?.length > 0 && <details style={{marginTop:8}}><summary style={{cursor:"pointer"}}>View table-wise counts</summary><ul>{institution.tables.map((item) => <li key={item.table}>{item.table}: {item.count}</li>)}</ul></details>}
               </div>
             ))}
           </div>
