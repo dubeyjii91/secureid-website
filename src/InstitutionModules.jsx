@@ -70,7 +70,11 @@ export default function InstitutionModules({ institutionId }) {
     </div>}
     <div className="collegeReviewButtons" role="tablist" aria-label="Institution modules">{tabs.map(item=><button type="button" key={item} className={tab===item?"primary":"secondary"} onClick={()=>setTab(item)} role="tab" aria-selected={tab===item}>{item}</button>)}</div>
     {busy&&<p>Loading / saving securely…</p>}
-    {tab==="Students"&&<StudentsModule {...moduleProps} />}    {tab==="Staff"&&<StaffModule {...moduleProps} />}    {tab==="Finance"&&<FinanceModule {...moduleProps} />}    {tab==="Academics"&&<AcademicsModule {...moduleProps} />}    {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
+    {tab==="Students"&&<StudentsModule {...moduleProps} />}
+    {tab==="Staff"&&<StaffModule {...moduleProps} />}
+    {tab==="Finance"&&<FinanceModule {...moduleProps} />}
+    {tab==="Academics"&&<AcademicsModule {...moduleProps} />}
+    {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
     <p className="collegePrivacyNote">Finance records are manual entries; no payment gateway is connected. Staff directory entries do not create SecureID accounts or grant permissions. Every write is institution-scoped and audited.</p>
   </section>;
 }
