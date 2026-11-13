@@ -82,6 +82,20 @@ test("deletion removes owned rows, revokes sessions and preserves audit evidence
   database.close();
 });
 
+test("individual deletion accepts lowercase DELETE keyword but still requires the exact account email", () => {
+  const { database, routes } = setup();
+  const handlers = routes.get("DELETE /api/admin/users/:userId");
+  const res = response();
+  handlers.at(-1)({
+    params:{userId:"user-id"},
+    user:{id:"owner-id",email:"owner@example.test",role:"owner"},
+    body:{confirmationEmail:"student@example.test",confirmationPhrase:"delete student@example.test"}
+  },res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.body.deletedEmail,"student@example.test");
+  database.close();
+});
+
 test("restrictive dependencies block deletion before any data changes", () => {
   const { database, routes } = setup();
   database.exec("CREATE TABLE reviews(id TEXT PRIMARY KEY, reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT); INSERT INTO reviews VALUES('review-1','user-id');");
