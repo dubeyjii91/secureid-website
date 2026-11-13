@@ -203,6 +203,69 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     }
   });
 
+  app.get("/api/admin/fresh-start-preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
+    const institutions = database.prepare("SELECT id,name,created_at AS createdAt FROM institutions ORDER BY name COLLATE NOCASE").all();
+    const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(row => row.name);
+    const categories = [
+      ["Accounts", /^(users|admin_account_controls)$/],
+      ["Memberships and subscriptions", /membership|subscription|institution_staff/],
+      ["Admissions and student records", /admission|student_profile|student|attendance|assessment|course/],
+      ["Hostel operations", /hostel|bed_alloc|room|building/],
+      ["Fees and payments", /fee|payment|invoice|monetization/],
+      ["Scholarships", /scholarship/],
+      ["Documents and reviews", /document|review_submission|identity_document/],
+      ["Notifications and sessions", /notification|session|verification|otp|trusted_device/],
+      ["Audit and security history", /audit|security_event|security_notification/]
+    ];
+    const institutionPreviews = institutions.map(institution => {
+      const tableCounts = [];
+      for (const table of tables) {
+        if (table === "institutions") continue;
+        const columns = database.prepare("PRAGMA table_info(" + quoteIdentifier(table) + ")").all().map(column => column.name);
+        if (!columns.includes("institution_id")) continue;
+        const count = Number(database.prepare("SELECT COUNT(*) AS total FROM " + quoteIdentifier(table) + " WHERE institution_id=?").get(institution.id).total || 0);
+        if (count) tableCounts.push({ table, count });
+      }
+      const grouped = categories.map(([category, pattern]) => ({
+        category,
+        count: tableCounts.filter(item => pattern.test(item.table)).reduce((sum, item) => sum + item.count, 0)
+      })).filter(item => item.count > 0);
+      return {
+        id: institution.id,
+        name: institution.name,
+        createdAt: institution.createdAt,
+        testCandidate: /secureid\\s*test|test\\s*college/i.test(institution.name),
+        manualReviewRequired: /rvs\\s*college/i.test(institution.name),
+        totalRelatedRows: tableCounts.reduce((sum, item) => sum + item.count, 0),
+        categories: grouped,
+        tables: tableCounts
+      };
+    });
+    const targets = database.prepare("SELECT id,email,role FROM users WHERE lower(email)<>? AND role<>'owner' ORDER BY created_at,id").all(ownerEmail);
+    let accountRelatedRows = 0;
+    const accountTables = new Map();
+    for (const target of targets) {
+      for (const item of getAccountInventory(database, target.id)) {
+        accountRelatedRows += item.count;
+        accountTables.set(item.table, (accountTables.get(item.table) || 0) + item.count);
+      }
+    }
+    const accountCategories = categories.map(([category, pattern]) => ({
+      category,
+      count: [...accountTables.entries()].filter(([table]) => pattern.test(table)).reduce((sum, [, count]) => sum + count, 0)
+    })).filter(item => item.count > 0);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      success: true,
+      protectedOwnerEmail: ownerEmail,
+      nonOwnerAccounts: targets.length,
+      accountRelatedRows,
+      accountCategories,
+      institutions: institutionPreviews,
+      note: "Read-only preview. No records or files were changed. Test-candidate names are suggestions only; RVS and other real institutions require explicit test-only confirmation before deletion."
+    });
+  });
+
   app.get("/api/admin/users/bulk-delete-preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
     const targets = database.prepare("SELECT id,email,role FROM users WHERE lower(email)<>? AND role<>'owner' ORDER BY created_at,id").all(ownerEmail);
     const blockers = [];
