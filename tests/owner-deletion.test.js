@@ -301,3 +301,30 @@ test("individual deletion removes review submissions and invoice payments before
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
   database.close();
 });
+
+test("fresh-start preview reports category counts and never changes Owner or institution data", () => {
+  const { database, routes } = setup();
+  database.exec(`
+    CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT NOT NULL,created_at TEXT NOT NULL);
+    CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL);
+    CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,plan_key TEXT);
+    CREATE TABLE hostel_applications(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL);
+    INSERT INTO institutions VALUES('test-college','SecureID Test College','2026-01-01');
+    INSERT INTO institutions VALUES('rvs-college','RVS College of Engineering and Technology','2026-01-02');
+    INSERT INTO institution_memberships VALUES('m1','test-college','user-id');
+    INSERT INTO institution_subscriptions VALUES('test-college','pilot');
+    INSERT INTO hostel_applications VALUES('h1','test-college');
+    INSERT INTO institution_memberships VALUES('m2','rvs-college','owner-id');
+  `);
+  const res = response();
+  routes.get("GET /api/admin/fresh-start-preview").at(-1)({},res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.body.nonOwnerAccounts,1);
+  assert.equal(res.body.institutions.find(item => item.id === "test-college").testCandidate,true);
+  assert.equal(res.body.institutions.find(item => item.id === "test-college").totalRelatedRows,3);
+  assert.equal(res.body.institutions.find(item => item.id === "rvs-college").manualReviewRequired,true);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institutions").get().n,2);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_memberships").get().n,2);
+  database.close();
+});
