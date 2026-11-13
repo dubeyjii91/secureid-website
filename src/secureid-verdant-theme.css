@@ -296,6 +296,59 @@ body::before {
     background: rgba(218, 235, 213, .20) !important;
   }
 }
+
+/* Match legacy high-specificity workspace rules so the new palette wins reliably. */
+#root button.quickAccessCard:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color: #263a31 !important;
+  -webkit-text-fill-color: #263a31 !important;
+  background: linear-gradient(150deg, #ffffff 0%, #fcfdf9 100%) !important;
+  background-image: linear-gradient(150deg, #ffffff 0%, #fcfdf9 100%) !important;
+  border: 1px solid #dce7dd !important;
+}
+#root button.quickAccessCard:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  background: #f4f8f1 !important;
+  background-image: none !important;
+  border-color: #a9c8ad !important;
+}
+#root .quickAccessCard .quickAccessIcon {
+  color: #34775c !important;
+  background: linear-gradient(145deg, #e5f1e4, #f4f0df) !important;
+  border-color: #d4e5d4 !important;
+}
+#root .quickAccessCard .quickAccessCopy strong {
+  color: #263a31 !important;
+  -webkit-text-fill-color: #263a31 !important;
+}
+#root .quickAccessCard .quickAccessCopy small {
+  color: #5b6d62 !important;
+  -webkit-text-fill-color: #5b6d62 !important;
+}
+#root button.institutionModuleLauncher:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color: #263a31 !important;
+  -webkit-text-fill-color: #263a31 !important;
+  background: linear-gradient(150deg, #ffffff 0%, #fcfdf9 100%) !important;
+  background-image: linear-gradient(150deg, #ffffff 0%, #fcfdf9 100%) !important;
+  border: 1px solid #dce7dd !important;
+}
+#root button.institutionModuleLauncher:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  background: #f4f8f1 !important;
+  background-image: none !important;
+  border-color: #a9c8ad !important;
+}
+#root .institutionModuleLauncher .institutionModuleLauncherIcon {
+  color: #34775c !important;
+  background: linear-gradient(145deg, #e5f1e4, #f4f0df) !important;
+  border-color: #d4e5d4 !important;
+}
+#root .institutionModuleLauncher .institutionModuleLauncherCopy strong {
+  color: #263a31 !important;
+  -webkit-text-fill-color: #263a31 !important;
+}
+#root .institutionModuleLauncher .institutionModuleLauncherCopy small {
+  color: #5b6d62 !important;
+  -webkit-text-fill-color: #5b6d62 !important;
+}
+
 @media (prefers-contrast: more) {
   #root p, #root small, #root li, #root label { color: #344b3d !important; }
   #root input, #root select, #root textarea, #root button { border-width: 2px !important; }
