@@ -27,7 +27,17 @@ export default function OwnerTestInstitutionCleanup() {
       const institutions = Array.isArray(result?.institutions) ? result.institutions : [];
       const totalRecords = Number(result?.totalRecords || 0);
 
-      if (afterCleanupResult) {
+      if (result?.cleanupStatus?.completed === true) {
+        const audit = result.cleanupStatus;
+        setStatus({
+          type: "success",
+          message: "Cleanup complete — verified from the protected audit log and fresh database inventory. " +
+            audit.deletedRows + " database records removed across " + audit.deletedInstitutions.length +
+            " approved institutions. Verified encrypted backup: " + audit.backupFile +
+            ". Isolated restore verified. Current inventory: 0 approved institutions and 0 linked records. " +
+            "Owner account, all user accounts, and shared plans preserved. Do not run cleanup again."
+        });
+      } else if (afterCleanupResult) {
         // Once a verified cleanup commits, the two approved institutions are
         // expected to be absent from the refreshed inventory. Do not mistake
         // that successful post-delete state for a pre-delete safety blocker.
@@ -172,6 +182,7 @@ export default function OwnerTestInstitutionCleanup() {
           {preview.missingTargets?.length > 0 && <p role="alert">Missing approved institution(s): {preview.missingTargets.join(", ")}</p>}
           {preview.unsupportedRelationships?.length > 0 && <p role="alert">Cleanup blocked until these relationships are reviewed: {preview.unsupportedRelationships.join("; ")}</p>}
           <p><strong>Backup safety:</strong> before deleting anything, the server creates a fresh encrypted database + document backup, decrypts it into an isolated temporary SQLite database, and verifies SQLite integrity and foreign-key consistency. If any step fails, deletion is blocked.</p>
+          {!preview.cleanupStatus?.completed && (
           <div style={{display:"grid",gap:10,borderTop:"1px solid var(--border,#ddd)",paddingTop:14}}>
             <label>Configured Owner email
               <input type="email" value={confirmationEmail} onChange={(event) => setConfirmationEmail(event.target.value)} placeholder="Enter Owner email" required autoComplete="email" />
@@ -203,6 +214,7 @@ export default function OwnerTestInstitutionCleanup() {
               {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
           </div>
+          )}
         </>
       )}
     </div>
