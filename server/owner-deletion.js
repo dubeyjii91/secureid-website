@@ -50,7 +50,7 @@ function getRestrictiveReferences(database, userId) {
   return blockers;
 }
 
-export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent }) {
+export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent, runEncryptedBackup }) {
   const ownerEmail = String(process.env.OWNER_EMAIL || "").trim().toLowerCase();
   const requireConfiguredOwner = (req, res, next) => {
     if (!ownerEmail || req.user?.email?.toLowerCase() !== ownerEmail || req.user?.role !== "owner") {
