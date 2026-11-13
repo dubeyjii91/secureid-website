@@ -4,21 +4,23 @@
 
 SecureID keeps its primary encrypted backup on the Railway volume. A separate **private GitHub repository** (dubeyjii91/secureid-backup-vault) provides an additional off-platform copy using GitHub Actions artifacts.
 
-The flow is:
+The private vault repository is the **single daily backup scheduler**:
 
-1. The source repository workflow .github/workflows/scheduled-encrypted-backup.yml triggers the token-protected Railway backup endpoint at 09:05 Asia/Kolkata (03:35 UTC).
-2. The source repository is public, so its privacy guard intentionally blocks any backup download or artifact upload there. The trigger can still create the encrypted on-volume backup before that guard runs.
-3. The private vault repository workflow .github/workflows/offsite-encrypted-backup.yml runs at 09:25 Asia/Kolkata (03:55 UTC), downloads the newest encrypted backup from Railway, verifies the response SHA-256, and uploads the encrypted file plus a non-secret manifest as a GitHub Actions artifact.
-4. The vault workflow can also be started manually from the private repository's Actions tab.
+1. The SecureID off-site encrypted backup vault workflow runs daily at 09:25 Asia/Kolkata (03:55 UTC) and verifies that its destination repository is private before handling backup data.
+2. It calls the token-protected Railway backup endpoint (/api/internal/backup/run) to create a fresh AES-256-GCM encrypted on-volume backup. The step retries while Railway wakes or the API becomes ready.
+3. It downloads the encrypted backup from /api/internal/backup/download, verifies the SHA-256 against both the backup-trigger response and the download response, validates the filename and size, and requires the creation timestamp to be no older than 30 minutes.
+4. It uploads the encrypted backup and a non-secret manifest as a GitHub Actions artifact with 30-day retention.
 
-The first manual vault run succeeded on 2026-11-13. It uploaded artifact secureid-encrypted-backup-43358708649 (9,102,329 bytes), containing the 9,101,719-byte encrypted backup and its manifest. The backup file SHA-256 matched the Railway response digest and manifest. The ZIP archive passed its integrity test. This confirms the first off-site artifact upload; it does **not** yet prove a scheduled run while Railway is asleep or a full restore from this off-site artifact.
+The public application repository does not run the backup scheduler and is not a backup destination. The same private workflow can be started manually from the vault repository's Actions tab; manual and scheduled runs follow the same trigger, verification, and export path.
+
+The first manual vault run on 2026-11-13 successfully uploaded artifact secureid-encrypted-backup-43358708649 (9,102,329 bytes), containing the encrypted backup and manifest. Its ZIP integrity test passed. That was the initial download-and-upload path before the workflow was changed to create a fresh backup itself. The updated self-contained trigger-plus-export workflow must still have its first successful execution verified; a prior manual artifact does not prove that new end-to-end path or an off-site restore.
 
 ## Security and retention
 
 - The destination repository must remain private. The workflow checks repository visibility and fails closed otherwise.
 - The vault repository must contain the Actions secret SECUREID_BACKUP_TRIGGER_TOKEN, matching Railway's BACKUP_TRIGGER_TOKEN.
 - BACKUP_ENCRYPTION_KEY remains only in Railway. Never add it to GitHub, the vault repository, workflow logs, or the artifact.
-- The download endpoint requires the bearer token, streams only the encrypted AES-256-GCM backup, returns a SHA-256 digest header, and does not reveal a filesystem path or plaintext backup.
+- The trigger and download endpoints require the bearer token. The download endpoint streams only the encrypted AES-256-GCM backup, returns a SHA-256 digest header, and does not reveal a filesystem path or plaintext backup.
 - The artifact contains the encrypted backup and a non-secret manifest (filename, byte count, SHA-256, creation time, encryption type).
 - Artifact retention is 30 days. Artifacts can expire or be deleted, and GitHub Actions storage quotas can prevent uploads. This is a temporary additional off-site copy, not a permanent archive.
 - Maximum transfer size is 400 MiB. Do not raise the cap automatically; review storage and recovery implications first.
@@ -41,9 +43,10 @@ The restore script validates the AES-256-GCM authentication tag and snapshot dig
 
 ## Operational monitoring and failure handling
 
-- A vault workflow run is successful only if the destination-private check, authenticated download, file-size and timestamp checks, SHA-256 comparison, and artifact upload all succeed.
+- A vault workflow run is successful only if the private-repository check, fresh backup trigger, trigger-response digest validation, authenticated download, file-size and timestamp checks, both SHA-256 comparisons, and artifact upload all succeed.
 - HTTP 401/404 indicates a token or endpoint configuration problem. Do not print or paste the secret to troubleshoot.
 - HTTP 413 or a file above 400 MiB means no off-site artifact was stored.
 - An upload quota failure means the off-site copy was not stored; the Railway-volume backup remains the confirmed recovery copy until a later successful vault run.
-- A manual run while Railway is awake does not prove the scheduled run can wake a sleeping Railway service. Verify the first scheduled source trigger and the following scheduled vault export independently.
+- Verify the first successful scheduled run of the self-contained private workflow, including whether retries were needed to wake Railway.
+- A successful artifact upload does not prove that the artifact can be restored. Full off-site restore verification still requires the matching Railway encryption key to be handled securely in an isolated environment.
 - Recheck artifact expiry and retention regularly. Do not treat the 30-day artifact as a permanent backup.
