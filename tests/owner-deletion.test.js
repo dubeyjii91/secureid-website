@@ -176,6 +176,13 @@ test("owner deletion clears only the target account's three restrictive audit de
   const insertScholarship = database.prepare("INSERT INTO scholarship_audit VALUES(?,?,?,?,?,?,?,?)");
   for (let i=0;i<3;i++) insertScholarship.run("scholarship-audit-"+i,"scholarship-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
 
+  const previewHandlers = routes.get("GET /api/admin/users/:userId/details");
+  const preview = response();
+  previewHandlers.at(-1)({params:{userId:"user-id"}},preview);
+  assert.equal(preview.statusCode,200);
+  assert.equal(preview.body.deletionAllowed,true);
+  assert.deepEqual(preview.body.blockers,[]);
+
   const handlers = routes.get("DELETE /api/admin/users/:userId");
   const res = response();
   handlers.at(-1)({
