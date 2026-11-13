@@ -91,7 +91,8 @@ try {
   const student = await openRole("student");
   await student.page.getByRole("heading", { name: "Submit a document for college review" }).waitFor();
 
-  // Step 2: student submits only a synthetic Vault document with explicit consent.
+  // Step 2: student selects the active institution and a synthetic Vault document, then gives explicit consent.
+  await student.page.getByLabel("Institution", { exact: true }).selectOption("qa-college");
   await student.page.getByLabel("Document from your vault").selectOption("synthetic-doc-1");
   await student.page.getByLabel(/I agree to the college-review-v1 consent text above/i).check();
   await student.page.getByRole("button", { name: "Submit for college review" }).click();
