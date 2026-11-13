@@ -231,14 +231,14 @@ export function buildInstitutionInventory(database) {
   }
 
   const categoryRules = [
+    ["Audit and security history", /audit|security_event|security_notification|history/],
     ["Memberships and subscriptions", /membership|subscription|institution_staff|role_grant/],
     ["Admissions and student records", /admission|student_profile|student|attendance|assessment|course|academic/],
     ["Hostel operations", /hostel|bed_alloc|room|building/],
     ["Fees and payments", /fee|payment|invoice|monetization/],
     ["Scholarships", /scholarship/],
     ["Documents and reviews", /document|review|identity/],
-    ["Notifications and sessions", /notification|session|verification|otp|trusted_device|share/],
-    ["Audit and security history", /audit|security_event|security_notification|history/]
+    ["Notifications and sessions", /notification|session|verification|otp|trusted_device|share/]
   ];
   const tableCounts = [...selected.entries()]
     .map(([table, entry]) => ({ table, count: entry.rowids.size }))
