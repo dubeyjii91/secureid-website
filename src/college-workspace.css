@@ -10,3 +10,17 @@
 .hostelApplications h3{font-size:14px;margin:0 0 10px}
 .hostelPanel .collegeSubmissionForm button{justify-self:start}
 @media(max-width:650px){.hostelPanel{padding:17px}.hostelPanel .hostelNoteField,.hostelPanel .hostelConsent{grid-column:auto}}
+
+/* Institution operations: distinct workspace launchers and focused module screens. */
+.institutionModuleLauncherGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0 8px}
+.institutionModuleLauncher{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:14px;width:100%;min-width:0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--text);text-align:left;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.institutionModuleLauncher:hover{border-color:#9bb0eb;box-shadow:0 10px 26px rgba(25,50,100,.08);transform:translateY(-1px)}
+.institutionModuleLauncher:focus-visible{outline:3px solid #9bb8ff;outline-offset:2px}
+.institutionModuleLauncherIcon{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:#edf2ff;font-size:22px}
+.institutionModuleLauncherCopy{display:block;min-width:0}
+.institutionModuleLauncherCopy strong{display:block;color:var(--text);font-size:14px;font-weight:800;line-height:1.35}
+.institutionModuleLauncherCopy small{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.5}
+.institutionModuleLauncherAction{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-size:10px;font-weight:800;white-space:nowrap}
+.institutionModuleHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.institutionModuleHeader>span{color:var(--muted);font-size:11px}
+@media(max-width:760px){.institutionModuleLauncherGrid{grid-template-columns:1fr}.institutionModuleLauncher{grid-template-columns:42px minmax(0,1fr);padding:15px}.institutionModuleLauncherIcon{width:40px;height:40px}.institutionModuleLauncherAction{grid-column:2;justify-self:start}}
