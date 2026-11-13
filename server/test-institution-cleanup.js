@@ -121,11 +121,6 @@ export function buildInstitutionInventory(database) {
     if (!rows.length) return;
     if (!selected.has(table)) selected.set(table, { rowids: new Set(), primaryValues: new Set(), ownerByRowid: new Map() });
     const entry = selected.get(table);
-    const meta = metadata.get(table);
-    if (!meta?.primaryKey.length || meta.primaryKey.length !== 1) {
-      unsupported.add(table + " (missing or composite primary key)");
-      return;
-    }
     for (const row of rows) {
       const rowid = Number(row.__rowid);
       if (!Number.isSafeInteger(rowid)) continue;
@@ -136,7 +131,7 @@ export function buildInstitutionInventory(database) {
       }
       if (entry.rowids.has(rowid)) continue;
       entry.rowids.add(rowid);
-      entry.primaryValues.add(row.__primary);
+      if (row.__primary !== undefined) entry.primaryValues.add(row.__primary);
       entry.ownerByRowid.set(rowid, ownerInstitutionId);
       queue.push({ table, rowids: [rowid], ownerInstitutionId });
     }
@@ -160,10 +155,9 @@ export function buildInstitutionInventory(database) {
       unsupported.add(table + " (missing or composite primary key)");
       continue;
     }
-    const pk = quoteIdentifier(meta.primaryKey[0]);
     for (const institutionId of institutionsById.keys()) {
       const rows = database.prepare(
-        "SELECT rowid AS __rowid," + pk + " AS __primary FROM " + quoteIdentifier(table) + " WHERE institution_id=?"
+        "SELECT rowid AS __rowid FROM " + quoteIdentifier(table) + " WHERE institution_id=?"
       ).all(institutionId);
       addRows(table, rows, institutionId);
     }
@@ -183,43 +177,39 @@ export function buildInstitutionInventory(database) {
         groups.get(fk.id).push(fk);
       }
       for (const group of groups.values()) {
-        if (group.length !== 1) {
-          unsupported.add(childTable + " (composite foreign key to " + event.table + ")");
-          continue;
-        }
-        children.push({ table: childTable, fk: group[0] });
+        children.push({ table: childTable, fks: group.sort((a, b) => a.seq - b.seq) });
       }
     }
     for (const child of children) {
       const childMeta = metadata.get(child.table);
-      if (childMeta.primaryKey.length !== 1) {
-        unsupported.add(child.table + " (missing or composite primary key)");
-        continue;
-      }
-      const parentColumn = child.fk.to || parentMeta.primaryKey[0];
-      if (!parentMeta.columns.has(parentColumn)) {
-        unsupported.add(child.table + " (unresolved referenced key in " + event.table + ")");
-        continue;
-      }
-      const parentValues = [];
+      const parentColumns = child.fks.map((fk, index) => {
+        const referenced = fk.to || parentMeta.primaryKey[index];
+        if (!referenced || !parentMeta.columns.has(referenced)) {
+          unsupported.add(child.table + " (unresolved referenced key in " + event.table + ")");
+          return null;
+        }
+        return referenced;
+      });
+      if (parentColumns.some((column) => !column)) continue;
+      const parentRows = [];
       for (const rowidBatch of chunks(event.rowids)) {
+        const selectColumns = parentColumns.map((column, index) => quoteIdentifier(column) + " AS __fk" + index).join(",");
         const placeholders = rowidBatch.map(() => "?").join(",");
-        const values = database.prepare(
-          "SELECT DISTINCT " + quoteIdentifier(parentColumn) + " AS value FROM " + quoteIdentifier(event.table) +
+        parentRows.push(...database.prepare(
+          "SELECT rowid AS __rowid," + selectColumns + " FROM " + quoteIdentifier(event.table) +
           " WHERE rowid IN (" + placeholders + ")"
-        ).all(...rowidBatch).map((row) => row.value).filter((value) => value !== null && value !== undefined);
-        parentValues.push(...values);
+        ).all(...rowidBatch));
       }
-      const distinctValues = [...new Set(parentValues)];
-      if (!distinctValues.length) continue;
       const childRows = [];
-      for (const valueBatch of chunks(distinctValues)) {
-        const placeholders = valueBatch.map(() => "?").join(",");
+      const whereClause = child.fks.map((fk) => quoteIdentifier(fk.from) + "=?").join(" AND ");
+      for (const parentRow of parentRows) {
+        const values = parentColumns.map((_, index) => parentRow["__fk" + index]);
+        if (values.some((value) => value === null || value === undefined)) continue;
         const institutionColumn = childMeta.columns.has("institution_id") ? ", institution_id AS __institution_id" : "";
         childRows.push(...database.prepare(
-          "SELECT rowid AS __rowid," + quoteIdentifier(childMeta.primaryKey[0]) + " AS __primary" + institutionColumn + " FROM " +
-          quoteIdentifier(child.table) + " WHERE " + quoteIdentifier(child.fk.from) + " IN (" + placeholders + ")"
-        ).all(...valueBatch));
+          "SELECT rowid AS __rowid" + institutionColumn + " FROM " + quoteIdentifier(child.table) +
+          " WHERE " + whereClause
+        ).all(...values));
       }
       const eligibleRows = childRows.filter((row) => {
         if (!childMeta.columns.has("institution_id") || row.__institution_id === event.ownerInstitutionId) return true;
