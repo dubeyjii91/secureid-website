@@ -259,3 +259,45 @@ test("individual deletion removes hostel application descendants but preserves s
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
   database.close();
 });
+
+
+test("individual deletion removes review submissions and invoice payments before their parents", () => {
+  const { database, routes } = setup();
+  database.exec(`
+    CREATE TABLE institution_review_submissions(
+      id TEXT PRIMARY KEY,
+      student_user_id TEXT NOT NULL REFERENCES users(id),
+      document_id TEXT NOT NULL REFERENCES secure_documents(id)
+    );
+    CREATE TABLE institution_fee_invoices(
+      id TEXT PRIMARY KEY,
+      student_user_id TEXT NOT NULL REFERENCES users(id)
+    );
+    CREATE TABLE institution_fee_payments(
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES institution_fee_invoices(id),
+      student_user_id TEXT NOT NULL REFERENCES users(id)
+    );
+    INSERT INTO secure_documents VALUES('doc-review-1','user-id','/tmp/nonexistent-encrypted-doc');
+    INSERT INTO institution_review_submissions VALUES('review-submission-1','user-id','doc-review-1');
+    INSERT INTO institution_fee_invoices VALUES('fee-invoice-1','user-id');
+    INSERT INTO institution_fee_payments VALUES('fee-payment-1','fee-invoice-1','user-id');
+  `);
+  const preview = response();
+  routes.get("GET /api/admin/users/:userId/details").at(-1)({params:{userId:"user-id"}},preview);
+  assert.equal(preview.statusCode,200);
+  assert.equal(preview.body.deletionAllowed,true);
+  const res = response();
+  routes.get("DELETE /api/admin/users/:userId").at(-1)({
+    params:{userId:"user-id"},
+    body:{confirmationEmail:"student@example.test",confirmationPhrase:"DELETE student@example.test"},
+    user:{id:"owner-id",email:"owner@example.test",role:"owner"}
+  },res);
+  assert.equal(res.statusCode,200,JSON.stringify(res.body));
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_review_submissions").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM secure_documents").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_fee_payments").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_fee_invoices").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
+  database.close();
+});

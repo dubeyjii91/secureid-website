@@ -30,6 +30,17 @@ function deleteAccountAuditDependencies(database, userId) {
   if (hasTable("institution_review_audit") && hasTable("institution_review_submissions")) {
     database.prepare("DELETE FROM institution_review_audit WHERE actor_user_id=? OR submission_id IN (SELECT id FROM institution_review_submissions WHERE student_user_id=?)").run(userId, userId);
   }
+  // Review submissions hold a restrictive FK to their encrypted document.
+  // Remove the student's submissions after their audit rows and before documents.
+  if (hasTable("institution_review_submissions")) {
+    database.prepare("DELETE FROM institution_review_submissions WHERE student_user_id=?").run(userId);
+  }
+  // Fee payments reference invoices without ON DELETE CASCADE. Remove payments
+  // tied to the student's invoices (and any payment records owned by the user)
+  // before the invoice inventory is deleted.
+  if (hasTable("institution_fee_payments") && hasTable("institution_fee_invoices")) {
+    database.prepare("DELETE FROM institution_fee_payments WHERE student_user_id=? OR invoice_id IN (SELECT id FROM institution_fee_invoices WHERE student_user_id=?)").run(userId, userId);
+  }
   if (hasTable("hostel_application_audit") && hasTable("hostel_applications")) {
     database.prepare("DELETE FROM hostel_application_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(userId, userId);
   }
