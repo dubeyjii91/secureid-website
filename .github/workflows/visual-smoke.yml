@@ -105,7 +105,7 @@ jobs:
               if (checks.navCount < 10 || checks.navSvgCount !== checks.navCount) failures.push(viewport.name + ': sidebar navigation icons are missing.');
               if (checks.launcherCount !== 11 || checks.launcherSvgCount !== 11) failures.push(viewport.name + ': expected 11 owner workspace cards with SVG icons.');
               if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
-              if (checks.rootColor !== 'rgb(244, 247, 251)' || checks.bodyColor !== 'rgb(20, 36, 58)') failures.push(viewport.name + ': premium light page background or readable body text is missing.');
+              if (checks.rootColor !== 'rgb(247, 244, 237)' || checks.bodyColor !== 'rgb(20, 36, 58)') failures.push(viewport.name + ': premium light page background or readable body text is missing.');
               if (checks.cardColor !== 'rgb(255, 255, 255)') failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
               if (checks.primaryText !== 'rgb(23, 43, 69)' || checks.navText !== 'rgb(210, 222, 235)' || checks.metricText !== 'rgb(23, 43, 69)' || !['rgb(38, 60, 86)','rgb(22, 132, 93)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard or navigation text contrast is not using the premium light palette.');
               await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
