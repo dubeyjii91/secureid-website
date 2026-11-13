@@ -15,6 +15,22 @@ The public application repository does not run the backup scheduler and is not a
 
 The first manual vault run on 2026-11-13 successfully uploaded artifact secureid-encrypted-backup-43358708649 (9,102,329 bytes), containing the encrypted backup and manifest. Its ZIP integrity test passed. That was the initial download-and-upload path before the workflow was changed to create a fresh backup itself. The updated self-contained trigger-plus-export workflow must still have its first successful execution verified; a prior manual artifact does not prove that new end-to-end path or an off-site restore.
 
+### Verified self-contained export (2026-11-13)
+
+The updated private-vault workflow completed a full fresh-create → exact-file download → SHA-256 verification → off-site artifact upload run:
+
+- Workflow run: [43364042250](https://github.com/dubeyjii91/secureid-backup-vault/actions/runs/43364042250), completed successfully on the private repository main branch.
+- Backup creation response: 2026-11-13T04:13:03.875Z; encrypted artifact filename: `secureid-2026-11-13T04-13-03-768Z.backup.json`.
+- Artifact: `secureid-encrypted-backup-43364042250`, artifact ID `14009741525`, ZIP size 9,102,329 bytes; retention expires 2026-12-13T04:13:05Z.
+- Extracted encrypted file size: 9,101,719 bytes. Manifest SHA-256: `2854ef019c3186eb581983937f26c902371ba05a279dca080356da148a3fe339`.
+- The trigger response SHA-256, download response SHA-256, manifest SHA-256, and locally recomputed SHA-256 of the extracted encrypted file all matched. The ZIP integrity test passed.
+- All five operative workflow steps succeeded: private-repository check, fresh encrypted backup creation, exact filename-pinned download, digest/size/freshness validation, and artifact upload.
+
+This was a push-triggered verification run after the workflow change, not the daily scheduled run. Because the private scheduler was merged after the 2026-11-13 09:25 Asia/Kolkata schedule time, the first scheduled execution is due 2026-11-14 at 09:25 Asia/Kolkata. The daily monitor should verify it separately.
+
+The Railway on-volume isolated restore drill also passed after the latest production deployment: SQLite integrity `ok`, 67 tables, and 2 restored document blobs. This remains an **on-volume** restore drill. A restore from the GitHub off-site artifact has **not** yet been performed and must not be represented as complete.
+
+
 ## Security and retention
 
 - The destination repository must remain private. The workflow checks repository visibility and fails closed otherwise.
