@@ -114,10 +114,18 @@ export default function OwnerTestInstitutionCleanup() {
             <label>Exact confirmation phrase
               <input value={confirmationPhrase} onChange={(event) => setConfirmationPhrase(event.target.value)} placeholder={CONFIRMATION_PHRASE} required />
             </label>
-            <label style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-              <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
-              I confirm the RVS College and SecureID Test College records in this preview are test data and authorize deleting their institution-linked records, including fake/manual payment entries.
-            </label>
+            <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"12px 14px",border:"1px solid var(--border,#8293aa)",borderRadius:10,background:"rgba(0,217,255,.06)"}}>
+              <input
+                id="test-data-cleanup-acknowledgement"
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.currentTarget.checked)}
+                style={{width:20,height:20,minWidth:20,margin:"2px 0 0",accentColor:"#00bfe8",cursor:"pointer",pointerEvents:"auto",opacity:1}}
+              />
+              <label htmlFor="test-data-cleanup-acknowledgement" style={{display:"block",cursor:"pointer",lineHeight:1.55,margin:0}}>
+                I confirm the RVS College and SecureID Test College records in this preview are test data and authorize deleting their institution-linked records, including fake/manual payment entries.
+              </label>
+            </div>
             <button className="primary" type="submit" disabled={busy || blocked || !confirmationEmail.trim() || confirmationPhrase !== CONFIRMATION_PHRASE || !acknowledged}>
               {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
