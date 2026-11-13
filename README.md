@@ -29,29 +29,6 @@ Set one result as `DOCUMENT_ENCRYPTION_KEY` and the other as `BACKUP_ENCRYPTION_
 
 The current storage is single-instance SQLite. For a horizontally scaled deployment, migrate the repository to a managed PostgreSQL database and use shared/distributed rate limiting before adding replicas. Email verification, password recovery, trusted-device/session management, account export/deletion, security email alerts, encrypted automated backups, and privacy-safe operational error alerting are implemented. Production onboarding should still include a managed PostgreSQL migration before horizontal scaling and an independent security review.
 
-### External scheduled backup trigger
+### Off-site encrypted backup vault
 
-The optional GitHub Actions workflow `.github/workflows/scheduled-encrypted-backup.yml` requests a backup daily at 09:05 Asia/Kolkata, independently of the API process's in-process timer. To enable it:
-
-1. Generate a random secret locally (do not send it in chat or commit it): `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`.
-2. Set the generated value as Railway service variable `BACKUP_TRIGGER_TOKEN`.
-3. Add the exact same value as the GitHub Actions repository secret `SECUREID_BACKUP_TRIGGER_TOKEN`.
-4. Redeploy SecureID after setting the Railway variable, then run the workflow manually once and verify the successful run and backup timestamp/hash.
-
-The trigger is disabled unless a sufficiently long token is configured and uses constant-time bearer-token comparison. The workflow stores the encrypted backup on the existing Railway volume. **It is an external scheduler, not an off-site backup**; loss of that volume/account/region can still lose both live data and these backups. Do not claim disaster recovery until an encrypted copy is stored and restored from a separately approved off-platform provider.
-
-## Security and release documentation
-
-- [Security policy and responsible disclosure](SECURITY.md)
-- [Production security test plan and release evidence checklist](docs/SECURITY-TEST-PLAN.md)
-- [Threat model and residual risks](docs/THREAT-MODEL.md)
-- [Android production release runbook](docs/ANDROID-RELEASE.md)
-- [Google Play listing draft](docs/PLAY-STORE-LISTING-DRAFT.md)
-- [Privacy policy release draft — not yet approved for publication](docs/PRIVACY-POLICY-RELEASE-DRAFT.md)
-
-## Project checks
-
-```powershell
-npm run lint
-npm run build
-```
+The private repository dubeyjii91/secureid-backup-vault owns the daily 09:25 Asia/Kolkata backup schedule. It authenticates to Railway using BACKUP_TRIGGER_TOKEN, creates a new AES-256-GCM encrypted snapshot, verifies its SHA-256 against the download response, and stores only the encrypted file in a private GitHub Actions artifact. The encryption key remains in Railway and is never copied to GitHub. See docs/SECUREID-OFFSITE-BACKUP.md for retention and restore steps.
