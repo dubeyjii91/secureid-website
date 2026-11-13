@@ -316,7 +316,7 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
     const confirmationEmail = String(req.body?.confirmationEmail || "").trim().toLowerCase();
     const confirmationPhrase = String(req.body?.confirmationPhrase || "").trim();
     const previewHash = String(req.body?.previewHash || "");
-    if (confirmationEmail !== ownerEmail || confirmationPhrase !== "DELETE TEST DATA FOR RVS AND SECUREID TEST COLLEGE") {
+    if (confirmationEmail !== ownerEmail || confirmationPhrase !== "DELETE TEST DATA FOR RVS AND SECUREID TEST COLLEGE" || req.body?.testDataConfirmed !== true) {
       return res.status(400).json({ success: false, message: "Enter the configured Owner email and exact test-data cleanup phrase." });
     }
 
