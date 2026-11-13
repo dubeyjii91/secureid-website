@@ -26,9 +26,7 @@ export default function InstitutionModules({ institutionId }) {
   const [resultForm,setResultForm]=useState({assessmentId:"",studentUserId:"",marksObtained:""});
 
   async function load() {
-    const moduleProps={institutionId,students,staff,invoices,courses,assessments,profileDrafts,setProfileDrafts,overview,busy,error,message,staffForm,setStaffForm,invoiceForm,setInvoiceForm,courseForm,setCourseForm,attendanceForm,setAttendanceForm,paymentForm,setPaymentForm,assessmentForm,setAssessmentForm,resultForm,setResultForm,saveStaff,saveInvoice,saveCourse,markAttendance,receivePayment,saveStudentProfile,loadAssessments,saveAssessment,saveResult,run};
-
-  if(!institutionId)return;
+    if(!institutionId)return;
     setBusy(true);setError("");
     try {
       const [s,st,f,c,o]=await Promise.all([
@@ -61,6 +59,8 @@ export default function InstitutionModules({ institutionId }) {
   async function loadAssessments(courseId){setAssessmentForm(v=>({...v,courseId}));try{const a=await api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(courseId)}/assessments`,{cache:"no-store"});setAssessments(a.assessments||[]);}catch(err){setError(err.message||"Assessments could not be loaded.");}}
   async function saveAssessment(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(assessmentForm.courseId)}/assessments`,{method:"POST",body:JSON.stringify(assessmentForm)}),"Assessment created.");setAssessmentForm(v=>({...v,title:"",totalMarks:"100"}));}
   async function saveResult(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/assessments/${encodeURIComponent(resultForm.assessmentId)}/results/${encodeURIComponent(resultForm.studentUserId)}`,{method:"PUT",body:JSON.stringify({marksObtained:Number(resultForm.marksObtained)})}),"Student result saved.");}
+
+  const moduleProps={institutionId,students,staff,invoices,courses,assessments,profileDrafts,setProfileDrafts,overview,busy,error,message,staffForm,setStaffForm,invoiceForm,setInvoiceForm,courseForm,setCourseForm,attendanceForm,setAttendanceForm,paymentForm,setPaymentForm,assessmentForm,setAssessmentForm,resultForm,setResultForm,saveStaff,saveInvoice,saveCourse,markAttendance,receivePayment,saveStudentProfile,loadAssessments,saveAssessment,saveResult,run};
 
   if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
   return <section className="panel institutionModules">
