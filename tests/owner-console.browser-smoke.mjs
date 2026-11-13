@@ -82,6 +82,8 @@ try {
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
   try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
   catch { throw new Error("Created institution did not reappear after reload. Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
+  // Institution selectors intentionally stay empty after reload; choose the institution explicitly.
+  await page.getByLabel("Institution", { exact: true }).selectOption("institution-1");
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();
