@@ -224,3 +224,60 @@ body {
   #root .institutionModuleLauncherIcon { width:40px;height:40px; }
   #root .institutionModuleLauncherAction { grid-column:2;justify-self:start; }
 }
+
+/* Final contrast overrides — loaded from main.jsx after every feature stylesheet. */
+html,body,#root { background-color:#07111f!important; }
+body {
+  color:#f4f8ff!important;
+  background:
+    radial-gradient(ellipse 52rem 34rem at 4% -10%,rgba(40,129,191,.18),transparent 70%),
+    radial-gradient(ellipse 42rem 32rem at 100% 8%,rgba(99,85,180,.14),transparent 72%),
+    linear-gradient(145deg,#07111f 0%,#0a1626 55%,#0b1422 100%)!important;
+  background-attachment:fixed!important;
+}
+#root .sidebar .navItem { color:#aebed2!important;background:transparent!important;border-color:transparent!important; }
+#root .sidebar .navItem:hover { color:#fff!important;background:rgba(102,160,221,.09)!important;border-color:rgba(122,171,224,.12)!important; }
+#root .sidebar .navItem.active { color:#f6fbff!important;background:linear-gradient(100deg,rgba(54,153,203,.2),rgba(89,112,190,.13))!important;border-color:rgba(91,214,239,.22)!important; }
+#root .sidebar .navIcon { color:#91a8c4!important;background:rgba(135,165,203,.08)!important; }
+#root .sidebar .navItem.active .navIcon { color:#5bd6ef!important;background:rgba(91,214,239,.12)!important; }
+#root .quickAccessCard {
+  color:#f4f8ff!important;
+  background:linear-gradient(145deg,rgba(20,40,64,.98),rgba(14,31,51,.98))!important;
+  border-color:rgba(153,184,222,.2)!important;
+}
+#root .quickAccessCard:hover { background:linear-gradient(145deg,#18334f,#142942)!important; }
+#root .quickAccessCopy strong { color:#f0f7ff!important; }
+#root .quickAccessCopy small { color:#b6c7db!important; }
+#root .quickAccessIcon { color:#79e0ee!important;background:rgba(91,214,239,.1)!important; }
+#root .quickAccessHeader h2 { color:#edf6ff!important; }
+#root .quickAccessHeader p { color:#b6c7db!important; }
+#root .dashboardScore { background:rgba(91,214,160,.09)!important;border-color:rgba(91,214,160,.24)!important; }
+#root .dashboardScore strong,#root .dashboardScore span { color:#effff8!important; }
+#root .dashboardScore small { color:#7ee3b7!important; }
+#root .securityStats span { color:#dce8f6!important;background:rgba(126,157,195,.1)!important; }
+#root .securityStats b { color:#f2f7ff!important; }
+#root .systemHealthGrid>div { background:rgba(126,157,195,.1)!important; }
+#root .systemHealthGrid span { color:#b5c5d9!important; }
+#root .systemHealthGrid strong { color:#edf5ff!important; }
+#root .systemHealthGrid strong.healthOk { color:#79e4b4!important; }
+#root .healthMeta { color:#a9bad0!important; }
+#root .privacyRow { color:#edf5ff!important;border-color:rgba(153,184,222,.14)!important; }
+#root .privacyRow span b { color:#f3f8ff!important; }
+#root .privacyRow small { color:#b1c1d5!important; }
+#root .privacyRow input { accent-color:#70d8eb; }
+#root .scorePanel h3 { color:#f4f8ff!important; }
+#root .scorePanel p { color:#b6c7db!important; }
+#root .statusBadge.success { color:#8ee6c1!important;background:rgba(60,194,140,.12)!important; }
+#root .securityIcon.success { color:#7ee3b7!important;background:rgba(91,214,160,.13)!important; }
+#root .securityIcon.warning { color:#f4c56d!important;background:rgba(244,197,109,.13)!important; }
+#root .securityIcon.danger { color:#ff8190!important;background:rgba(255,129,144,.13)!important; }
+#root .institutionModuleLauncher { color:#f4f8ff!important;background:linear-gradient(145deg,rgba(20,40,64,.98),rgba(14,31,51,.98))!important; }
+#root .institutionModuleLauncherCopy strong { color:#f0f7ff!important; }
+#root .institutionModuleLauncherCopy small { color:#b6c7db!important; }
+#root .institutionModuleLauncherAction { color:#8ce4f0!important; }
+#root .authShell { background:radial-gradient(ellipse at 8% 0%,rgba(47,126,190,.2),transparent 42rem),linear-gradient(145deg,#07111f,#101d32)!important; }
+@media(max-width:650px) {
+  body { background-attachment:scroll!important; }
+  #root .sidebar .navItem { background:rgba(17,36,58,.88)!important;border-color:rgba(153,184,222,.12)!important; }
+  #root .sidebar .navItem.active { background:linear-gradient(100deg,rgba(54,153,203,.25),rgba(89,112,190,.18))!important; }
+}
