@@ -342,9 +342,45 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
   app.get("/api/admin/test-institution-cleanup/preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
     try {
       const inventory = buildInstitutionInventory(database);
+      // The audit row is committed atomically with deletion. Use it after a
+      // page refresh to distinguish completed cleanup from a pre-delete blocker.
+      let cleanupStatus = { completed: false };
+      if (inventory.institutions.length === 0 && inventory.totalRecords === 0 &&
+          inventory.missingTargets.length === TARGETS.length && inventory.unsupported.length === 0) {
+        const audit = database.prepare(
+          "SELECT details_json, created_at FROM admin_audit_log WHERE action=? ORDER BY created_at DESC LIMIT 1"
+        ).get("TEST_INSTITUTION_DATA_CLEANUP");
+        if (audit) {
+          try {
+            const details = JSON.parse(audit.details_json || "{}");
+            const auditedTargets = Array.isArray(details.institutions) ? details.institutions.map(normalizeInstitutionName) : [];
+            const allTargetsAudited = [...TARGET_KEYS].every((target) => auditedTargets.includes(target));
+            const preserved = details.ownerAccountPreserved === true &&
+              details.userAccountsPreserved === true && details.sharedPlansPreserved === true;
+            const backupVerified = details.isolatedRestoreVerified === true &&
+              typeof details.backupFile === "string" && typeof details.backupSha256 === "string";
+            if (allTargetsAudited && Number(details.removedRows) > 0 && preserved && backupVerified) {
+              cleanupStatus = {
+                completed: true,
+                completedAt: Number(audit.created_at) || null,
+                deletedRows: Number(details.removedRows),
+                backupFile: details.backupFile,
+                backupSha256: details.backupSha256,
+                isolatedRestoreVerified: true,
+                ownerAccountPreserved: true,
+                userAccountsPreserved: true,
+                sharedPlansPreserved: true
+              };
+            }
+          } catch {
+            // Malformed audit data is never accepted as proof of completion.
+          }
+        }
+      }
       res.setHeader("Cache-Control", "private, no-store");
       return res.json({
         success: true,
+        cleanupStatus,
         protectedOwnerEmail: ownerEmail,
         protectedTables: [...PROTECTED_TABLES],
         institutions: inventory.institutions,
