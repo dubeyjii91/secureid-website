@@ -96,7 +96,7 @@ export default function MonetizationPanel() {
   return <section className="panel" aria-labelledby="monetization-heading" style={{ marginTop: 20 }}>
     <div className="eyebrow dark">REVENUE & BUSINESS MANAGEMENT</div>
     <h3 id="monetization-heading">SecureID monetization</h3>
-    <p>Owner-only manual revenue records, proposed pricing and sponsorship management. Live payment collection is disabled.</p>
+    <p>Owner-only manual revenue records and sponsorship management. Live payment collection is disabled.</p>
     {error && <p role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {overview && <>
@@ -106,11 +106,6 @@ export default function MonetizationPanel() {
         <article className="panel"><div className="eyebrow dark">DOCUMENT STORAGE</div><h3>{(overview.storage.bytes / (1024 ** 3)).toFixed(3)} GB</h3><small>{overview.storage.documents} active documents · usage only, not a quota</small></article>
         <article className="panel"><div className="eyebrow dark">SPONSORSHIPS</div><h3>{overview.sponsorships.active} active</h3><small>{overview.sponsorships.total} records · delivery not enabled</small></article>
       </div>
-      <h4>Proposed institution plans</h4>
-      <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-        <thead><tr><th style={{ padding: 8 }}>Plan</th><th style={{ padding: 8 }}>Monthly</th><th style={{ padding: 8 }}>Annual</th><th style={{ padding: 8 }}>State</th></tr></thead>
-        <tbody>{overview.plans.map(plan => <tr key={plan.key}><td style={{ padding: 8, borderTop: "1px solid var(--border,#ddd)" }}><strong>{plan.name}</strong><br/><small>{plan.note}</small></td><td style={{ padding: 8, borderTop: "1px solid var(--border,#ddd)" }}>{plan.monthlyPaise === null ? "Custom" : money(plan.monthlyPaise)}</td><td style={{ padding: 8, borderTop: "1px solid var(--border,#ddd)" }}>{plan.annualPaise === null ? "Custom" : money(plan.annualPaise)}</td><td style={{ padding: 8, borderTop: "1px solid var(--border,#ddd)" }}>{plan.status}</td></tr>)}</tbody>
-      </table></div>
     </>}
     <h4>Record a subscription or service fee</h4>
     <p><small>Use this only for a fee agreed with the institution or sponsor. Marking an entry paid is a manual accounting action, not payment verification.</small></p>
