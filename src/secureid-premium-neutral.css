@@ -280,3 +280,37 @@ body::before { content: none !important; display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   #root *, #root *::before, #root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Keep every workspace icon inside the same restrained violet accent family. */
+#root .quickAccessCard .quickAccessIcon,
+#root .institutionModuleLauncher .institutionModuleLauncherIcon,
+#root .actionCard .actionIcon {
+  color: #6558f5 !important;
+  -webkit-text-fill-color: #6558f5 !important;
+  background: #f1efff !important;
+  border-color: #e7e3ff !important;
+  box-shadow: none !important;
+}
+#root .quickAccessCard .quickAccessIcon svg,
+#root .institutionModuleLauncher .institutionModuleLauncherIcon svg,
+#root .actionCard .actionIcon svg {
+  color: #6558f5 !important;
+  stroke: currentColor !important;
+}
+@media (max-width: 800px) {
+  #root .sidebar nav {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  #root .sidebar nav::-webkit-scrollbar { display: none; }
+  #root .sidebar .navItem {
+    flex: 0 0 auto !important;
+    width: max-content !important;
+    white-space: nowrap !important;
+  }
+}
