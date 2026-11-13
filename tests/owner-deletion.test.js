@@ -23,11 +23,12 @@ function setup() {
   const routes = new Map();
   const app = {
     get: (route, ...handlers) => routes.set("GET " + route, handlers),
-    delete: (route, ...handlers) => routes.set("DELETE " + route, handlers)
+    delete: (route, ...handlers) => routes.set("DELETE " + route, handlers),
+    post: (route, ...handlers) => routes.set("POST " + route, handlers)
   };
   const pass = (_req,_res,next) => next();
   process.env.OWNER_EMAIL = "owner@example.test";
-  registerOwnerDeletion({ app, database, requireAuth:pass, requireMfa:pass, requireOwner:pass, enforceSameOrigin:pass, logEvent:()=>{} });
+  registerOwnerDeletion({ app, database, requireAuth:pass, requireMfa:pass, requireOwner:pass, enforceSameOrigin:pass, logEvent:()=>{}, runEncryptedBackup:()=>({file:"/tmp/fresh.backup.json",bytes:10}) });
   return { database, routes };
 }
 
@@ -94,5 +95,42 @@ test("restrictive dependencies block deletion before any data changes", () => {
   assert.equal(res.statusCode,409);
   assert.equal(res.body.code,"DEPENDENCY_REVIEW_REQUIRED");
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='user-id'").get().n,1);
+  database.close();
+});
+
+test("backup inventory and purge only target encrypted backup artifacts after explicit acknowledgement", () => {
+  const { database, routes } = setup();
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(),"secureid-backup-purge-"));
+  const previousDir = process.env.BACKUP_DIR;
+  process.env.BACKUP_DIR = temp;
+  fs.writeFileSync(path.join(temp,"secureid-one.backup.json"),"encrypted");
+  fs.writeFileSync(path.join(temp,"keep.txt"),"keep");
+  const getHandlers = routes.get("GET /api/admin/backups");
+  const preview = response();
+  getHandlers.at(-1)({},preview);
+  assert.equal(preview.body.totalBackups,1);
+  const deleteHandlers = routes.get("DELETE /api/admin/backups");
+  const denied = response();
+  deleteHandlers.at(-1)({body:{confirmationEmail:"owner@example.test",confirmationPhrase:"DELETE ALL ENCRYPTED BACKUPS"}},denied);
+  assert.equal(denied.statusCode,400);
+  assert.equal(fs.existsSync(path.join(temp,"secureid-one.backup.json")),true);
+  const accepted = response();
+  deleteHandlers.at(-1)({body:{confirmationEmail:"owner@example.test",confirmationPhrase:"DELETE ALL ENCRYPTED BACKUPS",recoveryAcknowledged:true}},accepted);
+  assert.equal(accepted.statusCode,200);
+  assert.equal(accepted.body.remainingBackups,0);
+  assert.equal(fs.existsSync(path.join(temp,"keep.txt")),true);
+  if (previousDir === undefined) delete process.env.BACKUP_DIR;
+  else process.env.BACKUP_DIR = previousDir;
+  fs.rmSync(temp,{recursive:true,force:true});
+  database.close();
+});
+
+test("Owner can create a fresh encrypted backup through the protected route", () => {
+  const { database, routes } = setup();
+  const handlers = routes.get("POST /api/admin/backups/create");
+  const res = response();
+  handlers.at(-1)({user:{id:"owner-id",email:"owner@example.test",role:"owner"}},res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.body.fileName,"fresh.backup.json");
   database.close();
 });
