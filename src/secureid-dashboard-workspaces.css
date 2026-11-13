@@ -1,0 +1,27 @@
+/* Dashboard workspace launcher */
+#root .quickAccessHeader { display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:28px 0 14px; }
+#root .quickAccessHeader h2 { margin:3px 0 5px;color:#edf6ff!important;font-size:clamp(18px,2vw,22px);letter-spacing:-.025em; }
+#root .quickAccessHeader p { margin:0;color:var(--sid-muted)!important;font-size:13px;line-height:1.55; }
+#root .quickAccessGrid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:0 0 22px; }
+#root .quickAccessCard {
+  position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) 20px;align-items:center;gap:12px;
+  min-height:98px;padding:15px;text-align:left;
+  color:var(--sid-ink)!important;background:linear-gradient(145deg,rgba(20,40,64,.96),rgba(14,31,51,.96))!important;
+  border:1px solid var(--sid-line)!important;border-radius:16px!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.13);cursor:pointer;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+}
+#root .quickAccessCard:hover { transform:translateY(-3px);border-color:rgba(91,214,239,.38)!important;background:linear-gradient(145deg,#18334f,#142942)!important;box-shadow:0 16px 34px rgba(0,0,0,.22); }
+#root .quickAccessCard:active { transform:translateY(-1px); }
+#root .quickAccessIcon { width:44px;height:44px;display:grid;place-items:center;color:#79e0ee;background:rgba(91,214,239,.1);border:1px solid rgba(91,214,239,.17);border-radius:13px; }
+#root .quickAccessCopy { display:grid;gap:5px;min-width:0; }
+#root .quickAccessCopy strong { color:#f0f7ff!important;font-size:13px;font-weight:750;line-height:1.35; }
+#root .quickAccessCopy small { color:#9eb2ca!important;font-size:11px;line-height:1.45; }
+#root .quickAccessArrow { display:grid;place-items:center;color:#718da9; }
+#root .quickAccessCard:hover .quickAccessArrow { color:#82e5f2; }
+@media(max-width:980px) { #root .quickAccessGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:560px) {
+  #root .quickAccessGrid { grid-template-columns:minmax(0,1fr);gap:9px; }
+  #root .quickAccessCard { min-height:82px;padding:12px; }
+  #root .quickAccessHeader { align-items:flex-start;margin-top:22px; }
+}

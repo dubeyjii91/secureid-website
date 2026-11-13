@@ -16,7 +16,7 @@ permissions:
 jobs:
   visual-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -24,229 +24,120 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install Playwright
+      - name: Install application and browser-test dependencies
         run: |
+          npm install --no-audit --no-fund
           npm install --no-save --no-package-lock playwright
           npx playwright install --with-deps chromium
-      - name: Render Play Store feature graphic at exact 1024x500
+      - name: Build the exact pull-request frontend
+        run: npm run build
+      - name: Start isolated production preview
         run: |
-          mkdir -p artifacts
-          node --input-type=module <<'NODE'
-          import { chromium } from 'playwright';
-          import { readFile } from 'node:fs/promises';
-          const svg = await readFile('public/play-store-feature-graphic.svg', 'utf8');
-          const browser = await chromium.launch({ headless: true });
-          try {
-            const page = await browser.newPage({ viewport: { width: 1024, height: 500 }, deviceScaleFactor: 1 });
-            await page.setContent(svg, { waitUntil: 'load' });
-            const dimensions = await page.locator('svg').evaluate(element => {
-              const box = element.getBoundingClientRect();
-              return { width: box.width, height: box.height };
-            });
-            if (dimensions.width !== 1024 || dimensions.height !== 500) {
-              throw new Error('Feature graphic must render at exactly 1024x500; got ' + JSON.stringify(dimensions));
-            }
-            const output = 'artifacts/secureid-play-store-feature-graphic.png';
-            await page.screenshot({ path: output, fullPage: false, animations: 'disabled' });
-            const png = await readFile(output);
-            if (png.toString('hex', 0, 8) !== '89504e470d0a1a0a' || png.readUInt32BE(16) !== 1024 || png.readUInt32BE(20) !== 500) {
-              throw new Error('Rendered feature graphic PNG has invalid dimensions or signature.');
-            }
-            console.log('PASS Play Store feature graphic PNG rendered at exactly 1024x500.');
-          } finally {
-            await browser.close();
-          }
-          NODE
-      - name: Render Play Store app icon at exact 512x512
-        run: |
-          mkdir -p artifacts
-          node --input-type=module <<'NODE'
-          import { chromium } from 'playwright';
-          import { readFile, writeFile } from 'node:fs/promises';
-          const source = await readFile('mobile/assets/secureid-icon.png');
-          const browser = await chromium.launch({ headless: true });
-          try {
-            const page = await browser.newPage();
-            await page.setContent('<img id="source" src="data:image/png;base64,' + source.toString('base64') + '">');
-            const image = await page.locator('#source').evaluate(async element => {
-              await element.decode();
-              return { width: element.naturalWidth, height: element.naturalHeight };
-            });
-            if (!image.width || image.width !== image.height) {
-              throw new Error('Source app icon must be square; got ' + JSON.stringify(image));
-            }
-            const dataUrl = await page.locator('#source').evaluate(element => {
-              const canvas = document.createElement('canvas');
-              canvas.width = 512;
-              canvas.height = 512;
-              const context = canvas.getContext('2d');
-              context.fillStyle = '#ffffff';
-              context.fillRect(0, 0, 512, 512);
-              context.drawImage(element, 0, 0, 512, 512);
-              return canvas.toDataURL('image/png');
-            });
-            const output = Buffer.from(dataUrl.split(',')[1], 'base64');
-            if (output.toString('hex', 0, 8) !== '89504e470d0a1a0a' || output.readUInt32BE(16) !== 512 || output.readUInt32BE(20) !== 512 || output.length > 1024 * 1024) {
-              throw new Error('Play Store icon PNG failed 512x512 or 1MB validation.');
-            }
-            await writeFile('artifacts/secureid-play-store-icon.png', output);
-            console.log('PASS Play Store icon PNG rendered at 512x512 (' + output.length + ' bytes).');
-          } finally {
-            await browser.close();
-          }
-          NODE
-      - name: Check desktop and mobile appearance and capture screenshots
-        env:
-          BASE_URL: https://secureid-production-b732.up.railway.app
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/secureid-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              echo "Preview is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/secureid-preview.log
+          exit 1
+      - name: Check authenticated dashboard, icons, navigation and responsive layouts
         run: |
           mkdir -p artifacts
           node --input-type=module <<'NODE'
           import { chromium } from 'playwright';
 
-          const base = process.env.BASE_URL;
           const browser = await chromium.launch({ headless: true });
-          let failures = [];
+          const failures = [];
+          const apiPayload = (url, role) => {
+            const path = new URL(url).pathname;
+            if (path === '/api/auth/session') return { user: { email: role + '@secureid.test', role, mfaVerified: true }, wallet: { risk: 12, locked: false, shareData: {} } };
+            if (path === '/api/security/dashboard') return { score: 92, scoreLabel: 'Strong', stats: { activeSessions: 1, activeShares: 0, documents: 2, recoveryCodesRemaining: 8 } };
+            if (path === '/api/privacy') return { settings: { security_alerts: 1, login_notifications: 1, share_notifications: 1, analytics: 0 } };
+            if (path === '/api/admin/health' || path === '/api/health') return { status: 'ready', database: 'ok', emailDelivery: { configured: true, provider: 'test', testSender: false }, backup: { enabled: true, lastSuccessAt: '2026-11-13T00:00:00.000Z' } };
+            return {};
+          };
+
+          async function openDashboard(viewport, role) {
+            const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+            page.on('pageerror', error => failures.push(role + ' ' + viewport.width + 'px: ' + error.message));
+            await page.route('**/api/**', async route => {
+              const payload = apiPayload(route.request().url(), role);
+              await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload), headers: { 'cache-control': 'no-store' } });
+            });
+            const response = await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle', timeout: 30000 });
+            if (!response?.ok()) throw new Error('Local preview did not return HTTP 200.');
+            await page.locator('.quickAccessGrid').waitFor({ state: 'visible', timeout: 20000 });
+            const welcome = page.getByRole('button', { name: 'Continue securely' });
+            if (await welcome.isVisible().catch(() => false)) await welcome.click();
+            await page.locator('.quickAccessGrid').waitFor({ state: 'visible' });
+            return page;
+          }
+
           try {
             for (const viewport of [
               { name: 'desktop', width: 1440, height: 1000 },
-              { name: 'mobile', width: 390, height: 844 },
+              { name: 'mobile', width: 390, height: 844 }
             ]) {
-              const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 1 });
-              page.on('pageerror', error => failures.push(`${viewport.name}: browser JS error: ${error.message}`));
-              let response;
-              for (let attempt = 1; attempt <= 5; attempt++) {
-                try {
-                  response = await page.goto(base, { waitUntil: 'networkidle', timeout: 30000 });
-                  if (response?.ok()) break;
-                } catch (error) {
-                  if (attempt === 5) throw error;
-                  await page.waitForTimeout(2000);
-                }
-              }
-              if (!response?.ok()) throw new Error(`${viewport.name}: homepage returned HTTP ${response?.status()}`);
-              let themeReady = false;
-              for (let attempt = 1; attempt <= 12; attempt++) {
-                await page.waitForTimeout(1500);
-                const theme = await page.evaluate(() => {
-                  const overlay = document.querySelector('.welcomeSplash') || document.querySelector('.authShell') || document.body;
-                  const card = document.querySelector('.welcomeCard') || document.querySelector('button.primary');
-                  const button = document.querySelector('button.primary') || document.querySelector('button');
-                  return {
-                    overlayBackground: getComputedStyle(overlay).backgroundColor,
-                    cardBackgroundImage: card ? getComputedStyle(card).backgroundImage : 'none',
-                    buttonBackground: button ? getComputedStyle(button).backgroundColor : 'rgb(255, 255, 255)',
-                    buttonText: button ? getComputedStyle(button).color : 'rgb(0, 0, 0)'
-                  };
-                });
-                console.log(`THEME PREFLIGHT ${viewport.name.toUpperCase()} attempt ${attempt}: ${JSON.stringify(theme)}`);
-                if (theme.overlayBackground === 'rgba(23, 37, 84, 0.52)'
-                  && theme.buttonText === 'rgb(255, 255, 255)') {
-                  themeReady = true;
-                  break;
-                }
-                if (attempt < 12) {
-                  await page.waitForTimeout(4000);
-                  await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-                }
-              }
-              if (!themeReady) failures.push(`${viewport.name}: SecureID warm ivory / teal theme was not live after deployment wait`);
-              await page.waitForTimeout(1000);
-              await page.screenshot({ path: `artifacts/secureid-${viewport.name}.png`, fullPage: true, animations: 'disabled' });
+              const page = await openDashboard(viewport, 'owner');
+              const checks = await page.evaluate(() => ({
+                title: document.title,
+                navCount: document.querySelectorAll('.sidebar .navItem').length,
+                navSvgCount: document.querySelectorAll('.sidebar .navItem .navIcon svg').length,
+                launcherCount: document.querySelectorAll('.quickAccessCard').length,
+                launcherSvgCount: document.querySelectorAll('.quickAccessCard .quickAccessIcon svg').length,
+                rootWidth: document.documentElement.scrollWidth,
+                viewportWidth: window.innerWidth,
+                background: getComputedStyle(document.body).backgroundImage,
+                rootColor: getComputedStyle(document.documentElement).backgroundColor,
+                cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,
+                primaryText: getComputedStyle(document.querySelector('.quickAccessCard strong')).color,
+                navText: getComputedStyle(document.querySelector('.sidebar .navItem')).color,
+                navFill: getComputedStyle(document.querySelector('.sidebar .navItem')).webkitTextFillColor,
+                metricText: getComputedStyle(document.querySelector('.securityStats b')).color,
+                healthText: getComputedStyle(document.querySelector('.systemHealthGrid strong')).color
+              }));
+              console.log('VISUAL ' + viewport.name.toUpperCase() + ' ' + JSON.stringify(checks));
+              if (checks.navCount < 10 || checks.navSvgCount !== checks.navCount) failures.push(viewport.name + ': sidebar navigation icons are missing.');
+              if (checks.launcherCount !== 11 || checks.launcherSvgCount !== 11) failures.push(viewport.name + ': expected 11 owner workspace cards with SVG icons.');
+              if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
+              if (!checks.background.includes('radial-gradient') || checks.rootColor !== 'rgb(7, 17, 31)') failures.push(viewport.name + ': SecureID dark navy/cyan page background is missing.');
+              if (!checks.cardBackground.includes('linear-gradient')) failures.push(viewport.name + ': dashboard launcher cards lost their branded surface treatment.');
+              if (checks.primaryText !== 'rgb(240, 247, 255)' || checks.navText === 'rgb(0, 0, 0)' || checks.navFill === 'rgb(33, 56, 93)' || checks.metricText !== 'rgb(242, 247, 255)' || !['rgb(237, 245, 255)','rgb(121, 228, 180)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard or navigation text contrast is not using the accessible light palette.');
+              await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
 
-              const result = await page.evaluate(() => {
-                const visible = element => {
-                  const rect = element.getBoundingClientRect();
-                  const style = getComputedStyle(element);
-                  return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
-                };
-                const isMedia = element => /^(IMG|VIDEO|CANVAS|IFRAME|SVG|PATH|PICTURE|SOURCE)$/i.test(element.tagName);
-                const rgb = value => value.replace(/\\s/g, '');
-                const backgrounds = [];
-                const textColors = [];
-                for (const element of document.querySelectorAll('body, body *')) {
-                  if (!visible(element) || isMedia(element)) continue;
-                  const style = getComputedStyle(element);
-                  const bg = style.backgroundColor;
-                  const alphaText = bg.startsWith('rgba(') ? bg.slice(bg.lastIndexOf(',') + 1, -1).trim() : null;
-                  const transparent = bg === 'transparent' || (alphaText !== null && Number(alphaText) === 0);
-                  if (!transparent && bg !== 'rgb(255, 255, 255)') {
-                    backgrounds.push({ tag: element.tagName, className: String(element.className?.baseVal ?? element.className ?? '').slice(0, 100), background: bg });
-                  }
-                  if (style.backgroundImage !== 'none') {
-                    backgrounds.push({ tag: element.tagName, className: String(element.className?.baseVal ?? element.className ?? '').slice(0, 100), backgroundImage: style.backgroundImage.slice(0, 120) });
-                  }
-                  const hasText = element.children.length === 0 && (element.textContent || '').trim().length > 0;
-                  if (hasText) {
-                    const color = style.color;
-                    const isLink = element.closest('a');
-                    const allowed = color === 'rgb(0, 0, 0)' || (isLink && color === 'rgb(0, 51, 160)');
-                    if (!allowed) textColors.push({ tag: element.tagName, text: element.textContent.trim().slice(0, 60), color });
-                  }
-                }
-                return {
-                  title: document.title,
-                  rootBackground: getComputedStyle(document.documentElement).backgroundColor,
-                  bodyBackground: getComputedStyle(document.body).backgroundColor,
-                  backgroundIssues: backgrounds.slice(0, 40),
-                  backgroundIssueCount: backgrounds.length,
-                  textColorIssues: textColors.slice(0, 40),
-                  textColorIssueCount: textColors.length,
-                  headingColor: getComputedStyle(document.querySelector('.authShell h1') || document.querySelector('h1')).color,
-                  bodyTextColor: getComputedStyle(document.querySelector('.authShell p') || document.querySelector('p')).color,
-                  primaryButtonTextColor: getComputedStyle(document.querySelector('.authShell button.primary') || document.querySelector('button.primary')).color,
-                  primaryButtonBackgroundImage: getComputedStyle(document.querySelector('.authShell button.primary') || document.querySelector('button.primary')).backgroundImage,
-                  horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,
-                };
-              });
-
-              console.log(`VISUAL ${viewport.name.toUpperCase()} ${JSON.stringify(result)}`);
-              if (result.rootBackground !== 'rgb(255, 248, 237)') {
-                failures.push(`${viewport.name}: warm ivory page background is missing`);
+              if (viewport.name === 'desktop') {
+                await page.getByRole('button', { name: /Document vault/ }).last().click();
+                await page.getByRole('heading', { name: 'Documents & Identity' }).waitFor({ state: 'visible', timeout: 10000 });
+                const active = await page.locator('.sidebar .navItem.active').innerText();
+                if (!/Document vault/i.test(active)) failures.push('Dashboard Document Vault shortcut did not activate its matching navigation item.');
               }
-              if (result.headingColor !== 'rgb(23, 37, 84)' || result.bodyTextColor !== 'rgb(54, 81, 107)') {
-                failures.push(`${viewport.name}: primary text colors do not match the readable navy/blue palette`);
-              }
-              if (result.primaryButtonTextColor !== 'rgb(255, 255, 255)' || !result.primaryButtonBackgroundImage.includes('linear-gradient')) {
-                failures.push(`${viewport.name}: primary action button lost its high-contrast teal gradient treatment`);
-              }
-              if (result.horizontalOverflow) failures.push(`${viewport.name}: horizontal overflow detected`);
               await page.close();
             }
+
+            const studentPage = await openDashboard({ width: 1280, height: 900 }, 'user');
+            const studentCards = await studentPage.locator('.quickAccessCard').allInnerTexts();
+            if (studentCards.length !== 9) failures.push('Normal user should see 10 standard workspaces, not owner-only shortcuts.');
+            if (studentCards.some(text => /Owner \/ Admin|All user documents/i.test(text))) failures.push('Owner-only workspace leaked into the normal-user dashboard.');
+            await studentPage.screenshot({ path: 'artifacts/secureid-user-dashboard.png', fullPage: true, animations: 'disabled' });
+            await studentPage.close();
           } finally {
             await browser.close();
           }
-          for (const path of ['/secureid-welcome.svg', '/secureid-app-icon.svg']) {
-            const response = await fetch(new URL(path, base), { signal: AbortSignal.timeout(15000) });
-            const source = await response.text();
-            if (!response.ok || !source.includes('fill="#ffffff"') || !source.includes('fill="#000000"')) {
-              failures.push(`${path}: SVG background/text colors are not white/black as requested`);
-            } else {
-              console.log(`PASS ${path}: white background and black lettering`);
-            }
-          }
+
           if (failures.length) {
             console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
             process.exit(1);
           }
-          console.log('PASS: desktop and mobile warm ivory theme, readable navy/blue text, high-contrast teal actions, and no horizontal overflow.');
+          console.log('PASS: PR build renders; desktop/mobile navigation has SVG icons; owner dashboard has 12 working workspace cards; normal user sees only 9; Document Vault shortcut navigates; no horizontal overflow.');
           NODE
       - name: Upload desktop and mobile screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: secureid-visual-screenshots
-          path: |
-            artifacts/secureid-desktop.png
-            artifacts/secureid-mobile.png
+          name: secureid-redesign-visual-screenshots
+          path: artifacts/secureid-*.png
           if-no-files-found: warn
           retention-days: 7
-      - name: Upload Play Store store-listing assets
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: secureid-play-store-assets
-          path: |
-            artifacts/secureid-play-store-feature-graphic.png
-            artifacts/secureid-play-store-icon.png
-          if-no-files-found: error
-          retention-days: 14

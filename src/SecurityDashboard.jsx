@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import "./security-dashboard.css";
 import api from "./api.js";
-export default function SecurityDashboard(){
+import SecureIcon from "./SecureIcon.jsx";
+export default function SecurityDashboard({ sessionRole = "user" }){
   const [data,setData]=useState(null),[privacy,setPrivacy]=useState(null),[health,setHealth]=useState(null),[message,setMessage]=useState(""),[loading,setLoading]=useState(true);
   async function load(){
     setLoading(true);setMessage("");
@@ -19,6 +20,25 @@ export default function SecurityDashboard(){
   if(loading)return <section className="content narrow"><div className="panel activityEmpty">Loading security dashboard…</div></section>;
   return <section className="content narrow">
     <div className="functionHero compact"><div><div className="eyebrow dark">SECURITY DASHBOARD</div><h2>Your SecureID overview</h2><p>Review your security score, active sessions, shares and privacy controls.</p></div><div className="dashboardScore"><strong>{data?.score ?? 0}</strong><span>/100</span><small>{data?.scoreLabel || "Review"}</small></div></div>
+    <div className="quickAccessHeader"><div><div className="eyebrow dark">YOUR SECUREID WORKSPACE</div><h2>What would you like to do?</h2><p>Open a dedicated workspace. Each tool keeps its own controls and workflow.</p></div></div>
+    <div className="quickAccessGrid" aria-label="SecureID feature workspaces">
+      {[
+        ["identity","My identity","View your identity profile and account status.","id"],
+        ["documents","Document vault","Store and manage your personal documents.","files"],
+        ["share","Share ID","Choose exactly which identity details to share.","share"],
+        ["safety","Safety check","Review suspicious website addresses.","scan"],
+        ["lock","Emergency lock","Pause identity sharing when needed.","lock"],
+        ["activity","Security activity","Review recent account security events.","activity"],
+        ["sessions","Active sessions","Review and manage signed-in devices.","monitor"],
+        ["shares","Share management","Review and revoke active share links.","clipboard"],
+        ["college","College workspace","Access your institution and student workflows.","school"],
+        ...(sessionRole === "owner" ? [["admin","Owner / Admin","Manage SecureID users and platform controls.","shield"],["admin-documents","All user documents","Review the owner document administration workspace.","files"]] : [])
+      ].map(([page,title,description,icon]) => <button className="quickAccessCard" type="button" key={page} onClick={() => window.dispatchEvent(new CustomEvent("secureid:navigate",{detail:page}))}>
+        <span className="quickAccessIcon"><SecureIcon name={icon} size={22}/></span>
+        <span className="quickAccessCopy"><strong>{title}</strong><small>{description}</small></span>
+        <span className="quickAccessArrow"><SecureIcon name="arrow" size={17}/></span>
+      </button>)}
+    </div>
     {message&&<div className="vaultMessage">{message}</div>}
     <div className="dashboardGrid">
       <article className="panel scorePanel"><div className="eyebrow dark">SECURITY SCORE</div><h3>{data?.score ?? 0}/100</h3><p>{data?.scoreLabel}. Keep MFA enabled, recovery codes available and unused sessions under control.</p></article>

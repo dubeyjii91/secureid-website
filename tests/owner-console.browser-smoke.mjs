@@ -68,7 +68,7 @@ try {
   const response = await page.goto(baseURL, { waitUntil: "networkidle" });
   if (!response?.ok()) throw new Error("Preview homepage did not return HTTP 200.");
   await page.getByRole("button", { name: /Continue securely/i }).click();
-  await page.getByRole("button", { name: /Owner \/ Admin/i }).click();
+  await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
 
   await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
@@ -78,7 +78,7 @@ try {
   // rather than relying only on the create-success toast.
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Continue securely/i }).click();
-  await page.getByRole("button", { name: /Owner \/ Admin/i }).click();
+  await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
   try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
   catch { throw new Error("Created institution did not reappear after reload. Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }

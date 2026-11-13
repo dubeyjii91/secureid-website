@@ -43,7 +43,8 @@ test("listing and download failures create error audit events", () => {
 
 test("owner-only navigation exposes the admin document vault", () => {
   assert.ok(app.includes('import AdminDocumentVault from "./AdminDocumentVault.jsx"'));
-  assert.ok(app.includes('["admin-documents", "All user documents", "🗂️"]'));
+  assert.ok(app.includes('["admin-documents", "All user documents", "files"]'));
+  assert.ok(app.includes('className="navIcon"><SecureIcon name={icon} size={18} />'));
   assert.ok(app.includes('page === "admin-documents" && sessionRole === "owner"'));
   assert.ok(ui.includes("/api/admin/document-access-audit"));
   assert.ok(ui.includes("/api/admin/documents/"));

@@ -10,6 +10,7 @@ import OwnerAdminDashboard from "./OwnerAdminDashboard.jsx";
 import AdminDocumentVault from "./AdminDocumentVault.jsx";
 import SecureShareQR from "./SecureShareQR.jsx";
 import api from "./api.js";
+import SecureIcon from "./SecureIcon.jsx";
 import "./secureid-font-clean.css";
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
@@ -96,25 +97,25 @@ function InstallSecureIDButton() {
 }
 
 function FunctionVisual({ label }) {
-  const visual = /identity/i.test(label) ? "🪪" : /sharing/i.test(label) ? "🔗" : /safety|phishing/i.test(label) ? "🛡️" : /privacy/i.test(label) ? "🔐" : /responsible use/i.test(label) ? "📋" : /emergency/i.test(label) ? "🔒" : /document/i.test(label) ? "📁" : "🔒";
-  return <div className="functionVisual" aria-label={label}><span className="functionEmoji" aria-hidden="true">{visual}</span><img src="/secureid-welcome.svg" alt="" /></div>;
+  const icon = /identity/i.test(label) ? "id" : /sharing/i.test(label) ? "share" : /safety|phishing/i.test(label) ? "scan" : /privacy/i.test(label) ? "shield" : /responsible use/i.test(label) ? "clipboard" : /emergency/i.test(label) ? "lock" : /document/i.test(label) ? "files" : "shield";
+  return <div className="functionVisual" aria-label={label}><SecureIcon name={icon} size={52} className="secureIconLarge" /></div>;
 }
 
 const navItems = [
-  ["dashboard", "Dashboard", "🏠"],
-  ["admin", "Owner / Admin", "🛡️"],
-  ["admin-documents", "All user documents", "🗂️"],
-  ["identity", "My identity", "🪪"],
-  ["documents", "Document vault", "📁"],
-  ["share", "Share ID", "🔗"],
-  ["safety", "Safety check", "🛡️"],
-  ["lock", "Emergency lock/unlock", "🔒"],
-  ["activity", "Security activity", "📊"],
-  ["sessions", "Active sessions", "💻"],
-  ["shares", "Share management", "🔐"],
-  ["college", "College pilot", "🏫"],
-  ["account", "Account security", "⚙️"],
-  ["legal", "Privacy & Terms", "📜"],
+  ["dashboard", "Dashboard", "grid"],
+  ["admin", "Owner / Admin", "shield"],
+  ["admin-documents", "All user documents", "files"],
+  ["identity", "My identity", "id"],
+  ["documents", "Document vault", "files"],
+  ["share", "Share ID", "share"],
+  ["safety", "Safety check", "scan"],
+  ["lock", "Emergency lock/unlock", "lock"],
+  ["activity", "Security activity", "activity"],
+  ["sessions", "Active sessions", "monitor"],
+  ["shares", "Share management", "share"],
+  ["college", "College pilot", "school"],
+  ["account", "Account security", "settings"],
+  ["legal", "Privacy & Terms", "clipboard"],
 ];
 
 function App() {
@@ -893,10 +894,10 @@ function App() {
   }
 
   return <div className="shell">
-    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => !["admin", "admin-documents"].includes(id) || sessionRole === "owner").map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span>{icon}</span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => !["admin", "admin-documents"].includes(id) || sessionRole === "owner").map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span className="navIcon"><SecureIcon name={icon} size={18} /></span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
     <main className="main"><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span><span className={sessionRole === "owner" ? "verifiedBadge ownerRoleBadge" : "verifiedBadge"}>{sessionRole === "owner" ? "Owner" : "User"}</span></div><button type="button" className="signOut topbarSignOut" onClick={signOut}>Sign out</button></div></header>
 
-      {page === "dashboard" && <SecurityDashboard />}
+      {page === "dashboard" && <SecurityDashboard sessionRole={sessionRole} />}
       {page === "admin" && sessionRole === "owner" && <OwnerAdminDashboard />}
       {page === "admin" && sessionRole !== "owner" && <section className="content"><div className="panel">Owner permissions are required.</div></section>}
       {page === "admin-documents" && sessionRole === "owner" && <section className="content"><AdminDocumentVault /></section>}
