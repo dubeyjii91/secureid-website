@@ -41,6 +41,18 @@ function makeDatabase() {
       FOREIGN KEY (term_institution_id, term_key)
         REFERENCES institution_terms(institution_id, term_key)
     );
+    CREATE TABLE secureid_financial_entries (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT REFERENCES institutions(id) ON DELETE SET NULL,
+      student_user_id TEXT REFERENCES users(id),
+      category TEXT NOT NULL
+    );
+    CREATE TABLE secureid_monetization_audit (
+      id TEXT PRIMARY KEY,
+      actor_user_id TEXT REFERENCES users(id),
+      entity_type TEXT NOT NULL,
+      entity_id TEXT
+    );
     CREATE TABLE subscription_plans (id TEXT PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE admin_audit_log (
@@ -60,6 +72,8 @@ function makeDatabase() {
     INSERT INTO fee_payments VALUES ('payment-rvs','invoice-rvs');
     INSERT INTO institution_terms VALUES ('rvs','2026-27');
     INSERT INTO institution_term_audit VALUES ('term-audit-rvs','rvs','2026-27');
+    INSERT INTO secureid_financial_entries VALUES ('financial-rvs','rvs','student','admission_service_fee');
+    INSERT INTO secureid_monetization_audit VALUES ('financial-audit-rvs','owner','financial_entry','financial-rvs');
     INSERT INTO subscription_plans VALUES ('pilot','Pilot');
     INSERT INTO sessions VALUES ('owner-session','owner');
     INSERT INTO admin_audit_log VALUES ('owner-audit','owner');
@@ -80,6 +94,8 @@ test("recursive inventory includes indirect test payments and audits, but exclud
     assert.equal(counts.fee_payments, 1);
     assert.equal(counts.institution_terms, 1);
     assert.equal(counts.institution_term_audit, 1);
+    assert.equal(counts.secureid_financial_entries, 1);
+    assert.equal(counts.secureid_monetization_audit, 1);
     assert.equal(counts.institutions, 2);
     assert.equal(counts.users, undefined);
     assert.equal(counts.sessions, undefined);
@@ -112,6 +128,8 @@ test("dependency order removes child payment and audit rows before their parents
     assert.equal(database.prepare("SELECT COUNT(*) AS total FROM institutions").get().total, 1);
     assert.equal(database.prepare("SELECT id FROM institutions").get().id, "unrelated");
     assert.equal(database.prepare("SELECT COUNT(*) AS total FROM fee_payments").get().total, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS total FROM secureid_financial_entries").get().total, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS total FROM secureid_monetization_audit").get().total, 0);
     assert.equal(database.prepare("SELECT COUNT(*) AS total FROM subscription_plans").get().total, 1);
     assert.equal(database.prepare("SELECT COUNT(*) AS total FROM sessions").get().total, 1);
     assert.equal(database.prepare("SELECT COUNT(*) AS total FROM admin_audit_log").get().total, 1);
