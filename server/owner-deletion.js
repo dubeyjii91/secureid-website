@@ -25,6 +25,9 @@ function deleteAccountAuditDependencies(database, userId) {
   if (hasTable("institution_review_audit") && hasTable("institution_review_submissions")) {
     database.prepare("DELETE FROM institution_review_audit WHERE actor_user_id=? OR submission_id IN (SELECT id FROM institution_review_submissions WHERE student_user_id=?)").run(userId, userId);
   }
+  if (hasTable("hostel_application_audit") && hasTable("hostel_applications")) {
+    database.prepare("DELETE FROM hostel_application_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(userId, userId);
+  }
   if (hasTable("institution_membership_audit")) {
     database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(userId, userId);
   }
