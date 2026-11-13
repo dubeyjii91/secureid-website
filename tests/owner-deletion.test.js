@@ -160,10 +160,14 @@ test("owner deletion clears only the target account's three restrictive audit de
     CREATE TABLE institution_membership_audit(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),membership_id TEXT NOT NULL REFERENCES institution_memberships(id),actor_user_id TEXT NOT NULL REFERENCES users(id),target_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_role TEXT,to_role TEXT,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
     CREATE TABLE scholarship_applications(id TEXT PRIMARY KEY,student_user_id TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE scholarship_audit(id TEXT PRIMARY KEY,application_id TEXT NOT NULL REFERENCES scholarship_applications(id),institution_id TEXT NOT NULL REFERENCES institutions(id),actor_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
+    CREATE TABLE hostel_applications(id TEXT PRIMARY KEY,student_user_id TEXT NOT NULL REFERENCES users(id));
+    CREATE TABLE hostel_application_audit(id TEXT PRIMARY KEY,application_id TEXT NOT NULL REFERENCES hostel_applications(id),institution_id TEXT NOT NULL REFERENCES institutions(id),actor_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
     INSERT INTO institutions VALUES('institution-1');
     INSERT INTO institution_memberships VALUES('membership-1','institution-1','user-id');
     INSERT INTO institution_review_submissions VALUES('submission-1','institution-1','user-id');
     INSERT INTO scholarship_applications VALUES('scholarship-1','user-id');
+    INSERT INTO hostel_applications VALUES('hostel-application-1','user-id');
+    INSERT INTO hostel_application_audit VALUES('hostel-audit-1','hostel-application-1','institution-1','owner-id','application_reviewed',NULL,NULL,'2026-11-13T00:00:00.000Z');
   `);
   const insertReview = database.prepare("INSERT INTO institution_review_audit VALUES(?,?,?,?,?,?,?,?)");
   for (let i=0;i<6;i++) insertReview.run("review-audit-"+i,"submission-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
@@ -185,6 +189,8 @@ test("owner deletion clears only the target account's three restrictive audit de
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_review_audit").get().n,0);
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_membership_audit").get().n,0);
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM scholarship_audit").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_applications").get().n,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM hostel_application_audit").get().n,0);
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM users WHERE id='owner-id'").get().n,1);
   database.close();
 });
