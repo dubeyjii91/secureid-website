@@ -16,7 +16,8 @@ test("SecureID primary navigation uses a shared SVG icon component", () => {
   assert.ok(icon.includes('viewBox="0 0 24 24"'));
   assert.ok(icon.includes('strokeLinecap="round"'));
   assert.ok(icon.includes('paths[name] || paths.shield'));
-  const nav = app.match(/const navItems = \[([\s\S]*?)\n\];/)?.[1] || "";
+  const nav = app.match(/const navItems = \[([\s\S]*?)
+\];/)?.[1] || "";
   assert.ok(nav.includes('"dashboard"') && nav.includes('"documents"') && nav.includes('"college"'));
   assert.doesNotMatch(nav, /[🏠🛡️🗂️🪪📁🔗📊💻🏫⚙️📜]/u);
 });
@@ -39,8 +40,11 @@ test("the product design layer includes accessible responsive navigation and con
   assert.match(design, /:focus-visible/);
   assert.match(design, /@media\s*\(max-width:\s*650px\)/);
   assert.match(design, /prefers-reduced-motion/);
-  assert.match(design, /color-scheme: light/);\n  assert.match(design, /background:#f4f7fb!important/);\n  assert.match(design, /#root \.sidebar \{[\s\S]*?background:#10243d!important/);
-  assert.match(design, /#root \.securityStats b \{ color:#172b45!important; \}/);\n  assert.match(design, /quickAccessCard:not\(\.primary\).*background:#fff!important/);
+  assert.match(design, /color-scheme: light/);
+  assert.match(design, /background:#f4f7fb!important/);
+  assert.match(design, /#root \.sidebar \{[\s\S]*?background:#10243d!important/);
+  assert.match(design, /#root \.securityStats b \{ color:#172b45!important; \}/);
+  assert.match(design, /quickAccessCard:not\(\.primary\).*background:#fff!important/);
   assert.match(launchers, /\.quickAccessCard:hover/);
   assert.match(launchers, /@media\(max-width:560px\)/);
 });
