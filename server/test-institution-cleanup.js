@@ -8,7 +8,15 @@ const TARGETS = [
   "RVS College of Engineering and Technology",
   "SecureID Test College"
 ];
-const TARGET_KEYS = new Set(TARGETS.map((name) => name.toLowerCase()));
+function normalizeInstitutionName(value) {
+  // Collapse dotted initialisms before punctuation normalization: R.V.S. -> RVS.
+  return String(value || "").normalize("NFKD")
+    .replace(/(?:[a-z]\\.){2,}/gi, (match) => match.replace(/\\./g, ""))
+    .replace(/[&]/g, " and ")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim().toLowerCase().replace(/\\s+/g, " ");
+}
+const TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
 const PROTECTED_TABLES = new Set([
   "users", "admin_audit_log", "sqlite_sequence", "subscription_plans",
   "plan_catalog", "pricing_plans", "monetization_plans", "feature_catalog",
@@ -108,11 +116,10 @@ export function buildInstitutionInventory(database) {
     });
   }
 
-  const institutions = database.prepare(
-    "SELECT id,name FROM institutions WHERE lower(trim(name)) IN (?,?) ORDER BY name COLLATE NOCASE"
-  ).all(...[...TARGET_KEYS]);
-  const foundKeys = new Set(institutions.map((row) => String(row.name).trim().toLowerCase()));
-  const missingTargets = TARGETS.filter((name) => !foundKeys.has(name.toLowerCase()));
+  const institutions = database.prepare("SELECT id,name FROM institutions ORDER BY name COLLATE NOCASE").all()
+    .filter((row) => TARGET_KEYS.has(normalizeInstitutionName(row.name)));
+  const foundKeys = new Set(institutions.map((row) => normalizeInstitutionName(row.name)));
+  const missingTargets = TARGETS.filter((name) => !foundKeys.has(normalizeInstitutionName(name)));
   const selected = new Map();
   const queue = [];
   const unsupported = new Set();
