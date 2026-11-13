@@ -151,10 +151,6 @@ export function buildInstitutionInventory(database) {
     if (PROTECTED_TABLES.has(table) || table === "institutions") continue;
     const meta = metadata.get(table);
     if (!meta.columns.has("institution_id")) continue;
-    if (meta.primaryKey.length !== 1) {
-      unsupported.add(table + " (missing or composite primary key)");
-      continue;
-    }
     for (const institutionId of institutionsById.keys()) {
       const rows = database.prepare(
         "SELECT rowid AS __rowid FROM " + quoteIdentifier(table) + " WHERE institution_id=?"
