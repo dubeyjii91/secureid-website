@@ -90,9 +90,11 @@ jobs:
                 launcherSvgCount: document.querySelectorAll('.quickAccessCard .quickAccessIcon svg').length,
                 rootWidth: document.documentElement.scrollWidth,
                 viewportWidth: window.innerWidth,
-                background: getComputedStyle(document.body).backgroundImage,\n                bodyColor: getComputedStyle(document.body).color,
+                background: getComputedStyle(document.body).backgroundImage,
+                bodyColor: getComputedStyle(document.body).color,
                 rootColor: getComputedStyle(document.documentElement).backgroundColor,
-                cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,\n                cardColor: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundColor,
+                cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,
+                cardColor: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundColor,
                 primaryText: getComputedStyle(document.querySelector('.quickAccessCard strong')).color,
                 navText: getComputedStyle(document.querySelector('.sidebar .navItem')).color,
                 navFill: getComputedStyle(document.querySelector('.sidebar .navItem')).webkitTextFillColor,
@@ -128,7 +130,9 @@ jobs:
           }
 
           if (failures.length) {
-            console.error('VISUAL CHECK FAILURES\\n' + failures.join('\\n'));
+            console.error('VISUAL CHECK FAILURES\
+' + failures.join('\
+'));
             process.exit(1);
           }
           console.log('PASS: PR build renders; premium light theme contrast is verified; desktop/mobile navigation has SVG icons; owner dashboard has 11 workspace cards; normal user sees only 9; Document Vault shortcut navigates; no horizontal overflow.');
