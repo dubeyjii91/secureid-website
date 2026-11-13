@@ -6,7 +6,10 @@ const AUDIT_TABLES = new Set([
   "admin_audit_log",
   "admin_document_access_audit",
   "hostel_application_audit",
-  "institution_audit_log"
+  "institution_audit_log",
+  "institution_review_audit",
+  "institution_membership_audit",
+  "scholarship_audit"
 ]);
 const OWNED_COLUMNS = ["user_id", "student_user_id", "owner_user_id"];
 const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -14,6 +17,20 @@ const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function quoteIdentifier(value) {
   if (!SAFE_IDENTIFIER.test(value)) throw new Error("Unsafe database identifier.");
   return '"' + value + '"';
+}
+
+
+function deleteAccountAuditDependencies(database, userId) {
+  const hasTable = (name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+  if (hasTable("institution_review_audit") && hasTable("institution_review_submissions")) {
+    database.prepare("DELETE FROM institution_review_audit WHERE actor_user_id=? OR submission_id IN (SELECT id FROM institution_review_submissions WHERE student_user_id=?)").run(userId, userId);
+  }
+  if (hasTable("institution_membership_audit")) {
+    database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(userId, userId);
+  }
+  if (hasTable("scholarship_audit") && hasTable("scholarship_applications")) {
+    database.prepare("DELETE FROM scholarship_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM scholarship_applications WHERE student_user_id=?)").run(userId, userId);
+  }
 }
 
 function getUser(database, userId) {
@@ -178,6 +195,7 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     try {
       database.exec("BEGIN IMMEDIATE");
       for (const target of targets) {
+        deleteAccountAuditDependencies(database, target.id);
         for (const item of inventories.get(target.id) || []) {
           database.prepare("DELETE FROM " + quoteIdentifier(item.table) + " WHERE " + quoteIdentifier(item.column) + "=?").run(target.id);
         }
@@ -250,6 +268,7 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     const auditId = randomUUID();
     try {
       database.exec("BEGIN IMMEDIATE");
+      deleteAccountAuditDependencies(database, user.id);
       for (const item of inventory) {
         if (AUDIT_TABLES.has(item.table)) continue;
         database.prepare("DELETE FROM " + quoteIdentifier(item.table) + " WHERE " + quoteIdentifier(item.column) + "=?").run(user.id);
