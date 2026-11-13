@@ -1,5 +1,6 @@
 ﻿import { registerProductionFeatures } from "./production-features.js";
 import { registerSecureCloudControlPlane } from "./securecloud-control-plane.js";
+import { registerOwnerDeletion } from "./owner-deletion.js";
 import path from "node:path";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -853,6 +854,7 @@ registerProductionFeatures({
   ensureSecurityNotification
 });
 registerSecureCloudControlPlane({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin });
+registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent });
 registerBackupTrigger({ app, runBackup: runEncryptedBackup, getBackupFile: getLatestEncryptedBackup });
 startAutomaticBackup();
 // Optional live URL reputation lookup. Keep the API key server-side only.
