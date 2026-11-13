@@ -81,6 +81,9 @@ export default function OwnerTestInstitutionCleanup() {
 
   useEffect(() => { loadPreview(); }, [loadPreview]);
 
+  // Once the protected audit log confirms cleanup, remove this maintenance panel entirely.
+  if (preview?.cleanupStatus?.completed === true) return null;
+
   async function executeCleanup() {
     setStatus({ type: "info", message: "Delete button click received. Checking the preview and Owner confirmations…" });
 
