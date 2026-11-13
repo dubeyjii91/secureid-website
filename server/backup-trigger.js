@@ -61,7 +61,7 @@ export function registerBackupTrigger({ app, runBackup, getBackupFile, env = pro
       // Also bind it to the file just created; never attest a different "latest" file
       // if another backup appeared between the trigger and export lookup.
       const generatedFileName = String(result.file || "").split(/[\\/]/).pop();
-      if (!/^secureid-[A-Za-z0-9T._-]+\\.backup\\.json$/.test(generatedFileName)) {
+      if (!/^secureid-[A-Za-z0-9T._-]+\.backup\.json$/.test(generatedFileName)) {
         throw new Error("Backup did not identify the generated encrypted artifact.");
       }
       const artifact = await getBackupFile();
