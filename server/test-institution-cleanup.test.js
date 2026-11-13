@@ -29,6 +29,18 @@ function makeDatabase() {
       id TEXT PRIMARY KEY,
       invoice_id TEXT NOT NULL REFERENCES fee_invoices(id)
     );
+    CREATE TABLE institution_terms (
+      institution_id TEXT NOT NULL REFERENCES institutions(id),
+      term_key TEXT NOT NULL,
+      PRIMARY KEY (institution_id, term_key)
+    );
+    CREATE TABLE institution_term_audit (
+      id TEXT PRIMARY KEY,
+      term_institution_id TEXT NOT NULL,
+      term_key TEXT NOT NULL,
+      FOREIGN KEY (term_institution_id, term_key)
+        REFERENCES institution_terms(institution_id, term_key)
+    );
     CREATE TABLE subscription_plans (id TEXT PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE admin_audit_log (
@@ -46,6 +58,8 @@ function makeDatabase() {
     INSERT INTO institution_membership_audit VALUES ('ma-rvs','rvs','m-rvs','owner');
     INSERT INTO fee_invoices VALUES ('invoice-rvs','rvs','student');
     INSERT INTO fee_payments VALUES ('payment-rvs','invoice-rvs');
+    INSERT INTO institution_terms VALUES ('rvs','2026-27');
+    INSERT INTO institution_term_audit VALUES ('term-audit-rvs','rvs','2026-27');
     INSERT INTO subscription_plans VALUES ('pilot','Pilot');
     INSERT INTO sessions VALUES ('owner-session','owner');
     INSERT INTO admin_audit_log VALUES ('owner-audit','owner');
@@ -64,6 +78,8 @@ test("recursive inventory includes indirect test payments and audits, but exclud
     assert.equal(counts.institution_membership_audit, 1);
     assert.equal(counts.fee_invoices, 1);
     assert.equal(counts.fee_payments, 1);
+    assert.equal(counts.institution_terms, 1);
+    assert.equal(counts.institution_term_audit, 1);
     assert.equal(counts.institutions, 2);
     assert.equal(counts.users, undefined);
     assert.equal(counts.sessions, undefined);
@@ -80,6 +96,7 @@ test("dependency order removes child payment and audit rows before their parents
   try {
     const inventory = buildInstitutionInventory(database);
     assert.ok(inventory.deleteOrder.indexOf("fee_payments") < inventory.deleteOrder.indexOf("fee_invoices"));
+    assert.ok(inventory.deleteOrder.indexOf("institution_term_audit") < inventory.deleteOrder.indexOf("institution_terms"));
     assert.ok(inventory.deleteOrder.indexOf("institution_membership_audit") < inventory.deleteOrder.indexOf("institution_memberships"));
     database.exec("BEGIN IMMEDIATE");
     database.exec("PRAGMA defer_foreign_keys=ON");
