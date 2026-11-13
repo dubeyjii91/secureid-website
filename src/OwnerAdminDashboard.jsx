@@ -52,6 +52,8 @@ export default function OwnerAdminDashboard() {
   const [activityError, setActivityError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyUser, setBusyUser] = useState("");
+  const [accountDetails, setAccountDetails] = useState(null);
+  const [detailsBusy, setDetailsBusy] = useState("");
   const [institutions, setInstitutions] = useState([]);
   const [institutionMemberships, setInstitutionMemberships] = useState([]);
   const [institutionName, setInstitutionName] = useState("");
@@ -147,6 +149,38 @@ export default function OwnerAdminDashboard() {
     } finally {
       setBusyUser("");
     }
+  }
+
+  async function inspectAccount(user) {
+    setDetailsBusy(user.id); setUsersError(""); setAccountDetails(null);
+    try {
+      const result = await api("/api/admin/users/" + encodeURIComponent(user.id) + "/details", { cache: "no-store" });
+      setAccountDetails(result);
+    } catch (e) {
+      setUsersError(e?.message || "Account details could not be loaded.");
+    } finally { setDetailsBusy(""); }
+  }
+
+  async function permanentlyDeleteAccount(user) {
+    if (busyUser || user.role === "owner") return;
+    const email = String(window.prompt("To permanently delete this account, type its exact email address:", "") || "").trim();
+    if (email.toLowerCase() !== user.email.toLowerCase()) return;
+    const phrase = String(window.prompt("Final confirmation: type DELETE " + user.email, "") || "").trim();
+    if (phrase !== "DELETE " + user.email) return;
+    setBusyUser(user.id); setUsersError(""); setNotice("");
+    try {
+      const result = await api("/api/admin/users/" + encodeURIComponent(user.id), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmationEmail: email, confirmationPhrase: phrase })
+      });
+      setAccountDetails(null);
+      await load(0, userSearch);
+      setUserOffset(0);
+      setNotice("Permanently deleted " + result.deletedEmail + ". " + result.relatedRecordsRemoved + " related records and " + result.encryptedFilesRemoved + " encrypted files removed. Audit history retained.");
+    } catch (e) {
+      setUsersError(e?.message || "Account deletion was not completed.");
+    } finally { setBusyUser(""); }
   }
 
   async function retryNotification(notification) {
@@ -292,13 +326,14 @@ export default function OwnerAdminDashboard() {
       <p><small>Showing {matchedUsers === 0 ? 0 : userOffset + 1}–{Math.min(userOffset + users.length, matchedUsers)} of {matchedUsers} matching accounts · {totalUsers} total accounts</small></p>
       {usersError && <p role="alert">{usersError}</p>}
       {!loading && !usersError && users.length === 0 && <p>No matching accounts found.</p>}
-      {users.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Email / ID</th><th style={{padding:"10px 8px"}}>Registered</th><th style={{padding:"10px 8px"}}>Email</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{users.map((user)=><tr key={user.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><strong>{user.email}</strong><br/><small>{user.id}</small></td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(user.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.emailVerified ? "Verified" : "Pending"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Owner" : user.accountStatus === "suspended" ? "Suspended" : "Active"}{user.suspensionReason ? <><br/><small>Reason: {user.suspensionReason}</small></> : null}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Protected" : <button className="primary" disabled={Boolean(busyUser)} onClick={() => setAccountStatus(user, user.accountStatus === "suspended" ? "active" : "suspended")}>{busyUser === user.id ? "Saving…" : user.accountStatus === "suspended" ? "Reactivate" : "Suspend"}</button>}</td></tr>)}</tbody></table></div>}
+      {users.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Email / ID</th><th style={{padding:"10px 8px"}}>Registered</th><th style={{padding:"10px 8px"}}>Email</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{users.map((user)=><tr key={user.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><strong>{user.email}</strong><br/><small>{user.id}</small></td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(user.createdAt)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.emailVerified ? "Verified" : "Pending"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Owner" : user.accountStatus === "suspended" ? "Suspended" : "Active"}{user.suspensionReason ? <><br/><small>Reason: {user.suspensionReason}</small></> : null}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{user.role === "owner" ? "Protected" : <div style={{display:"flex",gap:7,flexWrap:"wrap"}}><button className="secondary" disabled={Boolean(detailsBusy)} onClick={() => inspectAccount(user)}>{detailsBusy === user.id ? "Loading…" : "Inspect"}</button><button className="secondary" disabled={Boolean(busyUser)} onClick={() => setAccountStatus(user, user.accountStatus === "suspended" ? "active" : "suspended")}>{busyUser === user.id ? "Saving…" : user.accountStatus === "suspended" ? "Reactivate" : "Suspend"}</button><button className="primary" disabled={Boolean(busyUser)} onClick={() => permanentlyDeleteAccount(user)}>{busyUser === user.id ? "Deleting…" : "Delete permanently"}</button></div>}</td></tr>)}</tbody></table></div>}
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:14}}>
         <button className="secondary" disabled={loading || userOffset <= 0} onClick={() => { const next = Math.max(0, userOffset - 50); setUserOffset(next); load(next); }}>Previous</button>
         <small>Page {Math.floor(userOffset / 50) + 1} of {Math.max(1, Math.ceil(matchedUsers / 50))}</small>
         <button className="secondary" disabled={loading || userOffset + users.length >= matchedUsers} onClick={() => { const next = userOffset + 50; setUserOffset(next); load(next); }}>Next</button>
         <button className="primary" onClick={() => load(userOffset)} disabled={loading || Boolean(busyUser)}>{loading ? "Refreshing…" : "Refresh dashboard"}</button>
       </div>
+      {accountDetails && <div className="panel" style={{marginTop:16}}><div className="eyebrow dark">ACCOUNT INSPECTION</div><h3>{accountDetails.user.email}</h3><p>Account ID: {accountDetails.user.id} · Created: {formatDate(accountDetails.user.createdAt)} · {accountDetails.user.protectedOwner ? "Protected Owner" : "User account"}</p><p>Related user-owned records detected: {accountDetails.totalRelatedRecords}</p><p>Deletion readiness: {accountDetails.deletionAllowed ? "No restrictive database dependencies detected" : "Blocked — dependency review required"}</p>{accountDetails.inventory?.length > 0 && <ul>{accountDetails.inventory.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count}</li>)}</ul>}{accountDetails.blockers?.length > 0 && <ul>{accountDetails.blockers.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count} dependent rows ({item.onDelete})</li>)}</ul>}<button className="secondary" onClick={() => setAccountDetails(null)}>Close details</button></div>}
       <p><small>Only account metadata is displayed. Suspending an account revokes its current sessions. Owner accounts cannot be suspended from this console.</small></p>
     </div>
     <div className="panel">
