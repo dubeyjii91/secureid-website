@@ -32,3 +32,18 @@ The current storage is single-instance SQLite. For a horizontally scaled deploym
 ### Off-site encrypted backup vault
 
 The private repository dubeyjii91/secureid-backup-vault owns the daily 09:25 Asia/Kolkata backup schedule. It authenticates to Railway using BACKUP_TRIGGER_TOKEN, creates a new AES-256-GCM encrypted snapshot, verifies its SHA-256 against the download response, and stores only the encrypted file in a private GitHub Actions artifact. The encryption key remains in Railway and is never copied to GitHub. See docs/SECUREID-OFFSITE-BACKUP.md for retention and restore steps.
+## Security and release documentation
+
+- [Security policy and responsible disclosure](SECURITY.md)
+- [Production security test plan and release evidence checklist](docs/SECURITY-TEST-PLAN.md)
+- [Threat model and residual risks](docs/THREAT-MODEL.md)
+- [Android production release runbook](docs/ANDROID-RELEASE.md)
+- [Google Play listing draft](docs/PLAY-STORE-LISTING-DRAFT.md)
+- [Privacy policy release draft — not yet approved for publication](docs/PRIVACY-POLICY-RELEASE-DRAFT.md)
+
+## Project checks
+
+```powershell
+npm run lint
+npm run build
+```
