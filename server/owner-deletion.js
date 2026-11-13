@@ -307,6 +307,13 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
       database.exec("COMMIT");
     } catch (error) {
       try { database.exec("ROLLBACK"); } catch {}
+      console.error(JSON.stringify({
+        level: "error",
+        event: "owner_account_deletion_rolled_back",
+        targetUserId: user.id,
+        databaseCode: String(error?.code || ""),
+        databaseMessage: String(error?.message || "Unknown database error").slice(0, 300)
+      }));
       return res.status(409).json({
         success: false,
         code: "DELETE_ROLLED_BACK",
