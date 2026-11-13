@@ -138,6 +138,33 @@ export default function HostelManagement() {
     } catch (err) { setError(err.message || "Building could not be updated."); }
   }
 
+  async function deleteBuilding(building) {
+    if (!window.confirm(`Delete hostel building "${building.name}"? This works only after its rooms are removed; linked allocations and fee/payment history are never deleted.`)) return;
+    setError(""); setMessage("");
+    try {
+      await api(`/api/institutions/hostel-buildings/${encodeURIComponent(building.id)}`, { method: "DELETE" });
+      setMessage("Hostel building deleted."); await load();
+    } catch (err) { setError(err.message || "Building could not be deleted. Remove eligible rooms first."); }
+  }
+
+  async function deleteRoom(room) {
+    if (!window.confirm(`Delete Room ${room.roomNumber} and its occupancy-change history? Linked bed allocations are protected and will block deletion.`)) return;
+    setError(""); setMessage("");
+    try {
+      await api(`/api/institutions/hostel-rooms/${encodeURIComponent(room.id)}`, { method: "DELETE" });
+      setMessage("Hostel room and its occupancy history deleted."); await load();
+    } catch (err) { setError(err.message || "Room could not be deleted. Check linked allocations."); }
+  }
+
+  async function clearOccupancyHistory(room) {
+    if (!window.confirm(`Permanently clear occupancy-change history for Room ${room.roomNumber}? The current room occupancy value will remain unchanged.`)) return;
+    setError(""); setMessage("");
+    try {
+      const result = await api(`/api/institutions/hostel-rooms/${encodeURIComponent(room.id)}/occupancy-history`, { method: "DELETE" });
+      setMessage(`Cleared ${result.deletedCount || 0} occupancy history record(s).`); await load();
+    } catch (err) { setError(err.message || "Occupancy history could not be cleared."); }
+  }
+
   async function editRoom(room) {
     const roomNumber = window.prompt("Room number", room.roomNumber);
     if (roomNumber === null) return;
@@ -243,7 +270,7 @@ export default function HostelManagement() {
           <label>New building name<input required minLength={2} maxLength={80} value={buildingName} onChange={event => setBuildingName(event.target.value)} placeholder="e.g. Boys Hostel A" /></label>
           <button className="primary" type="submit" disabled={saving}>Add building</button>
         </form>
-        {inventory.buildings.map(building => <article className="collegeRequest" key={building.id}><strong>{building.name}</strong><button type="button" className="secondary" onClick={() => renameBuilding(building)}>Edit building</button></article>)}
+        {inventory.buildings.map(building => <article className="collegeRequest" key={building.id}><strong>{building.name}</strong><div className="collegeReviewActions"><button type="button" className="secondary" onClick={() => renameBuilding(building)}>Edit building</button><button type="button" className="dangerButton" onClick={() => deleteBuilding(building)}>Delete building</button></div></article>)}
         {inventory.buildings.length > 0 && <form className="collegeSubmissionForm" onSubmit={addRoom}>
           <label>Building<select required value={roomForm.buildingId} onChange={event => setRoomForm(value => ({ ...value, buildingId: event.target.value }))}>{inventory.buildings.map(building => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>
           <label>Room number<input required maxLength={20} value={roomForm.roomNumber} onChange={event => setRoomForm(value => ({ ...value, roomNumber: event.target.value }))} placeholder="101" /></label>
@@ -257,7 +284,7 @@ export default function HostelManagement() {
       <div className="hostelApplications">
         <h3>Room availability</h3>
         {inventory.rooms.length === 0 ? <p className="lead">No rooms have been added yet. An institution administrator can create buildings and rooms.</p> : <div className="collegeRequestList">{inventory.rooms.map(room => <article className="collegeRequest" key={room.id}>
-          <strong>{room.buildingName} · Room {room.roomNumber}</strong>{canManageInventory && <button type="button" className="secondary" onClick={() => editRoom(room)}>Edit room</button>}<span className="collegeStatus">{room.availableBeds} / {room.capacity} beds available</span>
+          <strong>{room.buildingName} · Room {room.roomNumber}</strong>{canManageInventory && <div className="collegeReviewActions"><button type="button" className="secondary" onClick={() => editRoom(room)}>Edit room</button><button type="button" className="dangerButton" onClick={() => deleteRoom(room)}>Delete room</button><button type="button" className="secondary" onClick={() => clearOccupancyHistory(room)}>Clear history</button></div>}<span className="collegeStatus">{room.availableBeds} / {room.capacity} beds available</span>
           <small>{room.roomType.replaceAll("_", " ")} · {room.occupiedBeds} occupied · {room.status}</small>
           {canManageInventory && <div className="collegeReviewActions"><label>Existing occupied beds (warden update)<input type="number" min="0" max={room.capacity} value={occupancyDrafts[room.id] ?? String(room.manualOccupiedBeds ?? 0)} onChange={event => setOccupancyDrafts(current => ({ ...current, [room.id]: event.target.value }))} /></label><button type="button" className="secondary" onClick={() => updateRoomOccupancy(room.id)}>Update occupancy</button></div>}
         </article>)}</div>}
