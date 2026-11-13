@@ -41,6 +41,8 @@ test("the product design layer includes accessible responsive navigation and con
   assert.match(design, /prefers-reduced-motion/);
   assert.match(design, /color-scheme: light/);
   assert.match(design, /background-color:#f7f4ed!important/);
+  assert.match(design, /radial-gradient\\(ellipse 48rem 34rem at 2% 0%/);
+  assert.match(design, /body::before/);
   assert.match(design, /#root \.sidebar \{[\s\S]*?background:#10243d!important/);
   assert.match(design, /#root \.securityStats b \{ color:#172b45!important; \}/);
   assert.match(design, /button\.quickAccessCard:not\(\.primary\):not\(\.btn-primary\).*background:#fff!important;background-image:none!important/s);
