@@ -7,7 +7,7 @@ const app = read("../src/App.jsx");
 const entry = read("../src/main.jsx");
 const dashboard = read("../src/SecurityDashboard.jsx");
 const icon = read("../src/SecureIcon.jsx");
-const design = read("../src/secureid-design-system.css");
+const design = read("../src/secureid-premium-neutral.css");
 const launchers = read("../src/secureid-dashboard-workspaces.css");
 
 test("SecureID primary navigation uses a shared SVG icon component", () => {
@@ -37,15 +37,15 @@ test("the product design layer includes accessible responsive navigation and con
   assert.match(design, /\.navItem\.active/);
   assert.match(design, /\.navIcon\s*\{/);
   assert.match(design, /:focus-visible/);
-  assert.match(design, /@media\s*\(max-width:\s*650px\)/);
+  assert.match(design, /@media\s*\(max-width:\s*800px\)/);
   assert.match(design, /prefers-reduced-motion/);
   assert.match(design, /color-scheme: light/);
-  assert.match(design, /background-color:#f7f4ed!important/);
-  assert.match(design, /radial-gradient\(ellipse 48rem 34rem at 2% 0%/);
+  assert.match(design, /background: #f7f8fa !important/);
+  assert.match(design, /--sid-accent: #6558f5/);
   assert.match(design, /body::before/);
-  assert.match(design, /#root \.sidebar \{[\s\S]*?background:#10243d!important/);
-  assert.match(design, /#root \.securityStats b \{ color:#172b45!important; \}/);
-  assert.match(design, /button\.quickAccessCard:not\(\.primary\):not\(\.btn-primary\).*background:#fff!important;background-image:none!important/s);
+  assert.match(design, /#root \.sidebar \{[\s\S]*?background: #ffffff !important/);
+  assert.match(design, /#root \.securityStats b, #root \.systemHealthGrid strong \{ color: #17191c !important; \}/);
+  assert.match(design, /#root \.quickAccessCard \.quickAccessCopy strong/);
   assert.match(launchers, /\.quickAccessCard:hover/);
   assert.match(launchers, /@media\(max-width:560px\)/);
 });

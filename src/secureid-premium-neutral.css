@@ -1,0 +1,282 @@
+/* SecureID Premium Neutral System
+   Direction: Attio clarity + Stripe polish + Apple restraint.
+   Neutral canvas, graphite typography, quiet surfaces and one controlled violet accent. */
+:root {
+  color-scheme: light;
+  --sid-bg: #f7f8fa;
+  --sid-bg-soft: #f2f4f7;
+  --sid-surface: #ffffff;
+  --sid-surface-raised: #ffffff;
+  --sid-surface-hover: #f8f8ff;
+  --sid-line: #e6e8ec;
+  --sid-line-strong: #c9cdd5;
+  --sid-ink: #17191c;
+  --sid-muted: #667085;
+  --sid-subtle: #98a0ad;
+  --sid-accent: #6558f5;
+  --sid-accent-strong: #5145d8;
+  --sid-accent-soft: #f1efff;
+  --sid-green: #16805a;
+  --sid-amber: #a66a16;
+  --sid-red: #c43d4b;
+  --sid-radius: 14px;
+  --sid-shadow: 0 2px 10px rgba(16, 24, 40, .045), 0 1px 2px rgba(16, 24, 40, .035);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html, body, #root {
+  min-height: 100%;
+  background: #f7f8fa !important;
+  color: #17191c !important;
+}
+html, body, #root, button, input, textarea, select {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: #17191c !important;
+  background: #f7f8fa !important;
+  background-image: none !important;
+  line-height: 1.55;
+}
+body::before { content: none !important; display: none !important; }
+#root { position: relative; z-index: 1; background: transparent !important; }
+#root .shell, #root .main, #root .content { background: transparent !important; }
+#root .sidebar {
+  color: #303640 !important;
+  background: #ffffff !important;
+  border-right: 1px solid #e6e8ec !important;
+  box-shadow: 1px 0 5px rgba(16,24,40,.025) !important;
+  backdrop-filter: none !important;
+}
+#root .brand strong { color: #17191c !important; font-weight: 760; letter-spacing: -.035em; }
+#root .brand small { color: #858d99 !important; }
+#root .shield {
+  color: #ffffff !important;
+  background: #6558f5 !important;
+  box-shadow: 0 3px 8px rgba(101,88,245,.18) !important;
+}
+#root .navLabel { color: #98a0ad !important; letter-spacing: .12em; font-weight: 700; }
+#root .sidebar .navItem,
+#root button.navItem:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color: #474d57 !important;
+  -webkit-text-fill-color: #474d57 !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+#root .sidebar .navItem:hover,
+#root button.navItem:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  color: #252a32 !important;
+  -webkit-text-fill-color: #252a32 !important;
+  background: #f4f5f8 !important;
+  border-color: #eceef2 !important;
+}
+#root .sidebar .navItem.active,
+#root button.navItem.active:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color: #5145d8 !important;
+  -webkit-text-fill-color: #5145d8 !important;
+  background: #f1efff !important;
+  border-color: #e7e3ff !important;
+  box-shadow: inset 2px 0 0 #6558f5 !important;
+}
+#root .sidebar .navIcon { color: #777f8d !important; background: #f3f4f6 !important; }
+#root .sidebar .navItem.active .navIcon { color: #6558f5 !important; background: #e9e6ff !important; }
+#root .privacy { background: #f8f9fb !important; border: 1px solid #e9ebef !important; }
+#root .privacy strong { color: #303640 !important; }
+#root .privacy p { color: #667085 !important; }
+#root .main { color: #17191c !important; }
+#root .topbar {
+  color: #17191c !important;
+  background: rgba(255,255,255,.96) !important;
+  border-bottom: 1px solid #e6e8ec !important;
+  box-shadow: 0 1px 3px rgba(16,24,40,.025) !important;
+  backdrop-filter: blur(12px) !important;
+}
+#root .breadcrumb { color: #858d99 !important; font-weight: 650; }
+#root .topbar h1, #root .account { color: #303640 !important; }
+#root .signOut { color: #667085 !important; }
+#root .signOut:hover { color: #5145d8 !important; background: #f1efff !important; }
+#root .content { color: #17191c !important; }
+#root h1, #root h2, #root h3, #root h4, #root h5, #root h6,
+#root label, #root legend, #root strong, #root .sectionTitle h2,
+#root .panelHead h2, #root .quickAccessHeader h2 {
+  color: #17191c !important;
+  letter-spacing: -.025em;
+}
+#root h1 { font-weight: 760; letter-spacing: -.045em; }
+#root h2, #root h3 { font-weight: 700; }
+#root p, #root li, #root small, #root .lead, #root .muted,
+#root .description, #root .subtitle, #root .helperText,
+#root .fieldHint, #root .details span, #root .securityRow span,
+#root .shareHint, #root .shareExpiry, #root .healthMeta,
+#root .panel p, #root .panel small, #root .actionCard p,
+#root .quickAccessHeader p, #root .institutionModuleLauncherCopy small {
+  color: #667085 !important;
+  opacity: 1 !important;
+}
+#root .eyebrow, #root .eyebrow.dark { color: #6558f5 !important; font-weight: 750; letter-spacing: .12em; }
+#root .panel, #root .actionCard, #root .profilePanel, #root .statusPanel,
+#root .shareResult, #root .lockPanel, #root .scorePanel, #root .systemHealthPanel,
+#root .securityCard, #root .identityCard, #root .shareCard, #root .documentItem,
+#root .claim, #root .activityEmpty, #root .institutionModuleLauncher,
+#root .quickAccessCard {
+  color: #17191c !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #e6e8ec !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 10px rgba(16,24,40,.045), 0 1px 2px rgba(16,24,40,.035) !important;
+}
+#root .panel { padding: clamp(18px, 2.2vw, 28px); }
+#root .panel h1, #root .panel h2, #root .panel h3, #root .panel h4,
+#root .actionCard strong, #root .profilePanel h2, #root .scorePanel h3,
+#root .institutionModuleLauncherCopy strong, #root .quickAccessCopy strong {
+  color: #17191c !important;
+}
+#root .panel p, #root .panel .lead, #root .panel small,
+#root .actionCard p, #root .scorePanel p { color: #667085 !important; }
+#root .functionHero {
+  background: linear-gradient(112deg, #f2f0ff 0%, #f8f7ff 100%) !important;
+  border: 1px solid #e7e3ff !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
+}
+#root .functionHero h2 { color: #25213f !important; font-size: clamp(22px, 2.6vw, 30px); line-height: 1.2; }
+#root .functionHero p { color: #66617f !important; line-height: 1.7; }
+#root .functionVisual, #root .institutionModuleLauncherIcon, #root .quickAccessIcon, #root .actionIcon {
+  color: #6558f5 !important;
+  background: #f1efff !important;
+  border: 1px solid #e7e3ff !important;
+  box-shadow: none !important;
+}
+#root .functionVisual .secureIconLarge { color: #6558f5 !important; stroke-width: 1.55; }
+#root .actionCard { min-height: 150px; }
+#root .actionCard:hover, #root .quickAccessCard:hover, #root .institutionModuleLauncher:hover {
+  background: #fcfbff !important;
+  border-color: #d4ceff !important;
+  box-shadow: 0 6px 18px rgba(40,34,100,.065) !important;
+  transform: translateY(-1px);
+}
+#root .quickAccessArrow, #root .institutionModuleLauncherAction { color: #6558f5 !important; }
+#root input, #root select, #root textarea, #root .authCard input {
+  color: #252a32 !important;
+  -webkit-text-fill-color: #252a32 !important;
+  background: #ffffff !important;
+  border: 1px solid #d0d5dd !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+#root input::placeholder, #root textarea::placeholder { color: #98a0ad !important; -webkit-text-fill-color: #98a0ad !important; opacity: 1 !important; }
+#root input:focus, #root select:focus, #root textarea:focus {
+  border-color: #8d82ff !important;
+  box-shadow: 0 0 0 3px rgba(101,88,245,.12) !important;
+  outline: 0;
+}
+#root input:disabled, #root select:disabled, #root textarea:disabled {
+  color: #98a0ad !important;
+  -webkit-text-fill-color: #98a0ad !important;
+  background: #f5f6f8 !important;
+}
+#root button.primary, #root .primaryButton, #root .authCard .primary,
+#root button[type="submit"], #root .btn-primary, #root .actionButton,
+#root .generateButton {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #6558f5 !important;
+  background-image: none !important;
+  border: 1px solid #6558f5 !important;
+  border-radius: 9px !important;
+  box-shadow: 0 3px 8px rgba(101,88,245,.16) !important;
+  font-weight: 700 !important;
+}
+#root button.primary:hover:not(:disabled), #root .primaryButton:hover:not(:disabled),
+#root button[type="submit"]:hover:not(:disabled), #root .btn-primary:hover:not(:disabled) {
+  background: #5145d8 !important;
+  border-color: #5145d8 !important;
+  box-shadow: 0 5px 12px rgba(101,88,245,.20) !important;
+}
+#root button.secondary, #root .secondary, #root .textButton,
+#root a, #root .textLink, #root .linkButton, #root .footerLink {
+  color: #5145d8 !important;
+}
+#root a:visited { color: #6558f5 !important; }
+#root .verifiedBadge, #root .statusBadge.success {
+  color: #126b4c !important; background: #eaf7f0 !important; border-color: #ccebd9 !important;
+}
+#root .ownerRoleBadge { color: #6558f5 !important; background: #f1efff !important; border-color: #e0dcff !important; }
+#root .securityIcon.success { color: #16805a !important; background: #eaf7f0 !important; }
+#root .securityIcon.warning { color: #a66a16 !important; background: #fff5e5 !important; }
+#root .securityIcon.danger { color: #c43d4b !important; background: #fff0f1 !important; }
+#root .dashboardScore { background: #f1efff !important; border-color: #e0dcff !important; }
+#root .dashboardScore strong, #root .dashboardScore span { color: #332c78 !important; }
+#root .dashboardScore small { color: #6558f5 !important; }
+#root .securityStats span, #root .systemHealthGrid > div, #root .textSizeControls {
+  color: #475467 !important; background: #f8f9fb !important; border-color: #e6e8ec !important;
+}
+#root .securityStats b, #root .systemHealthGrid strong { color: #17191c !important; }
+#root .systemHealthGrid span, #root .healthMeta, #root .privacyRow small { color: #667085 !important; }
+#root .systemHealthGrid strong.healthOk { color: #16805a !important; }
+#root .privacyRow { color: #303640 !important; border-color: #e6e8ec !important; }
+#root .privacyRow span b, #root .details strong, #root .securityRow strong, #root .tips strong { color: #303640 !important; }
+#root .privacyRow input { accent-color: #6558f5; }
+#root .details, #root .securityRow, #root .tips, #root .tableWrap { border-color: #e6e8ec !important; }
+#root .tableWrap { background: #ffffff !important; border: 1px solid #e6e8ec !important; border-radius: 12px !important; overflow: auto; }
+#root .tableWrap th { color: #475467 !important; background: #f8f9fb !important; }
+#root .tableWrap td { color: #475467 !important; border-color: #eef0f3 !important; }
+#root .authShell {
+  min-height: 100vh !important;
+  background: #f7f8fa !important;
+  background-image: none !important;
+}
+#root .authCard {
+  color: #17191c !important;
+  background: #ffffff !important;
+  border: 1px solid #e6e8ec !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 32px rgba(16,24,40,.08) !important;
+}
+#root .authCard h1, #root .authCard h2, #root .authCard label { color: #17191c !important; }
+#root .authCard p, #root .authCard small { color: #667085 !important; }
+#root .authTabs { background: #f2f4f7 !important; }
+#root .authTabs button { color: #667085 !important; }
+#root .authTabs button.active { color: #5145d8 !important; background: #ffffff !important; box-shadow: 0 1px 3px rgba(16,24,40,.08) !important; }
+#root .welcomeSplash { background: rgba(17,25,40,.34) !important; backdrop-filter: blur(8px) !important; }
+#root .welcomeGlow { display: none !important; }
+#root .welcomeCard {
+  color: #17191c !important;
+  background: #ffffff !important;
+  border: 1px solid #e6e8ec !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 48px rgba(16,24,40,.16) !important;
+}
+#root .welcomeCard h2, #root .welcomeCard h3, #root .welcomeCard strong { color: #17191c !important; }
+#root .welcomeCard p, #root .welcomeCard small { color: #667085 !important; }
+#root .welcomeCard .mfaChoice { background: #f8f9fb !important; border-color: #e6e8ec !important; }
+#root .welcomeCard .mfaChoice.active { background: #f1efff !important; border-color: #d4ceff !important; }
+#root .welcomeCard .mfaChoice .mfaUnavailable { color: #a66a16 !important; }
+#root .mfaModal { color: #17191c !important; background: #ffffff !important; border-color: #e6e8ec !important; }
+#root .mfaModal h2, #root .mfaModal strong { color: #17191c !important; }
+#root .mfaModal p, #root .mfaModal small { color: #667085 !important; }
+#root .quickAccessCard, #root .institutionModuleLauncher { text-align: left; }
+#root .quickAccessCard .quickAccessCopy strong, #root .institutionModuleLauncherCopy strong {
+  color: #17191c !important; -webkit-text-fill-color: #17191c !important;
+}
+#root .quickAccessCard .quickAccessCopy small, #root .institutionModuleLauncherCopy small {
+  color: #667085 !important; -webkit-text-fill-color: #667085 !important;
+}
+#root :focus-visible { outline: 3px solid rgba(101,88,245,.45) !important; outline-offset: 2px; }
+#root ::selection { color: #ffffff; background: #6558f5; }
+@media (max-width: 800px) {
+  #root .sidebar { background: #ffffff !important; border-bottom: 1px solid #e6e8ec !important; }
+  #root .sidebar .navItem { background: transparent !important; border-color: transparent !important; }
+  #root .sidebar .navItem.active { background: #f1efff !important; border-color: #e7e3ff !important; }
+  #root .content { padding-inline: 16px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root *, #root *::before, #root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
