@@ -247,7 +247,7 @@ export default function OwnerAdminDashboard() {
     const email = String(window.prompt("To permanently delete this account, type its exact email address:", "") || "").trim();
     if (email.toLowerCase() !== user.email.toLowerCase()) return;
     const phrase = String(window.prompt("Final confirmation: type DELETE " + user.email, "") || "").trim();
-    if (phrase !== "DELETE " + user.email) return;
+    if (phrase.toLowerCase() !== ("DELETE " + user.email).toLowerCase()) return;
     setBusyUser(user.id); setUsersError(""); setNotice("");
     try {
       const result = await api("/api/admin/users/" + encodeURIComponent(user.id), {
