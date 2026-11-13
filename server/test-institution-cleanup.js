@@ -10,7 +10,8 @@ const TARGETS = [
 ];
 function normalizeInstitutionName(value) {
   return String(value || "").normalize("NFKD").replace(/[&]/g, " and ").replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase().replace(/\s+/g, " ");
-}\nconst TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
+}
+const TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
 const PROTECTED_TABLES = new Set([
   "users", "admin_audit_log", "sqlite_sequence", "subscription_plans",
   "plan_catalog", "pricing_plans", "monetization_plans", "feature_catalog",
