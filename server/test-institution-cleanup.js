@@ -8,7 +8,10 @@ const TARGETS = [
   "RVS College of Engineering and Technology",
   "SecureID Test College"
 ];
-const TARGET_KEYS = new Set(TARGETS.map((name) => name.toLowerCase()));
+function normalizeInstitutionName(value) {
+  return String(value || "").normalize("NFKD").replace(/[&]/g, " and ").replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase().replace(/\s+/g, " ");
+}
+const TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
 const PROTECTED_TABLES = new Set([
   "users", "admin_audit_log", "sqlite_sequence", "subscription_plans",
   "plan_catalog", "pricing_plans", "monetization_plans", "feature_catalog",
@@ -108,11 +111,13 @@ export function buildInstitutionInventory(database) {
     });
   }
 
-  const institutions = database.prepare(
-    "SELECT id,name FROM institutions WHERE lower(trim(name)) IN (?,?) ORDER BY name COLLATE NOCASE"
-  ).all(...[...TARGET_KEYS]);
-  const foundKeys = new Set(institutions.map((row) => String(row.name).trim().toLowerCase()));
-  const missingTargets = TARGETS.filter((name) => !foundKeys.has(name.toLowerCase()));
+  // Match only canonical equivalents of the two approved names. This tolerates
+  // harmless punctuation, spacing, initials, and ampersand differences (e.g.
+  // "R.V.S. College ... & Technology") without fuzzy-matching other colleges.
+  const institutions = database.prepare("SELECT id,name FROM institutions ORDER BY name COLLATE NOCASE").all()
+    .filter((row) => TARGET_KEYS.has(normalizeInstitutionName(row.name)));
+  const foundKeys = new Set(institutions.map((row) => normalizeInstitutionName(row.name)));
+  const missingTargets = TARGETS.filter((name) => !foundKeys.has(normalizeInstitutionName(name)));
   const selected = new Map();
   const queue = [];
   const unsupported = new Set();
@@ -423,7 +428,7 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
       }
       const fkErrors = database.prepare("PRAGMA foreign_key_check").all();
       if (fkErrors.length) throw new Error("Foreign-key validation failed after test institution cleanup.");
-      if (database.prepare("SELECT 1 FROM institutions WHERE lower(trim(name)) IN (?,?) LIMIT 1").get(...[...TARGET_KEYS])) {
+      if (database.prepare("SELECT id,name FROM institutions").all().some((row) => TARGET_KEYS.has(normalizeInstitutionName(row.name)))) {
         throw new Error("One or more target institutions still exist after cleanup.");
       }
       database.prepare(
