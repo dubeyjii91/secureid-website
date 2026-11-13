@@ -64,12 +64,12 @@ export function registerBackupTrigger({ app, runBackup, getBackupFile, env = pro
       if (!/^secureid-[A-Za-z0-9T._-]+\.backup\.json$/.test(generatedFileName)) {
         throw new Error("Backup did not identify the generated encrypted artifact.");
       }
-      const artifact = await getBackupFile();
+      const artifact = await getBackupFile(generatedFileName);
       if (!artifact || artifact.fileName !== generatedFileName ||
           !/^[a-f0-9]{64}$/i.test(String(artifact.sha256 || ""))) {
         throw new Error("The newly created encrypted artifact is not the current export candidate.");
       }
-      return res.status(200).json({ success: true, sha256: artifact.sha256, completedAt: now().toISOString() });
+      return res.status(200).json({ success: true, fileName: artifact.fileName, sha256: artifact.sha256, completedAt: now().toISOString() });
     } catch (error) {
       console.error(JSON.stringify({ level: "error", event: "externally_scheduled_backup_failed", errorType: error?.name || "Error" }));
       return res.status(500).json({ success: false, message: "Encrypted backup failed." });
@@ -84,9 +84,14 @@ export function registerBackupTrigger({ app, runBackup, getBackupFile, env = pro
     if (configuredToken.length < MINIMUM_TOKEN_LENGTH) return res.status(404).json({ success: false, message: "Backup export is not enabled." });
     if (!authorized(req, configuredToken)) return res.status(401).json({ success: false, message: "Unauthorized." });
 
+    const requestedFileName = String(req.query?.filename || "");
+    if (requestedFileName && !/^secureid-[A-Za-z0-9T._-]+\.backup\.json$/.test(requestedFileName)) {
+      return res.status(400).json({ success: false, message: "Invalid backup filename." });
+    }
+
     let artifact;
     try {
-      artifact = await getBackupFile();
+      artifact = await getBackupFile(requestedFileName || undefined);
       if (!artifact || !Number.isSafeInteger(artifact.size) || artifact.size < 1 || artifact.size > MAX_OFFSITE_BACKUP_BYTES ||
           !/^[a-f0-9]{64}$/i.test(String(artifact.sha256 || "")) ||
           !/^secureid-[A-Za-z0-9T._-]+\.backup\.json$/.test(String(artifact.fileName || ""))) {
