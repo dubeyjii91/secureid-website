@@ -6,10 +6,15 @@ const AUDIT_TABLES = new Set([
   "admin_audit_log",
   "admin_document_access_audit",
   "hostel_application_audit",
+  "hostel_operations_audit",
+  "hostel_room_occupancy_audit",
+  "institution_admission_audit",
   "institution_audit_log",
+  "institution_operations_audit",
   "institution_review_audit",
   "institution_membership_audit",
-  "scholarship_audit"
+  "scholarship_audit",
+  "scholarship_document_access_audit"
 ]);
 const OWNED_COLUMNS = ["user_id", "student_user_id", "owner_user_id"];
 const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -33,6 +38,26 @@ function deleteAccountAuditDependencies(database, userId) {
   }
   if (hasTable("scholarship_audit") && hasTable("scholarship_applications")) {
     database.prepare("DELETE FROM scholarship_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM scholarship_applications WHERE student_user_id=?)").run(userId, userId);
+  }
+  // These child audit tables reference account-owned applications/requests. Remove
+  // their rows before deleting the parent records, including reviewer-only rows.
+  if (hasTable("institution_admission_audit") && hasTable("institution_admission_requests")) {
+    database.prepare("DELETE FROM institution_admission_audit WHERE actor_user_id=? OR request_id IN (SELECT id FROM institution_admission_requests WHERE student_user_id=?)").run(userId, userId);
+  }
+  if (hasTable("hostel_operations_audit") && hasTable("hostel_applications")) {
+    database.prepare("DELETE FROM hostel_operations_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM hostel_applications WHERE student_user_id=?)").run(userId, userId);
+  }
+  if (hasTable("scholarship_document_access_audit") && hasTable("scholarship_applications")) {
+    database.prepare("DELETE FROM scholarship_document_access_audit WHERE actor_user_id=? OR application_id IN (SELECT id FROM scholarship_applications WHERE student_user_id=?)").run(userId, userId);
+  }
+  if (hasTable("institution_operations_audit")) {
+    database.prepare("DELETE FROM institution_operations_audit WHERE actor_user_id=?").run(userId);
+  }
+  if (hasTable("hostel_room_occupancy_audit")) {
+    database.prepare("DELETE FROM hostel_room_occupancy_audit WHERE actor_user_id=?").run(userId);
+  }
+  if (hasTable("admin_document_access_audit")) {
+    database.prepare("DELETE FROM admin_document_access_audit WHERE actor_user_id=? OR owner_user_id=?").run(userId, userId);
   }
 }
 
@@ -282,6 +307,13 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
       database.exec("COMMIT");
     } catch (error) {
       try { database.exec("ROLLBACK"); } catch {}
+      console.error(JSON.stringify({
+        level: "error",
+        event: "owner_account_deletion_rolled_back",
+        targetUserId: user.id,
+        databaseCode: String(error?.code || ""),
+        databaseMessage: String(error?.message || "Unknown database error").slice(0, 300)
+      }));
       return res.status(409).json({
         success: false,
         code: "DELETE_ROLLED_BACK",
