@@ -14,7 +14,9 @@ function normalizeInstitutionName(value) {
     .replace(/(?:[a-z]\.){2,}/gi, (match) => match.replace(/\./g, ""))
     .replace(/[&]/g, " and ")
     .replace(/[^a-z0-9]+/gi, " ")
-    .trim().toLowerCase().replace(/\s+/g, " ");
+    .trim().toLowerCase().replace(/\s+/g, " ")
+    // Treat spaced single-letter initialisms as one acronym: R V S -> rvs.
+    .replace(/\b(?:[a-z]\s+){1,}[a-z]\b/gi, (match) => match.replace(/\s+/g, ""));
 }
 const TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
 const PROTECTED_TABLES = new Set([
