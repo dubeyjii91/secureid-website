@@ -94,7 +94,7 @@ function verifyEncryptedBackup(filePath) {
   return { sha256: digest, documentBlobsVerified: seenDocuments.size };
 }
 
-function buildInstitutionInventory(database) {
+export function buildInstitutionInventory(database) {
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((row) => row.name);
   const metadata = new Map();
   for (const table of tables) {
