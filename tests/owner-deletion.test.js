@@ -156,21 +156,21 @@ test("owner deletion clears only the target account's three restrictive audit de
     CREATE TABLE institutions(id TEXT PRIMARY KEY);
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),user_id TEXT NOT NULL REFERENCES users(id));
     CREATE TABLE institution_review_submissions(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),student_user_id TEXT NOT NULL REFERENCES users(id));
-    CREATE TABLE institution_review_audit(id TEXT PRIMARY KEY,submission_id TEXT NOT NULL REFERENCES institution_review_submissions(id),institution_id TEXT NOT NULL REFERENCES institutions(id),actor_user_id TEXT NOT NULL REFERENCES users(id));
-    CREATE TABLE institution_membership_audit(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),membership_id TEXT NOT NULL REFERENCES institution_memberships(id),actor_user_id TEXT NOT NULL REFERENCES users(id),target_user_id TEXT NOT NULL REFERENCES users(id));
+    CREATE TABLE institution_review_audit(id TEXT PRIMARY KEY,submission_id TEXT NOT NULL REFERENCES institution_review_submissions(id),institution_id TEXT NOT NULL REFERENCES institutions(id),actor_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
+    CREATE TABLE institution_membership_audit(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id),membership_id TEXT NOT NULL REFERENCES institution_memberships(id),actor_user_id TEXT NOT NULL REFERENCES users(id),target_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_role TEXT,to_role TEXT,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
     CREATE TABLE scholarship_applications(id TEXT PRIMARY KEY,student_user_id TEXT NOT NULL REFERENCES users(id));
-    CREATE TABLE scholarship_audit(id TEXT PRIMARY KEY,application_id TEXT NOT NULL REFERENCES scholarship_applications(id),actor_user_id TEXT NOT NULL REFERENCES users(id));
+    CREATE TABLE scholarship_audit(id TEXT PRIMARY KEY,application_id TEXT NOT NULL REFERENCES scholarship_applications(id),institution_id TEXT NOT NULL REFERENCES institutions(id),actor_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,from_status TEXT,to_status TEXT,created_at TEXT NOT NULL);
     INSERT INTO institutions VALUES('institution-1');
     INSERT INTO institution_memberships VALUES('membership-1','institution-1','user-id');
     INSERT INTO institution_review_submissions VALUES('submission-1','institution-1','user-id');
     INSERT INTO scholarship_applications VALUES('scholarship-1','user-id');
   `);
   const insertReview = database.prepare("INSERT INTO institution_review_audit VALUES(?,?,?,?)");
-  for (let i=0;i<6;i++) insertReview.run("review-audit-"+i,"submission-1","institution-1","user-id");
+  for (let i=0;i<6;i++) insertReview.run("review-audit-"+i,"submission-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
   const insertMembership = database.prepare("INSERT INTO institution_membership_audit VALUES(?,?,?,?,?)");
-  for (let i=0;i<3;i++) insertMembership.run("membership-audit-"+i,"institution-1","membership-1","owner-id","user-id");
+  for (let i=0;i<3;i++) insertMembership.run("membership-audit-"+i,"institution-1","membership-1","owner-id","user-id","warden_role_granted",null,"warden","active","active",Date.now());
   const insertScholarship = database.prepare("INSERT INTO scholarship_audit VALUES(?,?,?)");
-  for (let i=0;i<3;i++) insertScholarship.run("scholarship-audit-"+i,"scholarship-1","user-id");
+  for (let i=0;i<3;i++) insertScholarship.run("scholarship-audit-"+i,"scholarship-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
 
   const handlers = routes.get("DELETE /api/admin/users/:userId");
   const res = response();
