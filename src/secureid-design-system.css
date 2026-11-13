@@ -326,3 +326,223 @@ body {
 #root .quickAccessCard .quickAccessCopy small { color:#b6c7db!important;-webkit-text-fill-color:#b6c7db!important; }
 #root .institutionModuleLauncherCopy strong { color:#f0f7ff!important;-webkit-text-fill-color:#f0f7ff!important; }
 #root .institutionModuleLauncherCopy small { color:#b6c7db!important;-webkit-text-fill-color:#b6c7db!important; }
+
+
+/* SecureID premium light theme v2 — retain the existing SVG icon artwork. */
+:root {
+  color-scheme: light;
+  --sid-bg:#f4f7fb;
+  --sid-bg-soft:#edf2f8;
+  --sid-surface:#ffffff;
+  --sid-surface-raised:#ffffff;
+  --sid-surface-hover:#f0f8fb;
+  --sid-line:#dce5ef;
+  --sid-line-strong:#9ccbd7;
+  --sid-ink:#14243a;
+  --sid-muted:#53657b;
+  --sid-subtle:#718198;
+  --sid-cyan:#087f9b;
+  --sid-blue:#3267b7;
+  --sid-violet:#6756b5;
+  --sid-green:#16845d;
+  --sid-amber:#9a6500;
+  --sid-red:#b9384a;
+  --sid-shadow:0 8px 28px rgba(25,48,76,.07);
+}
+html,body,#root { background:#f4f7fb!important; color:#14243a!important; }
+body {
+  color:#14243a!important;
+  background:linear-gradient(180deg,#f8fafd 0%,#f1f5fa 100%)!important;
+  background-attachment:scroll!important;
+}
+#root .shell { background:transparent!important; }
+#root .sidebar {
+  background:#10243d!important;
+  border-right:1px solid #203a58!important;
+  box-shadow:8px 0 28px rgba(17,39,65,.10)!important;
+}
+#root .brand strong { color:#f5f9ff!important; }
+#root .brand small { color:#a9bdd3!important; }
+#root .navLabel { color:#8fa8c3!important; }
+#root .sidebar .navItem,
+#root button.navItem:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color:#d2deeb!important;-webkit-text-fill-color:#d2deeb!important;
+  background:transparent!important;border-color:transparent!important;
+}
+#root .sidebar .navItem:hover,
+#root button.navItem:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  background:#1b3858!important;border-color:#294967!important;
+}
+#root .sidebar .navItem.active,
+#root button.navItem.active:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  background:linear-gradient(100deg,#174b66,#1c4161)!important;
+  border-color:#2c7890!important;box-shadow:inset 3px 0 0 #53d4e5!important;
+}
+#root .sidebar .navIcon { color:#a9c3dc!important;background:rgba(190,218,244,.10)!important; }
+#root .sidebar .navItem.active .navIcon { color:#69dbea!important;background:rgba(83,212,229,.14)!important; }
+#root .privacy { background:rgba(35,139,111,.14)!important;border-color:rgba(100,211,174,.2)!important; }
+#root .privacy strong { color:#e4fff5!important; }
+#root .privacy p { color:#b6d7cb!important; }
+#root .main { background:transparent!important; }
+#root .topbar {
+  background:rgba(255,255,255,.94)!important;
+  border-bottom:1px solid #e1e8f0!important;
+  box-shadow:0 2px 12px rgba(23,47,76,.035);
+  backdrop-filter:blur(16px);
+}
+#root .breadcrumb { color:#718198!important; }
+#root .topbar h1 { color:#14243a!important; }
+#root .account { color:#53657b!important; }
+#root .signOut { color:#43566d!important; }
+#root .signOut:hover { color:#10243d!important;background:#edf3f8!important; }
+#root .content { color:#14243a!important; }
+#root .panel,#root .actionCard,#root .profilePanel,#root .statusPanel,#root .shareResult,#root .lockPanel,
+#root .scorePanel,#root .systemHealthPanel,#root .securityCard,#root .identityCard,
+#root .shareCard,#root .documentItem,#root .claim,#root .activityEmpty {
+  color:#14243a!important;background:#fff!important;
+  border:1px solid #dfe7f0!important;border-radius:16px!important;
+  box-shadow:0 8px 26px rgba(25,48,76,.055)!important;
+}
+#root .panel h1,#root .panel h2,#root .panel h3,#root .panel h4,
+#root .actionCard strong,#root .profilePanel h2,#root .scorePanel h3,
+#root .sectionTitle h2,#root .quickAccessHeader h2 {
+  color:#172b45!important;
+}
+#root .panel p,#root .panel .lead,#root .panel small,#root .actionCard p,
+#root .scorePanel p,#root .quickAccessHeader p { color:#586b81!important; }
+#root .eyebrow,#root .eyebrow.dark { color:#087f9b!important; }
+#root .functionHero {
+  background:linear-gradient(115deg,#eaf5f8 0%,#edf2fb 100%)!important;
+  border:1px solid #d3e4eb!important;box-shadow:0 12px 30px rgba(29,72,98,.07)!important;
+}
+#root .functionHero h2 { color:#142b45!important; }
+#root .functionHero p { color:#536b82!important; }
+#root .functionVisual {
+  background:linear-gradient(145deg,#d8f3f6,#e3eafb)!important;
+  border-color:#c5e4e9!important;box-shadow:inset 0 1px #fff,0 8px 20px rgba(36,85,113,.08)!important;
+}
+#root .functionVisual .secureIconLarge { color:#087f9b!important; }
+#root .actionCard { background:#fff!important; }
+#root .actionCard:hover { background:#f4fbfd!important;border-color:#9ccbd7!important; }
+#root .actionIcon {
+  color:#087f9b!important;background:#e7f5f7!important;border-color:#cce9ed!important;
+}
+#root input,#root select,#root textarea,
+#root .authCard input {
+  color:#172b45!important;-webkit-text-fill-color:#172b45!important;
+  background:#fff!important;border:1px solid #c8d4e1!important;border-radius:10px!important;
+}
+#root input::placeholder,#root textarea::placeholder { color:#8190a3!important;opacity:1!important; }
+#root input:focus,#root select:focus,#root textarea:focus {
+  border-color:#168aa2!important;box-shadow:0 0 0 3px rgba(8,127,155,.13)!important;outline:0;
+}
+#root input:disabled,#root select:disabled,#root textarea:disabled {
+  color:#758397!important;-webkit-text-fill-color:#758397!important;background:#f1f4f8!important;
+}
+#root button.primary,#root .primaryButton,#root .authCard .primary,
+#root button[type="submit"],#root .btn-primary {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  background:linear-gradient(110deg,#087f9b,#126c91)!important;
+  border:1px solid #08758e!important;border-radius:10px!important;
+  box-shadow:0 5px 14px rgba(8,127,155,.16)!important;font-weight:750!important;
+}
+#root button.primary:hover:not(:disabled),#root .primaryButton:hover:not(:disabled),
+#root button[type="submit"]:hover:not(:disabled) { background:#086b83!important; }
+#root button.secondary,#root .secondary,#root .textButton { color:#08758e!important; }
+#root a,#root .textLink,#root .linkButton,.footerLink { color:#08758e!important; }
+#root a:visited { color:#6756b5!important; }
+#root .details,#root .securityRow,#root .tips,#root .tableWrap { border-color:#dfe7f0!important; }
+#root .details span,#root .securityRow span,#root .tips span,
+#root .healthMeta { color:#64758a!important; }
+#root .details strong,#root .securityRow strong,#root .tips strong { color:#1d324d!important; }
+#root .tableWrap { background:#fff!important;border:1px solid #dfe7f0!important;border-radius:13px!important;overflow:auto; }
+#root .tableWrap th { color:#344a64!important;background:#edf3f8!important; }
+#root .tableWrap td { color:#34465d!important;border-color:#e6edf3!important; }
+#root .verifiedBadge { color:#14734f!important;background:#e8f7ef!important;border-color:#c8ead8!important; }
+#root .ownerRoleBadge { color:#5d4ca7!important;background:#f0edfc!important;border-color:#ddd6f7!important; }
+#root .statusBadge.success { color:#14734f!important;background:#e8f7ef!important; }
+#root .securityIcon.success { color:#16845d!important;background:#e6f6ee!important; }
+#root .securityIcon.warning { color:#946000!important;background:#fff4d9!important; }
+#root .securityIcon.danger { color:#b9384a!important;background:#ffedf0!important; }
+#root .dashboardScore { background:#eaf7f0!important;border-color:#cdebd9!important; }
+#root .dashboardScore strong,#root .dashboardScore span { color:#174b37!important; }
+#root .dashboardScore small { color:#16845d!important; }
+#root .securityStats span { color:#53657b!important;background:#edf3f8!important; }
+#root .securityStats b { color:#172b45!important; }
+#root .systemHealthGrid>div { background:#f0f5f9!important;border:1px solid #e1e9f0!important; }
+#root .systemHealthGrid span { color:#64758a!important; }
+#root .systemHealthGrid strong { color:#263c56!important; }
+#root .systemHealthGrid strong.healthOk { color:#16845d!important; }
+#root .privacyRow { color:#263c56!important;border-color:#e2e9f0!important; }
+#root .privacyRow span b { color:#172b45!important; }
+#root .privacyRow small { color:#64758a!important; }
+#root .privacyRow input { accent-color:#087f9b; }
+#root .textSizeControls { color:#42566e!important;background:#edf3f8!important;border-color:#dce5ef!important; }
+#root .textSizeButton:hover:not(:disabled) { background:#dff2f5!important; }
+#root .installAppButton { color:#08758e!important;background:#e7f5f7!important;border-color:#cce9ed!important; }
+#root .authShell { background:linear-gradient(145deg,#f2f7fb,#e9f0f7)!important; }
+#root .authCard {
+  color:#172b45!important;background:#fff!important;border:1px solid #dce5ef!important;
+  border-radius:20px!important;box-shadow:0 20px 60px rgba(25,48,76,.12)!important;
+}
+#root .authCard h1 { color:#172b45!important; }
+#root .authCard>p,#root .authCard small,#root .authCard label { color:#586b81!important; }
+#root .authTabs { background:#edf3f8!important; }
+#root .authTabs button { color:#607188!important; }
+#root .authTabs button.active { color:#075f78!important;background:#dff2f5!important;box-shadow:0 2px 7px rgba(20,70,95,.08)!important; }
+#root .welcomeCard { background:linear-gradient(135deg,#eaf5f8,#edf2fb)!important;border-color:#d3e4eb!important; }
+#root .welcomeCard h2 { color:#172b45!important; }
+#root .welcomeCard p { color:#586b81!important; }
+#root .mfaModal { color:#172b45!important;background:#fff!important;border-color:#dce5ef!important; }
+#root .mfaModal h2,#root .mfaModal strong { color:#172b45!important; }
+#root .mfaModal p,#root .mfaModal small { color:#586b81!important; }
+#root .quickAccessHeader h2 { color:#172b45!important; }
+#root .quickAccessHeader p { color:#586b81!important; }
+#root button.quickAccessCard:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color:#172b45!important;-webkit-text-fill-color:#172b45!important;
+  background:#fff!important;background-image:none!important;
+  border:1px solid #dfe7f0!important;box-shadow:0 7px 22px rgba(25,48,76,.055)!important;
+}
+#root button.quickAccessCard:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  background:#f3fafc!important;background-image:none!important;border-color:#9ccbd7!important;
+  box-shadow:0 12px 26px rgba(25,75,95,.09)!important;
+}
+#root .quickAccessCard .quickAccessIcon { color:#087f9b!important;background:#e7f5f7!important;border-color:#cce9ed!important; }
+#root .quickAccessCard .quickAccessCopy strong { color:#172b45!important;-webkit-text-fill-color:#172b45!important; }
+#root .quickAccessCard .quickAccessCopy small { color:#64758a!important;-webkit-text-fill-color:#64758a!important; }
+#root .quickAccessArrow { color:#8190a3!important; }
+#root .institutionModuleLauncher {
+  color:#172b45!important;background:#fff!important;border-color:#dfe7f0!important;
+  box-shadow:0 7px 22px rgba(25,48,76,.055)!important;
+}
+#root button.institutionModuleLauncher:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]) {
+  color:#172b45!important;-webkit-text-fill-color:#172b45!important;background:#fff!important;background-image:none!important;
+  border:1px solid #dfe7f0!important;
+}
+#root button.institutionModuleLauncher:not(.primary):not(.btn-primary):not(.primaryButton):not([type="submit"]):hover {
+  background:#f3fafc!important;background-image:none!important;border-color:#9ccbd7!important;
+}
+#root .institutionModuleLauncherIcon { color:#087f9b!important;background:#e7f5f7!important;border-color:#cce9ed!important; }
+#root .institutionModuleLauncherCopy strong { color:#172b45!important;-webkit-text-fill-color:#172b45!important; }
+#root .institutionModuleLauncherCopy small { color:#64758a!important;-webkit-text-fill-color:#64758a!important; }
+#root .institutionModuleLauncherAction { color:#08758e!important; }
+#root :focus-visible { outline:3px solid #168aa2!important;outline-offset:3px; }
+#root .footerLink { color:#08758e!important; }
+#root .scanResultAdvanced,#root .scanResult.safe,#root .vaultMessage,#root .vaultSecurityNotice,
+#root [role="alert"].success,#root [role="alert"].warning,#root [role="alert"].error,
+#root .successNotice,#root .successMessage,#root .alert-success,#root .alert-warning,
+#root .alert-danger,#root .dangerNotice,#root .statusMessage.success,
+#root .statusMessage.warning,#root .statusMessage.error,#root .formMessage.success,#root .formMessage.error {
+  border-radius:10px;
+}
+@media(max-width:650px) {
+  body { background-attachment:scroll!important; }
+  #root .sidebar { background:#10243d!important;border-bottom:1px solid #203a58!important; }
+  #root .sidebar .navItem { background:rgba(255,255,255,.055)!important;border-color:rgba(190,218,244,.10)!important; }
+  #root .sidebar .navItem.active { background:linear-gradient(100deg,#174b66,#1c4161)!important; }
+}
+@media(prefers-reduced-motion:reduce) {
+  #root *,#root *::before,#root *::after { animation-duration:.01ms!important;transition-duration:.01ms!important; }
+}
