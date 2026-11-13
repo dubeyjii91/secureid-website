@@ -50,7 +50,7 @@ function getRestrictiveReferences(database, userId) {
   return blockers;
 }
 
-export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent }) {
+export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent, runEncryptedBackup }) {
   const ownerEmail = String(process.env.OWNER_EMAIL || "").trim().toLowerCase();
   const requireConfiguredOwner = (req, res, next) => {
     if (!ownerEmail || req.user?.email?.toLowerCase() !== ownerEmail || req.user?.role !== "owner") {
@@ -58,6 +58,79 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     }
     next();
   };
+
+  const backupDirectory = () => path.resolve(process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "secureid-backups") : path.join(process.cwd(), "data", "backups")));
+  const listLocalBackups = () => {
+    const directory = backupDirectory();
+    if (!fs.existsSync(directory)) return [];
+    return fs.readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /^secureid-[A-Za-z0-9T._-]+\.backup\.json$/.test(entry.name))
+      .map((entry) => {
+        const fullPath = path.join(directory, entry.name);
+        const info = fs.statSync(fullPath);
+        return { fileName: entry.name, sizeBytes: info.size, createdAt: info.mtimeMs };
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+  };
+
+  app.get("/api/admin/backups", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
+    const backups = listLocalBackups();
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      success: true,
+      protectedOwnerEmail: ownerEmail,
+      backups,
+      totalBackups: backups.length,
+      totalBytes: backups.reduce((sum, item) => sum + item.sizeBytes, 0),
+      message: "On-volume encrypted backup inventory only. Off-site GitHub artifacts are managed separately."
+    });
+  });
+
+  app.delete("/api/admin/backups", enforceSameOrigin, requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (req, res) => {
+    const confirmationEmail = String(req.body?.confirmationEmail || "").trim().toLowerCase();
+    const confirmationPhrase = String(req.body?.confirmationPhrase || "").trim();
+    const recoveryAcknowledged = req.body?.recoveryAcknowledged === true;
+    if (confirmationEmail !== ownerEmail || confirmationPhrase !== "DELETE ALL ENCRYPTED BACKUPS" || !recoveryAcknowledged) {
+      return res.status(400).json({ success: false, message: "Configured Owner email, exact deletion phrase, and recovery-loss acknowledgement are required." });
+    }
+    const backups = listLocalBackups();
+    let deletedBackups = 0;
+    let deletedBytes = 0;
+    const directory = backupDirectory();
+    for (const backup of backups) {
+      const target = path.resolve(directory, backup.fileName);
+      if (!target.startsWith(directory + path.sep)) continue;
+      try {
+        fs.unlinkSync(target);
+        deletedBackups += 1;
+        deletedBytes += backup.sizeBytes;
+      } catch {
+        return res.status(409).json({ success: false, code: "BACKUP_PURGE_PARTIAL", message: "Some encrypted backups could not be deleted. Refresh the inventory and inspect the remaining files.", deletedBackups, deletedBytes });
+      }
+    }
+    const remaining = listLocalBackups();
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({
+      success: remaining.length === 0,
+      deletedBackups,
+      deletedBytes,
+      remainingBackups: remaining.length,
+      message: remaining.length === 0 ? "All on-volume encrypted backups were permanently deleted. Off-site GitHub artifacts were not changed." : "Some on-volume encrypted backups remain."
+    });
+  });
+
+  app.post("/api/admin/backups/create", enforceSameOrigin, requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
+    if (typeof runEncryptedBackup !== "function") {
+      return res.status(503).json({ success: false, message: "Encrypted backup creation is unavailable." });
+    }
+    try {
+      const result = runEncryptedBackup();
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({ success: true, fileName: path.basename(result.file), sizeBytes: result.bytes, createdAt: Date.now(), message: "A fresh encrypted backup was created." });
+    } catch {
+      return res.status(500).json({ success: false, message: "Fresh encrypted backup creation failed. Review protected server logs." });
+    }
+  });
 
   app.get("/api/admin/users/bulk-delete-preview", requireAuth, requireMfa, requireOwner, requireConfiguredOwner, (_req, res) => {
     const targets = database.prepare("SELECT id,email,role FROM users WHERE lower(email)<>? AND role<>'owner' ORDER BY created_at,id").all(ownerEmail);
