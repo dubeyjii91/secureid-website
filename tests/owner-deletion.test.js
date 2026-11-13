@@ -165,11 +165,11 @@ test("owner deletion clears only the target account's three restrictive audit de
     INSERT INTO institution_review_submissions VALUES('submission-1','institution-1','user-id');
     INSERT INTO scholarship_applications VALUES('scholarship-1','user-id');
   `);
-  const insertReview = database.prepare("INSERT INTO institution_review_audit VALUES(?,?,?,?)");
+  const insertReview = database.prepare("INSERT INTO institution_review_audit VALUES(?,?,?,?,?,?,?,?)");
   for (let i=0;i<6;i++) insertReview.run("review-audit-"+i,"submission-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
-  const insertMembership = database.prepare("INSERT INTO institution_membership_audit VALUES(?,?,?,?,?)");
+  const insertMembership = database.prepare("INSERT INTO institution_membership_audit VALUES(?,?,?,?,?,?,?,?,?,?,?)");
   for (let i=0;i<3;i++) insertMembership.run("membership-audit-"+i,"institution-1","membership-1","owner-id","user-id","warden_role_granted",null,"warden","active","active",Date.now());
-  const insertScholarship = database.prepare("INSERT INTO scholarship_audit VALUES(?,?,?)");
+  const insertScholarship = database.prepare("INSERT INTO scholarship_audit VALUES(?,?,?,?,?,?,?,?)");
   for (let i=0;i<3;i++) insertScholarship.run("scholarship-audit-"+i,"scholarship-1","institution-1","user-id","reviewed",null,null,new Date().toISOString());
 
   const handlers = routes.get("DELETE /api/admin/users/:userId");
