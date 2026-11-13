@@ -117,9 +117,9 @@ export function buildInstitutionInventory(database) {
   const queue = [];
   const unsupported = new Set();
 
-  function addRows(table, rows) {
+  function addRows(table, rows, ownerInstitutionId) {
     if (!rows.length) return;
-    if (!selected.has(table)) selected.set(table, { rowids: new Set(), primaryValues: new Set() });
+    if (!selected.has(table)) selected.set(table, { rowids: new Set(), primaryValues: new Set(), ownerByRowid: new Map() });
     const entry = selected.get(table);
     const meta = metadata.get(table);
     if (!meta?.primaryKey.length || meta.primaryKey.length !== 1) {
@@ -128,10 +128,17 @@ export function buildInstitutionInventory(database) {
     }
     for (const row of rows) {
       const rowid = Number(row.__rowid);
-      if (!Number.isSafeInteger(rowid) || entry.rowids.has(rowid)) continue;
+      if (!Number.isSafeInteger(rowid)) continue;
+      const existingOwner = entry.ownerByRowid.get(rowid);
+      if (existingOwner && existingOwner !== ownerInstitutionId) {
+        unsupported.add(table + " (row is shared across approved institutions)");
+        continue;
+      }
+      if (entry.rowids.has(rowid)) continue;
       entry.rowids.add(rowid);
       entry.primaryValues.add(row.__primary);
-      queue.push({ table, rowids: [rowid] });
+      entry.ownerByRowid.set(rowid, ownerInstitutionId);
+      queue.push({ table, rowids: [rowid], ownerInstitutionId });
     }
   }
 
@@ -140,7 +147,10 @@ export function buildInstitutionInventory(database) {
   if (!institutionMeta?.primaryKey.includes("id")) {
     throw new Error("Institution table primary key could not be safely resolved.");
   }
-  addRows("institutions", institutions.map((row) => ({ __rowid: database.prepare("SELECT rowid FROM institutions WHERE id=?").get(row.id).rowid, __primary: row.id })));
+  for (const institution of institutions) {
+    const root = database.prepare("SELECT rowid FROM institutions WHERE id=?").get(institution.id);
+    addRows("institutions", [{ __rowid: root.rowid, __primary: institution.id }], institution.id);
+  }
 
   for (const table of tables) {
     if (PROTECTED_TABLES.has(table) || table === "institutions") continue;
@@ -151,13 +161,12 @@ export function buildInstitutionInventory(database) {
       continue;
     }
     const pk = quoteIdentifier(meta.primaryKey[0]);
-    const rows = [];
     for (const institutionId of institutionsById.keys()) {
-      rows.push(...database.prepare(
+      const rows = database.prepare(
         "SELECT rowid AS __rowid," + pk + " AS __primary FROM " + quoteIdentifier(table) + " WHERE institution_id=?"
-      ).all(institutionId));
+      ).all(institutionId);
+      addRows(table, rows, institutionId);
     }
-    addRows(table, rows);
   }
 
   while (queue.length) {
@@ -206,12 +215,18 @@ export function buildInstitutionInventory(database) {
       const childRows = [];
       for (const valueBatch of chunks(distinctValues)) {
         const placeholders = valueBatch.map(() => "?").join(",");
+        const institutionColumn = childMeta.columns.has("institution_id") ? ", institution_id AS __institution_id" : "";
         childRows.push(...database.prepare(
-          "SELECT rowid AS __rowid," + quoteIdentifier(childMeta.primaryKey[0]) + " AS __primary FROM " +
+          "SELECT rowid AS __rowid," + quoteIdentifier(childMeta.primaryKey[0]) + " AS __primary" + institutionColumn + " FROM " +
           quoteIdentifier(child.table) + " WHERE " + quoteIdentifier(child.fk.from) + " IN (" + placeholders + ")"
         ).all(...valueBatch));
       }
-      addRows(child.table, childRows);
+      const eligibleRows = childRows.filter((row) => {
+        if (!childMeta.columns.has("institution_id") || row.__institution_id === event.ownerInstitutionId) return true;
+        unsupported.add(child.table + " (indirect row belongs to a different institution)");
+        return false;
+      });
+      addRows(child.table, eligibleRows, event.ownerInstitutionId);
     }
   }
 
@@ -259,16 +274,40 @@ export function buildInstitutionInventory(database) {
   }
   for (const table of selected.keys()) visit(table);
 
+  const categoriesForRows = (counts) => {
+    const totals = new Map();
+    for (const item of counts) {
+      const category = categoryRules.find(([, pattern]) => pattern.test(item.table))?.[0] || "Other institution records";
+      totals.set(category, (totals.get(category) || 0) + item.count);
+    }
+    return [...totals.entries()].map(([category, count]) => ({ category, count }));
+  };
+  const institutionBreakdown = institutions.map((institution) => {
+    const tablesForInstitution = [...selected.entries()]
+      .map(([table, entry]) => ({
+        table,
+        count: [...entry.ownerByRowid.entries()].filter(([, ownerId]) => ownerId === institution.id).length
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => a.table.localeCompare(b.table));
+    return {
+      id: institution.id,
+      name: institution.name,
+      tables: tablesForInstitution,
+      categories: categoriesForRows(tablesForInstitution),
+      totalRecords: tablesForInstitution.reduce((sum, item) => sum + item.count, 0)
+    };
+  });
   const previewData = {
     targets: institutions.map((row) => ({ id: row.id, name: row.name })),
-    rows: [...selected.entries()].map(([table, entry]) => [table, [...entry.rowids].sort((a, b) => a - b)]).sort((a, b) => a[0].localeCompare(b[0]))
+    rows: [...selected.entries()].map(([table, entry]) => [table, [...entry.rowids].sort((a, b) => a - b), [...entry.ownerByRowid.entries()].sort((a, b) => a[0] - b[0])]).sort((a, b) => a[0].localeCompare(b[0]))
   };
   return {
-    institutions: institutions.map((row) => ({ id: row.id, name: row.name })),
+    institutions: institutionBreakdown,
     missingTargets,
     unsupported: [...unsupported].sort(),
     tableCounts,
-    categories: [...categoryTotals.entries()].map(([category, count]) => ({ category, count })),
+    categories: categoriesForRows(tableCounts),
     totalRecords: tableCounts.reduce((sum, item) => sum + item.count, 0),
     previewHash: stableHash(previewData),
     selected,
@@ -293,12 +332,7 @@ export function registerTestInstitutionCleanup({ app, database, requireAuth, req
         success: true,
         protectedOwnerEmail: ownerEmail,
         protectedTables: [...PROTECTED_TABLES],
-        institutions: inventory.institutions.map((institution) => ({
-          ...institution,
-          tables: inventory.tableCounts,
-          categories: inventory.categories,
-          totalRecords: inventory.totalRecords
-        })),
+        institutions: inventory.institutions,
         missingTargets: inventory.missingTargets,
         unsupportedRelationships: inventory.unsupported,
         tableCounts: inventory.tableCounts,
