@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const app = read("../src/App.jsx");
+const entry = read("../src/main.jsx");
 const dashboard = read("../src/SecurityDashboard.jsx");
 const icon = read("../src/SecureIcon.jsx");
 const design = read("../src/secureid-design-system.css");
@@ -31,13 +32,15 @@ test("dashboard feature cards navigate through the existing application event", 
 });
 
 test("the product design layer includes accessible responsive navigation and controls", () => {
-  assert.ok(app.includes('import "./secureid-design-system.css"'));
-  assert.ok(app.includes('import "./secureid-dashboard-workspaces.css"'));
+  assert.ok(entry.includes('import "./secureid-design-system.css"'));
+  assert.ok(entry.includes('import "./secureid-dashboard-workspaces.css"'));
   assert.match(design, /\.navItem\.active/);
   assert.match(design, /\.navIcon\s*\{/);
   assert.match(design, /:focus-visible/);
   assert.match(design, /@media\s*\(max-width:\s*650px\)/);
   assert.match(design, /prefers-reduced-motion/);
+  assert.match(design, /background-color:#07111f!important/);
+  assert.match(design, /\.securityStats b \{ color:#f2f7ff!important; \}/);
   assert.match(launchers, /\.quickAccessCard:hover/);
   assert.match(launchers, /@media\(max-width:560px\)/);
 });
