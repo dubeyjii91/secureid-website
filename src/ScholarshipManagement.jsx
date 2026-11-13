@@ -95,6 +95,15 @@ export default function ScholarshipManagement() {
     } catch (err) { setError(err.message || "Scholarship review could not be saved."); }
   }
 
+  async function deleteProgram(program) {
+    if (!window.confirm(`Permanently delete scholarship program "${program.title}"? Programs with applications are protected and cannot be deleted.`)) return;
+    setError(""); setMessage("");
+    try {
+      await api("/api/institutions/scholarship-programs/" + encodeURIComponent(program.id), { method: "DELETE" });
+      setMessage("Scholarship program deleted."); await load();
+    } catch (err) { setError(err.message || "Scholarship program could not be deleted. Check whether applications exist."); }
+  }
+
   async function closeProgram(programId) {
     setError(""); setMessage("");
     try {
@@ -159,7 +168,7 @@ export default function ScholarshipManagement() {
           <strong>{program.title}</strong><span className="collegeStatus">{program.status}</span>
           <small>{program.institutionName} · Award ₹{(program.awardAmountPaise / 100).toFixed(2)} · Deadline {program.deadline}</small>
           <p>{program.description}</p><small>Eligibility: {program.eligibility}</small>
-          {admins.some(item => item.institutionId === program.institutionId) && program.status === "active" && <button type="button" className="secondary" onClick={() => closeProgram(program.id)}>Close applications</button>}
+          {admins.some(item => item.institutionId === program.institutionId) && <div className="collegeReviewActions">{program.status === "active" && <button type="button" className="secondary" onClick={() => closeProgram(program.id)}>Close applications</button>}<button type="button" className="dangerButton" onClick={() => deleteProgram(program)}>Delete program</button></div>}
         </article>)}</div>}
       </div>
 
