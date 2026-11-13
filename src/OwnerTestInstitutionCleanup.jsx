@@ -179,7 +179,7 @@ export default function OwnerTestInstitutionCleanup() {
               </table>
             </div>
           ) : <p>No linked records were found for the approved institutions.</p>}
-          {preview.missingTargets?.length > 0 && <p role="alert">Missing approved institution(s): {preview.missingTargets.join(", ")}</p>}
+          {!preview.cleanupStatus?.completed && preview.missingTargets?.length > 0 && <p role="alert">Missing approved institution(s): {preview.missingTargets.join(", ")}</p>}
           {preview.unsupportedRelationships?.length > 0 && <p role="alert">Cleanup blocked until these relationships are reviewed: {preview.unsupportedRelationships.join("; ")}</p>}
           <p><strong>Backup safety:</strong> before deleting anything, the server creates a fresh encrypted database + document backup, decrypts it into an isolated temporary SQLite database, and verifies SQLite integrity and foreign-key consistency. If any step fails, deletion is blocked.</p>
           {!preview.cleanupStatus?.completed && (
