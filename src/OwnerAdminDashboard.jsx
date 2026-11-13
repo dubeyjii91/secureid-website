@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "./api.js";
 import SecureCloudPanel from "./SecureCloudPanel.jsx";
 import MonetizationPanel from "./MonetizationPanel.jsx";
+import OwnerTestInstitutionCleanup from "./OwnerTestInstitutionCleanup.jsx";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -537,6 +538,7 @@ export default function OwnerAdminDashboard() {
       {institutions.length === 0 && <p>No institutions have been provisioned yet.</p>}
       <small>Never provision a student or staff role based only on an unverified email or college name. Membership does not itself authorize document downloads.</small>
     </div>
+    <OwnerTestInstitutionCleanup />
     <MonetizationPanel />
     <SecureCloudPanel />
   </section>;
