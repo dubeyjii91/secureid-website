@@ -41,3 +41,14 @@ test("the product design layer includes accessible responsive navigation and con
   assert.match(launchers, /\.quickAccessCard:hover/);
   assert.match(launchers, /@media\(max-width:560px\)/);
 });
+
+test("institution module launchers use matching SVG icons and branded surfaces", () => {
+  const modules = read("../src/InstitutionModules.jsx");
+  assert.ok(modules.includes('import SecureIcon from "./SecureIcon.jsx"'));
+  assert.ok(modules.includes('icon:"graduation"'));
+  assert.ok(modules.includes('icon:"users"'));
+  assert.ok(modules.includes('icon:"book"'));
+  assert.ok(modules.includes('icon:"wallet"'));
+  assert.ok(modules.includes('<SecureIcon name={item.icon} size={23} />'));
+  assert.match(design, /\.institutionModuleLauncherIcon/);
+});
