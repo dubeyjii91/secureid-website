@@ -62,6 +62,7 @@ test("backup trigger returns the raw encrypted artifact digest and binds it to t
   assert.equal(calls, 1);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
+  assert.equal(res.body.fileName, "secureid-test.backup.json");
   // runBackup.sha256 is the decrypted snapshot digest; the export endpoint needs
   // the digest of the exact encrypted file bytes from getBackupFile().
   assert.equal(res.body.sha256, "f".repeat(64));
@@ -126,10 +127,14 @@ test("off-site download requires the bearer token and streams only the encrypted
   const digest = createHash("sha256").update(bytes).digest("hex");
   const token = "z".repeat(43);
   const app = express();
+  let requestedFileName = null;
   registerBackupTrigger({
     app,
-    runBackup: () => ({ success: true, sha256: "a".repeat(64) }),
-    getBackupFile: async () => ({ filePath, fileName: path.basename(filePath), size: bytes.length, sha256: digest, createdAt: "2026-11-12T00:00:00.000Z" }),
+    runBackup: () => ({ success: true, file: filePath, sha256: "a".repeat(64) }),
+    getBackupFile: async (name) => {
+      requestedFileName = name || null;
+      return { filePath, fileName: path.basename(filePath), size: bytes.length, sha256: digest, createdAt: "2026-11-12T00:00:00.000Z" };
+    },
     env: { BACKUP_TRIGGER_TOKEN: token },
   });
   const server = app.listen(0);
@@ -142,8 +147,9 @@ test("off-site download requires the bearer token and streams only the encrypted
   const denied = await fetch(url);
   assert.equal(denied.status, 401);
   await denied.arrayBuffer();
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const response = await fetch(url + `?filename=${encodeURIComponent(path.basename(filePath))}`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 200);
+  assert.equal(requestedFileName, path.basename(filePath));
   assert.equal(response.headers.get("cache-control"), "no-store, private");
   assert.equal(response.headers.get("x-backup-sha256"), digest);
   assert.equal(response.headers.get("content-disposition"), `attachment; filename="${path.basename(filePath)}"`);
