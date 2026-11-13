@@ -195,3 +195,32 @@ body {
 @media(prefers-reduced-motion:reduce) {
   #root *,#root *::before,#root *::after { animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important; }
 }
+
+/* Institution module launchers share the same product card and icon language. */
+#root .institutionModuleLauncher {
+  grid-template-columns:48px minmax(0,1fr) auto;
+  gap:14px;padding:18px;
+  color:var(--sid-ink)!important;
+  background:linear-gradient(145deg,rgba(20,40,64,.96),rgba(14,31,51,.96))!important;
+  border:1px solid var(--sid-line)!important;border-radius:16px!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.13);
+}
+#root .institutionModuleLauncher:hover {
+  background:linear-gradient(145deg,#18334f,#142942)!important;
+  border-color:rgba(91,214,239,.38)!important;
+  box-shadow:0 16px 34px rgba(0,0,0,.22);
+  transform:translateY(-3px);
+}
+#root .institutionModuleLauncherIcon {
+  width:46px;height:46px;display:grid;place-items:center;
+  color:#79e0ee!important;background:rgba(91,214,239,.1)!important;
+  border:1px solid rgba(91,214,239,.17);border-radius:13px;
+}
+#root .institutionModuleLauncherCopy strong { color:#f0f7ff!important; }
+#root .institutionModuleLauncherCopy small { color:#9eb2ca!important; }
+#root .institutionModuleLauncherAction { color:#8ce4f0!important; }
+@media(max-width:760px) {
+  #root .institutionModuleLauncher { grid-template-columns:42px minmax(0,1fr);padding:15px; }
+  #root .institutionModuleLauncherIcon { width:40px;height:40px; }
+  #root .institutionModuleLauncherAction { grid-column:2;justify-self:start; }
+}
