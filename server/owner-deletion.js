@@ -103,7 +103,8 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
     const documentRows = database.prepare("SELECT encrypted_path FROM secure_documents WHERE user_id=?").all(user.id);
     const now = Date.now();
     const auditId = randomUUID();
-    const transaction = database.transaction(() => {
+    try {
+      database.exec("BEGIN IMMEDIATE");
       for (const item of inventory) {
         if (AUDIT_TABLES.has(item.table)) continue;
         database.prepare("DELETE FROM " + quoteIdentifier(item.table) + " WHERE " + quoteIdentifier(item.column) + "=?").run(user.id);
@@ -111,11 +112,9 @@ export function registerOwnerDeletion({ app, database, requireAuth, requireMfa, 
       database.prepare("DELETE FROM users WHERE id=?").run(user.id);
       database.prepare("INSERT INTO admin_audit_log (id,actor_user_id,actor_email,action,target_user_id,target_email,details_json,created_at) VALUES (?,?,?,?,?,?,?,?)")
         .run(auditId, req.user.id, req.user.email, "USER_PERMANENTLY_DELETED", user.id, user.email, JSON.stringify({ relatedRecordsRemoved: inventory.reduce((sum, item) => sum + item.count, 0) }), now);
-    });
-
-    try {
-      transaction();
+      database.exec("COMMIT");
     } catch (error) {
+      try { database.exec("ROLLBACK"); } catch {}
       return res.status(409).json({
         success: false,
         code: "DELETE_ROLLED_BACK",
