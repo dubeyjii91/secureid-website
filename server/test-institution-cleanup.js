@@ -159,6 +159,26 @@ export function buildInstitutionInventory(database) {
     }
   }
 
+  // The manual monetization ledger keeps its audit target polymorphically
+  // (entity_type/entity_id), so SQLite FK traversal cannot discover these rows.
+  // Scope only financial-entry audit rows whose ledger entry belongs to a target.
+  if (selected.has("secureid_financial_entries") && metadata.has("secureid_monetization_audit")) {
+    const financialRows = selected.get("secureid_financial_entries");
+    for (const batch of chunks([...financialRows.rowids])) {
+      const placeholders = batch.map(() => "?").join(",");
+      const entries = database.prepare(
+        "SELECT rowid,id FROM secureid_financial_entries WHERE rowid IN (" + placeholders + ")"
+      ).all(...batch);
+      for (const entry of entries) {
+        const ownerInstitutionId = financialRows.ownerByRowid.get(Number(entry.rowid));
+        const auditRows = database.prepare(
+          "SELECT rowid AS __rowid FROM secureid_monetization_audit WHERE entity_type='financial_entry' AND entity_id=?"
+        ).all(entry.id);
+        addRows("secureid_monetization_audit", auditRows, ownerInstitutionId);
+      }
+    }
+  }
+
   while (queue.length) {
     const event = queue.shift();
     const parentMeta = metadata.get(event.table);
