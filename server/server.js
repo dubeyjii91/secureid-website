@@ -1010,7 +1010,11 @@ app.use("/api/admin", (req, res, next) => {
 
 app.get("/api/admin/users", requireAuth, requireMfa, requireOwner, (req, res, next) => {
   try {
-    const limit = Math.min(200, Math.max(1, Number(req.query?.limit || 100)));
+    const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
+    const offset = Math.min(100000, Math.max(0, Number(req.query?.offset || 0)));
+    const search = String(req.query?.search || "").trim().slice(0, 160);
+    const where = search ? "WHERE instr(lower(u.email), lower(?)) > 0 OR instr(lower(u.id), lower(?)) > 0" : "";
+    const filterParams = search ? [search, search] : [];
     const rows = database.prepare(`
       SELECT u.id, u.email, u.created_at AS createdAt, u.role,
              CASE WHEN ev.verified_at IS NULL THEN 0 ELSE 1 END AS emailVerified,
@@ -1020,14 +1024,16 @@ app.get("/api/admin/users", requireAuth, requireMfa, requireOwner, (req, res, ne
       FROM users u
       LEFT JOIN email_verification_state ev ON ev.user_id = u.id
       LEFT JOIN admin_account_controls ac ON ac.user_id = u.id
-      ORDER BY u.created_at DESC
-      LIMIT ?
-    `).all(limit);
+      ${where}
+      ORDER BY u.created_at DESC, u.id ASC
+      LIMIT ? OFFSET ?
+    `).all(...filterParams, limit, offset);
+    const matched = Number(database.prepare(`SELECT COUNT(*) AS total FROM users u ${where}`).get(...filterParams).total || 0);
     const total = Number(database.prepare("SELECT COUNT(*) AS total FROM users").get().total || 0);
     const active = Number(database.prepare("SELECT COUNT(*) AS total FROM users u LEFT JOIN admin_account_controls ac ON ac.user_id=u.id WHERE COALESCE(ac.status,'active')='active'").get().total || 0);
     const suspended = total - active;
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ success: true, total, active, suspended, users: rows.map((u) => ({
+    res.json({ success: true, total, matched, active, suspended, limit, offset, users: rows.map((u) => ({
       id: u.id,
       email: u.email,
       createdAt: u.createdAt,
