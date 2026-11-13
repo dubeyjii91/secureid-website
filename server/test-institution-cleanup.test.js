@@ -63,7 +63,7 @@ function makeDatabase() {
   database.exec(`
     INSERT INTO users VALUES ('owner','owner@example.test','owner'),('student','student@example.test','student');
     INSERT INTO institutions VALUES
-      ('rvs','RVS College of Engineering and Technology'),
+      ('rvs','R.V.S. College of Engineering & Technology'),
       ('test','SecureID Test College'),
       ('unrelated','Unrelated College');
     INSERT INTO institution_memberships VALUES ('m-rvs','rvs','student'),('m-test','test','student'),('m-other','unrelated','student');
