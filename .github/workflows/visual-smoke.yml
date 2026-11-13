@@ -100,7 +100,10 @@ jobs:
                 navFill: getComputedStyle(document.querySelector('.sidebar .navItem:not(.active)')).webkitTextFillColor,
                 activeNavText: getComputedStyle(document.querySelector('.sidebar .navItem.active')).color,
                                 metricText: getComputedStyle(document.querySelector('.securityStats b')).color,
-                healthText: getComputedStyle(document.querySelector('.systemHealthGrid strong')).color
+                healthText: getComputedStyle(document.querySelector('.systemHealthGrid strong')).color,
+                workspaceIconColor: getComputedStyle(document.querySelector('.quickAccessCard .quickAccessIcon')).color,
+                workspaceIconBackground: getComputedStyle(document.querySelector('.quickAccessCard .quickAccessIcon')).backgroundColor,
+                mobileNavOverflow: getComputedStyle(document.querySelector('.sidebar nav')).overflowX
               }));
               console.log('VISUAL ' + viewport.name.toUpperCase() + ' ' + JSON.stringify(checks));
               if (checks.navCount < 10 || checks.navSvgCount !== checks.navCount) failures.push(viewport.name + ': sidebar navigation icons are missing.');
@@ -108,7 +111,8 @@ jobs:
               if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
               if (checks.rootColor !== 'rgb(247, 248, 250)' || checks.bodyColor !== 'rgb(23, 25, 28)') failures.push(viewport.name + ': neutral premium canvas or graphite body text is missing.');
               if (checks.cardColor !== 'rgb(255, 255, 255)' && !checks.cardBackground.includes('rgb(255, 255, 255)')) failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
-              if (checks.primaryText !== 'rgb(23, 25, 28)' || checks.navText !== 'rgb(71, 77, 87)' || checks.navFill !== 'rgb(71, 77, 87)' || checks.activeNavText !== 'rgb(81, 69, 216)' || checks.metricText !== 'rgb(23, 25, 28)' || checks.healthText !== 'rgb(22, 128, 90)') failures.push(viewport.name + ': graphite text, neutral navigation or semantic health colour is incorrect.');
+              if (checks.primaryText !== 'rgb(23, 25, 28)' || checks.navText !== 'rgb(71, 77, 87)' || checks.navFill !== 'rgb(71, 77, 87)' || checks.activeNavText !== 'rgb(81, 69, 216)' || checks.metricText !== 'rgb(23, 25, 28)' || checks.healthText !== 'rgb(22, 128, 90)' || checks.workspaceIconColor !== 'rgb(101, 88, 245)' || checks.workspaceIconBackground !== 'rgb(241, 239, 255)') failures.push(viewport.name + ': graphite text, neutral navigation, violet workspace icons or semantic health colour is incorrect.');
+              if (viewport.name === 'mobile' && checks.mobileNavOverflow !== 'auto') failures.push('mobile: navigation must remain horizontally scrollable without clipping menu items.');
               await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
 
               if (viewport.name === 'desktop') {
