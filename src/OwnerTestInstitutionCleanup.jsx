@@ -7,22 +7,32 @@ export default function OwnerTestInstitutionCleanup() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [status, setStatus] = useState(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [confirmationPhrase, setConfirmationPhrase] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
 
   const loadPreview = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setStatus({ type: "info", message: "Refreshing the approved-institution inventory…" });
     try {
       const result = await api("/api/admin/test-institution-cleanup/preview");
       setPreview(result);
       setConfirmationPhrase("");
       setAcknowledged(false);
+      const missing = Array.isArray(result?.missingTargets) ? result.missingTargets : [];
+      const unsupported = Array.isArray(result?.unsupportedRelationships) ? result.unsupportedRelationships : [];
+      if (missing.length || unsupported.length || !Array.isArray(result?.institutions) || !result.institutions.length) {
+        const reasons = [];
+        if (missing.length) reasons.push("Missing approved institution(s): " + missing.join(", "));
+        if (unsupported.length) reasons.push("Unsupported relationships: " + unsupported.join("; "));
+        if (!Array.isArray(result?.institutions) || !result.institutions.length) reasons.push("No approved institution inventory is available.");
+        setStatus({ type: "error", message: "Cleanup is safely blocked. " + reasons.join(" | ") + " No records were changed." });
+      } else {
+        setStatus({ type: "success", message: "Inventory refreshed. Review the counts and complete all Owner confirmations before proceeding." });
+      }
     } catch (requestError) {
-      setError(requestError.message || "Could not load the test-data inventory.");
+      setStatus({ type: "error", message: requestError.message || "Could not load the test-data inventory." });
     } finally {
       setLoading(false);
     }
@@ -31,75 +41,83 @@ export default function OwnerTestInstitutionCleanup() {
   useEffect(() => { loadPreview(); }, [loadPreview]);
 
   async function executeCleanup() {
-    setError("");
-    setNotice("Delete button click received. Checking the preview and owner confirmations…");
+    setStatus({ type: "info", message: "Delete button click received. Checking the preview and Owner confirmations…" });
+
+    const missing = Array.isArray(preview?.missingTargets) ? preview.missingTargets : [];
+    const unsupported = Array.isArray(preview?.unsupportedRelationships) ? preview.unsupportedRelationships : [];
+    const institutions = Array.isArray(preview?.institutions) ? preview.institutions : [];
+
     if (!preview?.previewHash) {
-      setError("Refresh the inventory before continuing.");
+      setStatus({ type: "error", message: "Cleanup blocked: the inventory preview or preview hash is missing. Refresh the inventory before continuing. No records were changed." });
       return;
     }
-    if (preview.missingTargets?.length || preview.unsupportedRelationships?.length || !preview.institutions?.length) {
+    if (missing.length || unsupported.length || !institutions.length) {
       const reasons = [];
-      if (preview.missingTargets?.length) reasons.push("Missing approved institution(s): " + preview.missingTargets.join(", "));
-      if (preview.unsupportedRelationships?.length) reasons.push("Unsupported relationships: " + preview.unsupportedRelationships.join("; "));
-      if (!preview.institutions?.length) reasons.push("No approved institution inventory is available.");
-      setError("Cleanup remains safely blocked. " + reasons.join(" | ") + " No records were changed.");
+      if (missing.length) reasons.push("Missing approved institution(s): " + missing.join(", "));
+      if (unsupported.length) reasons.push("Unsupported relationships: " + unsupported.join("; "));
+      if (!institutions.length) reasons.push("No approved institution inventory is available.");
+      setStatus({ type: "error", message: "Cleanup remains safely blocked. " + reasons.join(" | ") + " No records were changed." });
       return;
     }
-    if (confirmationPhrase !== CONFIRMATION_PHRASE) {
-      setError("Enter the exact confirmation phrase shown in the field.");
+    if (confirmationPhrase.trim() !== CONFIRMATION_PHRASE) {
+      setStatus({ type: "error", message: "Cleanup blocked: enter the exact confirmation phrase shown in the field. No records were changed." });
       return;
     }
     if (!acknowledged) {
-      setError("Tick the confirmation checkbox before continuing.");
+      setStatus({ type: "error", message: "Cleanup blocked: tick the test-data confirmation checkbox. No records were changed." });
       return;
     }
     if (!confirmationEmail.trim()) {
-      setError("Enter the configured Owner email before continuing.");
+      setStatus({ type: "error", message: "Cleanup blocked: enter the configured Owner email. No records were changed." });
       return;
     }
+
     setBusy(true);
-    setError("");
-    setNotice("Safety checks passed. Sending the authenticated cleanup request…");
+    setStatus({ type: "info", message: "Safety checks passed. Sending the authenticated cleanup request…" });
     try {
       const result = await api("/api/admin/test-institution-cleanup/execute", {
         method: "POST",
         body: JSON.stringify({
-          confirmationEmail,
-          confirmationPhrase,
+          confirmationEmail: confirmationEmail.trim(),
+          confirmationPhrase: confirmationPhrase.trim(),
           previewHash: preview.previewHash,
           testDataConfirmed: acknowledged
         })
       });
-      setNotice(
-        "Cleanup complete: " + result.deletedRows + " database records removed across " +
-        result.deletedInstitutions.length + " institutions. " + result.encryptedFilesRemoved +
-        " unshared encrypted document files removed. Fresh backup and isolated restore verified: " +
-        result.backupFile + "."
-      );
+      setStatus({
+        type: "success",
+        message: "Cleanup complete: " + result.deletedRows + " database records removed across " +
+          result.deletedInstitutions.length + " institutions. " + result.encryptedFilesRemoved +
+          " unshared encrypted document files removed. Fresh backup and isolated restore verified: " +
+          result.backupFile + "."
+      });
       setPreview(null);
       setConfirmationPhrase("");
       setAcknowledged(false);
       await loadPreview();
     } catch (requestError) {
-      setError(requestError.message || "Cleanup did not complete. No success is assumed.");
+      setStatus({ type: "error", message: (requestError.message || "Cleanup did not complete. No success is assumed.") +
+        (requestError.requestId ? " Request ID: " + requestError.requestId : "") });
       await loadPreview();
     } finally {
       setBusy(false);
     }
   }
 
-  const blocked = Boolean(
-    !preview || preview.loading || preview.missingTargets?.length ||
-    preview.unsupportedRelationships?.length || !preview.institutions?.length
-  );
-
   return (
     <div className="panel" style={{border:"1px solid #b7791f",marginBottom:20}}>
       <div className="eyebrow dark">OWNER ONLY · TEST DATA CLEANUP</div>
       <h3>Fresh-start cleanup · approved test institutions</h3>
       <p>Recursive inventory includes institution-linked records and indirect children such as test payments, fees, memberships, document reviews, hostel history, scholarships and audit rows. It does not delete any user account, the configured Owner account, shared plan catalogues or unrelated institutions.</p>
-      {error && <p role="alert" style={{color:"#b42318"}}>{error}</p>}
-      {notice && <p role="status" style={{color:"#067647"}}>{notice}</p>}
+      {status && (
+        <div role={status.type === "error" ? "alert" : "status"} aria-live="polite" style={{
+          display:"block",visibility:"visible",opacity:1,margin:"12px 0",padding:"14px 16px",
+          border:"2px solid " + (status.type === "error" ? "#b42318" : status.type === "success" ? "#067647" : "#175cd3"),
+          borderRadius:10,background:status.type === "error" ? "#fff1f0" : status.type === "success" ? "#ecfdf3" : "#eff8ff",
+          color:status.type === "error" ? "#912018" : status.type === "success" ? "#05603a" : "#1849a9",
+          fontWeight:700,lineHeight:1.5,whiteSpace:"pre-wrap"
+        }}>{status.message}</div>
+      )}
       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"12px 0"}}>
         <button type="button" className="secondary" onClick={loadPreview} disabled={loading || busy}>{loading ? "Refreshing inventory…" : "Refresh exact inventory"}</button>
         {preview && <strong>{preview.totalRecords} database records inventoried</strong>}
@@ -127,7 +145,6 @@ export default function OwnerTestInstitutionCleanup() {
               </table>
             </div>
           ) : <p>No linked records were found for the approved institutions.</p>}
-          {preview.categories?.length > 0 && <p>{preview.categories.map((item) => item.category + ": " + item.count).join(" · ")}</p>}
           {preview.missingTargets?.length > 0 && <p role="alert">Missing approved institution(s): {preview.missingTargets.join(", ")}</p>}
           {preview.unsupportedRelationships?.length > 0 && <p role="alert">Cleanup blocked until these relationships are reviewed: {preview.unsupportedRelationships.join("; ")}</p>}
           <p><strong>Backup safety:</strong> before deleting anything, the server creates a fresh encrypted database + document backup, decrypts it into an isolated temporary SQLite database, and verifies SQLite integrity and foreign-key consistency. If any step fails, deletion is blocked.</p>
