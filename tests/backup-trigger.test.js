@@ -8,10 +8,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerBackupTrigger } from "../server/backup-trigger.js";
 
-function setup({ token = "a".repeat(43), runBackup = () => ({ success: true, sha256: "b".repeat(64) }) } = {}) {
+function setup({
+  token = "a".repeat(43),
+  runBackup = () => ({ success: true, file: "/tmp/secureid-test.backup.json", sha256: "b".repeat(64) }),
+  getBackupFile = async () => ({ filePath: "/tmp/secureid-test.backup.json", fileName: "secureid-test.backup.json", size: 1, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
+} = {}) {
   const routes = new Map();
   const app = { post: (path, ...handlers) => routes.set("POST "+path, handlers), get: (path, ...handlers) => routes.set("GET "+path, handlers) };
-  registerBackupTrigger({ app, runBackup, getBackupFile: async () => ({ filePath: "/tmp/not-used", fileName: "secureid-test.backup.json", size: 1, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }), env: { BACKUP_TRIGGER_TOKEN: token }, now: () => new Date("2026-11-12T00:00:00.000Z") });
+  registerBackupTrigger({ app, runBackup, getBackupFile, env: { BACKUP_TRIGGER_TOKEN: token }, now: () => new Date("2026-11-12T00:00:00.000Z") });
   return routes.get("POST /api/internal/backup/run");
 }
 
@@ -45,19 +49,40 @@ test("backup trigger rejects missing and incorrect bearer tokens", async () => {
   }
 });
 
-test("backup trigger runs only after bearer-token authorization and returns integrity evidence", async () => {
+test("backup trigger returns the raw encrypted artifact digest and binds it to the file just created", async () => {
   let calls = 0;
   const token = "a".repeat(43);
-  const handler = setup({ token, runBackup: () => { calls += 1; return { success: true, sha256: "c".repeat(64), file: "/private/path/backup.json" }; } }).at(-1);
+  const handler = setup({
+    token,
+    runBackup: () => { calls += 1; return { success: true, sha256: "c".repeat(64), file: "/private/path/secureid-test.backup.json" }; },
+    getBackupFile: async () => ({ filePath: "/private/path/secureid-test.backup.json", fileName: "secureid-test.backup.json", size: 123, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
+  }).at(-1);
   const res = response();
   await handler({ headers: { authorization: `Bearer ${token}` } }, res);
   assert.equal(calls, 1);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
-  assert.equal(res.body.sha256, "c".repeat(64));
+  assert.equal(res.body.fileName, "secureid-test.backup.json");
+  // runBackup.sha256 is the decrypted snapshot digest; the export endpoint needs
+  // the digest of the exact encrypted file bytes from getBackupFile().
+  assert.equal(res.body.sha256, "f".repeat(64));
   assert.equal(res.body.completedAt, "2026-11-12T00:00:00.000Z");
   assert.equal("file" in res.body, false);
+  assert.equal(JSON.stringify(res.body).includes("/private/path"), false);
   assert.equal(res.headers["Cache-Control"], "no-store, private");
+});
+
+test("backup trigger fails closed when the newest export candidate is not the file it just created", async () => {
+  const token = "a".repeat(43);
+  const handler = setup({
+    token,
+    runBackup: () => ({ success: true, sha256: "c".repeat(64), file: "/private/path/secureid-new.backup.json" }),
+    getBackupFile: async () => ({ filePath: "/private/path/secureid-old.backup.json", fileName: "secureid-old.backup.json", size: 123, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
+  }).at(-1);
+  const res = response();
+  await handler({ headers: { authorization: `Bearer ${token}` } }, res);
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(res.body, { success: false, message: "Encrypted backup failed." });
 });
 
 test("backup trigger returns a generic failure and does not expose internal errors", async () => {
@@ -74,7 +99,7 @@ test("backup trigger enforces a per-process request limit", async (t) => {
   const app = express();
   registerBackupTrigger({
     app,
-    runBackup: () => ({ success: true, sha256: "e".repeat(64) }),
+    runBackup: () => ({ success: true, file: "/tmp/secureid-test.backup.json", sha256: "e".repeat(64) }),
     getBackupFile: async () => ({ filePath: "/tmp/not-used", fileName: "secureid-test.backup.json", size: 1, sha256: "f".repeat(64), createdAt: "2026-11-12T00:00:00.000Z" }),
     env: { BACKUP_TRIGGER_TOKEN: token },
   });
@@ -102,10 +127,14 @@ test("off-site download requires the bearer token and streams only the encrypted
   const digest = createHash("sha256").update(bytes).digest("hex");
   const token = "z".repeat(43);
   const app = express();
+  let requestedFileName = null;
   registerBackupTrigger({
     app,
-    runBackup: () => ({ success: true, sha256: "a".repeat(64) }),
-    getBackupFile: async () => ({ filePath, fileName: path.basename(filePath), size: bytes.length, sha256: digest, createdAt: "2026-11-12T00:00:00.000Z" }),
+    runBackup: () => ({ success: true, file: filePath, sha256: "a".repeat(64) }),
+    getBackupFile: async (name) => {
+      requestedFileName = name || null;
+      return { filePath, fileName: path.basename(filePath), size: bytes.length, sha256: digest, createdAt: "2026-11-12T00:00:00.000Z" };
+    },
     env: { BACKUP_TRIGGER_TOKEN: token },
   });
   const server = app.listen(0);
@@ -118,8 +147,9 @@ test("off-site download requires the bearer token and streams only the encrypted
   const denied = await fetch(url);
   assert.equal(denied.status, 401);
   await denied.arrayBuffer();
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const response = await fetch(url + `?filename=${encodeURIComponent(path.basename(filePath))}`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 200);
+  assert.equal(requestedFileName, path.basename(filePath));
   assert.equal(response.headers.get("cache-control"), "no-store, private");
   assert.equal(response.headers.get("x-backup-sha256"), digest);
   assert.equal(response.headers.get("content-disposition"), `attachment; filename="${path.basename(filePath)}"`);

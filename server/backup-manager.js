@@ -206,11 +206,11 @@ export function startAutomaticBackup(){
 // Return metadata for the newest encrypted artifact without exposing its storage path.
 // Hash the exact file bytes as a stream so callers can verify the downloaded copy
 // without loading a potentially large document archive into memory.
-export async function getLatestEncryptedBackup(){
+export async function getLatestEncryptedBackup(requestedFileName){
   const backupDir=path.resolve(process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups"));
   if(!existsSync(backupDir)) throw new Error("Encrypted backup directory does not exist.");
   const candidates=readdirSync(backupDir,{withFileTypes:true})
-    .filter(entry=>entry.isFile() && /^secureid-.*\.backup\.json$/.test(entry.name))
+    .filter(entry=>entry.isFile() && /^secureid-.*\.backup\.json$/.test(entry.name) && (!requestedFileName || entry.name===requestedFileName))
     .map(entry=>({name:entry.name,fullPath:path.join(backupDir,entry.name),mtime:statSync(path.join(backupDir,entry.name)).mtimeMs}))
     .sort((a,b)=>b.mtime-a.mtime);
   if(!candidates.length) throw new Error("No encrypted backup is available for off-platform transfer.");
