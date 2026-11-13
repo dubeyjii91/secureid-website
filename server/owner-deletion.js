@@ -36,11 +36,17 @@ function deleteAccountAuditDependencies(database, userId) {
   // A student's hostel application can own a chain of operational records.
   // Remove only rows attached to that student's application; preserve shared
   // institution, building, and room master data.
-  if (hasTable("hostel_applications") && hasTable("hostel_bed_allocations") && hasTable("hostel_fee_records") && hasTable("hostel_fee_payments")) {
+  if (hasTable("hostel_applications")) {
     const ownedApplications = "(SELECT id FROM hostel_applications WHERE student_user_id=?)";
-    database.prepare("DELETE FROM hostel_fee_payments WHERE fee_record_id IN (SELECT id FROM hostel_fee_records WHERE application_id IN " + ownedApplications + ")").run(userId);
-    database.prepare("DELETE FROM hostel_fee_records WHERE application_id IN " + ownedApplications).run(userId);
-    database.prepare("DELETE FROM hostel_bed_allocations WHERE application_id IN " + ownedApplications).run(userId);
+    if (hasTable("hostel_fee_records") && hasTable("hostel_fee_payments")) {
+      database.prepare("DELETE FROM hostel_fee_payments WHERE fee_record_id IN (SELECT id FROM hostel_fee_records WHERE application_id IN " + ownedApplications + ")").run(userId);
+    }
+    if (hasTable("hostel_fee_records")) {
+      database.prepare("DELETE FROM hostel_fee_records WHERE application_id IN " + ownedApplications).run(userId);
+    }
+    if (hasTable("hostel_bed_allocations")) {
+      database.prepare("DELETE FROM hostel_bed_allocations WHERE application_id IN " + ownedApplications).run(userId);
+    }
   }
   if (hasTable("institution_membership_audit")) {
     database.prepare("DELETE FROM institution_membership_audit WHERE actor_user_id=? OR target_user_id=?").run(userId, userId);
