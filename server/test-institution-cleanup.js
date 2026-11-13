@@ -11,10 +11,10 @@ const TARGETS = [
 function normalizeInstitutionName(value) {
   // Collapse dotted initialisms before punctuation normalization: R.V.S. -> RVS.
   return String(value || "").normalize("NFKD")
-    .replace(/(?:[a-z]\\.){2,}/gi, (match) => match.replace(/\\./g, ""))
+    .replace(/(?:[a-z]\.){2,}/gi, (match) => match.replace(/\./g, ""))
     .replace(/[&]/g, " and ")
     .replace(/[^a-z0-9]+/gi, " ")
-    .trim().toLowerCase().replace(/\\s+/g, " ");
+    .trim().toLowerCase().replace(/\s+/g, " ");
 }
 const TARGET_KEYS = new Set(TARGETS.map(normalizeInstitutionName));
 const PROTECTED_TABLES = new Set([
