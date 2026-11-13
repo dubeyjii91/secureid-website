@@ -56,6 +56,8 @@ export default function OwnerAdminDashboard() {
   const [detailsBusy, setDetailsBusy] = useState("");
   const [bulkPreview, setBulkPreview] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [backupInventory, setBackupInventory] = useState(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   const [institutionMemberships, setInstitutionMemberships] = useState([]);
   const [institutionName, setInstitutionName] = useState("");
@@ -151,6 +153,51 @@ export default function OwnerAdminDashboard() {
     } finally {
       setBusyUser("");
     }
+  }
+
+  async function previewLocalBackups() {
+    setBackupBusy(true); setUsersError("");
+    try {
+      const result = await api("/api/admin/backups", { cache: "no-store" });
+      setBackupInventory(result);
+    } catch (e) {
+      setUsersError(e?.message || "Encrypted backup inventory could not be loaded.");
+    } finally { setBackupBusy(false); }
+  }
+
+  async function purgeLocalBackups() {
+    if (!backupInventory || backupBusy || backupInventory.totalBackups === 0) return;
+    const email = String(window.prompt("This permanently deletes every on-volume encrypted backup. Type the configured Owner email:", backupInventory.protectedOwnerEmail || "") || "").trim();
+    if (email.toLowerCase() !== String(backupInventory.protectedOwnerEmail || "").toLowerCase()) return;
+    const phrase = String(window.prompt("Type DELETE ALL ENCRYPTED BACKUPS") || "").trim();
+    if (phrase !== "DELETE ALL ENCRYPTED BACKUPS") return;
+    const acknowledgement = String(window.prompt("This removes on-volume recovery copies. Type I UNDERSTAND BACKUP LOSS") || "").trim();
+    if (acknowledgement !== "I UNDERSTAND BACKUP LOSS") return;
+    setBackupBusy(true); setUsersError(""); setNotice("");
+    try {
+      const result = await api("/api/admin/backups", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmationEmail: email, confirmationPhrase: phrase, recoveryAcknowledged: true })
+      });
+      await previewLocalBackups();
+      setNotice("On-volume encrypted backups deleted: " + result.deletedBackups + " (" + result.deletedBytes + " bytes). Off-site GitHub artifacts were not changed.");
+    } catch (e) {
+      setUsersError(e?.message || "Encrypted backup purge was not completed.");
+    } finally { setBackupBusy(false); }
+  }
+
+  async function createFreshBackup() {
+    if (backupBusy) return;
+    if (!window.confirm("Create a fresh encrypted backup of the current production data?")) return;
+    setBackupBusy(true); setUsersError(""); setNotice("");
+    try {
+      const result = await api("/api/admin/backups/create", { method: "POST" });
+      await previewLocalBackups();
+      setNotice("Fresh encrypted backup created: " + result.fileName + " (" + result.sizeBytes + " bytes).");
+    } catch (e) {
+      setUsersError(e?.message || "Fresh encrypted backup could not be created.");
+    } finally { setBackupBusy(false); }
   }
 
   async function previewBulkCleanup() {
@@ -369,6 +416,21 @@ export default function OwnerAdminDashboard() {
       </div>
       {accountDetails && <div className="panel" style={{marginTop:16}}><div className="eyebrow dark">ACCOUNT INSPECTION</div><h3>{accountDetails.user.email}</h3><p>Account ID: {accountDetails.user.id} · Created: {formatDate(accountDetails.user.createdAt)} · {accountDetails.user.protectedOwner ? "Protected Owner" : "User account"}</p><p>Related user-owned records detected: {accountDetails.totalRelatedRecords}</p><p>Deletion readiness: {accountDetails.deletionAllowed ? "No restrictive database dependencies detected" : "Blocked — dependency review required"}</p>{accountDetails.inventory?.length > 0 && <ul>{accountDetails.inventory.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count}</li>)}</ul>}{accountDetails.blockers?.length > 0 && <ul>{accountDetails.blockers.map((item,index)=><li key={item.table + item.column + index}>{item.table}.{item.column}: {item.count} dependent rows ({item.onDelete})</li>)}</ul>}<button className="secondary" onClick={() => setAccountDetails(null)}>Close details</button></div>}
       <div className="panel" style={{marginTop:16,border:"1px solid var(--border,#ddd)"}}><div className="eyebrow dark">FRESH-START CLEANUP</div><h3>Delete all non-Owner accounts</h3><p>Preview first. The configured Owner account is excluded by the server. Cleanup is blocked if any account has unresolved restrictive dependencies; administrative audit evidence is retained.</p><button className="secondary" type="button" disabled={bulkBusy} onClick={previewBulkCleanup}>{bulkBusy ? "Checking…" : "Preview all non-Owner accounts"}</button>{bulkPreview && <div style={{marginTop:12}}><p>Accounts to delete: <strong>{bulkPreview.accountsToDelete}</strong></p><p>Related records to delete: <strong>{bulkPreview.relatedRecordsToDelete}</strong></p><p>Owner protected: <strong>{bulkPreview.protectedOwnerEmail}</strong></p>{bulkPreview.blockedDependencies?.length > 0 && <ul>{bulkPreview.blockedDependencies.map((item,index)=><li key={item.email + item.table + index}>{item.email}: {item.table}.{item.column} — {item.count} dependent records</li>)}</ul>}<p>{bulkPreview.deletionAllowed ? "Dependency preflight passed. This action is permanent." : "Blocked until dependency review is completed."}</p><button className="primary" type="button" disabled={!bulkPreview.deletionAllowed || bulkBusy || bulkPreview.accountsToDelete===0} onClick={permanentlyDeleteAllNonOwners}>Permanently delete all non-Owner accounts</button></div>}</div>
+      <div className="panel" style={{marginTop:16,border:"1px solid var(--border,#ddd)"}}>
+        <div className="eyebrow dark">ON-VOLUME ENCRYPTED BACKUPS</div>
+        <h3>Backup inventory and retention</h3>
+        <p>This controls encrypted backup files on the Railway volume only. GitHub off-site artifacts are separate. Delete old backups only after account cleanup and after confirming the recovery impact.</p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="secondary" type="button" disabled={backupBusy} onClick={previewLocalBackups}>{backupBusy ? "Checking…" : "Preview on-volume backups"}</button>
+          <button className="secondary" type="button" disabled={backupBusy} onClick={createFreshBackup}>Create fresh encrypted backup</button>
+        </div>
+        {backupInventory && <div style={{marginTop:12}}>
+          <p>Files found: <strong>{backupInventory.totalBackups}</strong> · Total size: <strong>{backupInventory.totalBytes} bytes</strong></p>
+          {backupInventory.backups?.length > 0 && <ul>{backupInventory.backups.map(item => <li key={item.fileName}>{item.fileName} — {item.sizeBytes} bytes · {new Date(item.createdAt).toLocaleString()}</li>)}</ul>}
+          <p>{backupInventory.message}</p>
+          <button className="primary" type="button" disabled={backupBusy || backupInventory.totalBackups === 0} onClick={purgeLocalBackups}>Permanently delete on-volume backups</button>
+        </div>}
+      </div>
       <p><small>Only account metadata is displayed. Suspending an account revokes its current sessions. Owner accounts cannot be suspended from this console.</small></p>
     </div>
     <div className="panel">
