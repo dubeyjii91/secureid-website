@@ -2132,10 +2132,15 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!getHostelMembership(req,room.institution_id,["institution_admin","warden"])) return res.status(403).json({success:false,message:"An active institution administrator or Warden is required."});
       const allocations=database.prepare("SELECT COUNT(*) AS count FROM hostel_bed_allocations WHERE room_id=?").get(id).count;
       if(allocations>0) return res.status(409).json({success:false,code:"ROOM_HAS_ALLOCATIONS",allocationCount:allocations,message:"This room has allocation history. Release or remove linked test allocations first; no allocation or fee/payment history was deleted."});
-      database.transaction(() => {
+      database.exec("BEGIN IMMEDIATE");
+      try {
         database.prepare("DELETE FROM hostel_room_occupancy_audit WHERE room_id=? AND institution_id=?").run(id,room.institution_id);
         database.prepare("DELETE FROM hostel_rooms WHERE id=? AND institution_id=?").run(id,room.institution_id);
-      })();
+        database.exec("COMMIT");
+      } catch(error) {
+        try { database.exec("ROLLBACK"); } catch {}
+        throw error;
+      }
       if(typeof logEvent==="function") logEvent(req.user.id,"HOSTEL_ROOM_DELETED",req);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,deleted:true});
     } catch(error){next(error);}
