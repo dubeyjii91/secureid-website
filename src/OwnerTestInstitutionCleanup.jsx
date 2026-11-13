@@ -33,7 +33,15 @@ export default function OwnerTestInstitutionCleanup() {
   async function executeCleanup(event) {
     event.preventDefault();
     if (!preview?.previewHash) {
-      setError("Refresh the inventory and resolve any preview warnings before continuing.");
+      setError("Refresh the inventory before continuing.");
+      return;
+    }
+    if (preview.missingTargets?.length || preview.unsupportedRelationships?.length || !preview.institutions?.length) {
+      const reasons = [];
+      if (preview.missingTargets?.length) reasons.push("Missing approved institution(s): " + preview.missingTargets.join(", "));
+      if (preview.unsupportedRelationships?.length) reasons.push("Unsupported relationships: " + preview.unsupportedRelationships.join("; "));
+      if (!preview.institutions?.length) reasons.push("No approved institution inventory is available.");
+      setError("Cleanup remains safely blocked. " + reasons.join(" | ") + " No records were changed.");
       return;
     }
     if (confirmationPhrase !== CONFIRMATION_PHRASE) {
@@ -144,10 +152,10 @@ export default function OwnerTestInstitutionCleanup() {
             <button
               className="primary"
               type="submit"
-              disabled={busy || blocked}
-              aria-disabled={busy || blocked}
-              title={blocked ? "Refresh the inventory and resolve preview warnings first." : "Click to validate the confirmation details and start the protected cleanup."}
-              style={{cursor: busy || blocked ? "not-allowed" : "pointer"}}
+              disabled={busy || loading}
+              aria-disabled={busy || loading}
+              title={busy || loading ? "Please wait for the inventory or cleanup operation to finish." : "Click to validate the confirmation details and show any safety blocker."}
+              style={{cursor: busy || loading ? "not-allowed" : "pointer"}}
             >
               {busy ? "Creating backup, verifying and cleaning…" : "Create verified backup and delete approved test data"}
             </button>
