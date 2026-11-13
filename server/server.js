@@ -854,7 +854,7 @@ registerProductionFeatures({
   ensureSecurityNotification
 });
 registerSecureCloudControlPlane({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin });
-registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent });
+registerOwnerDeletion({ app, database, requireAuth, requireMfa, requireOwner, enforceSameOrigin, logEvent, runEncryptedBackup });
 registerBackupTrigger({ app, runBackup: runEncryptedBackup, getBackupFile: getLatestEncryptedBackup });
 startAutomaticBackup();
 // Optional live URL reputation lookup. Keep the API key server-side only.
