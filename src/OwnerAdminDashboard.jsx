@@ -76,7 +76,14 @@ export default function OwnerAdminDashboard() {
 
 
   useEffect(() => {
-    if (!selectedInstitutionId) return undefined;
+    if (!selectedInstitutionId) {
+      setSubscriptionPlan("");
+      setSubscriptionStatus("");
+      setSubscriptionFeatures([]);
+      setSubscriptionStartsAt("");
+      setSubscriptionEndsAt("");
+      return undefined;
+    }
     let cancelled = false;
     api("/api/admin/institutions/" + encodeURIComponent(selectedInstitutionId) + "/subscription", { cache: "no-store" })
       .then(result => {
@@ -122,7 +129,7 @@ export default function OwnerAdminDashboard() {
       const directory = results[4].value;
       setInstitutions(directory.institutions || []);
       setInstitutionMemberships(directory.memberships || []);
-      setSelectedInstitutionId(current => (directory.institutions || []).some(item => item.id === current) ? current : (directory.institutions || [])[0]?.id || "");
+      setSelectedInstitutionId(current => (directory.institutions || []).some(item => item.id === current) ? current : "");
     } else setInstitutionError(results[4].reason?.message || "Institution directory could not be loaded.");
     setLoading(false);
   }
@@ -467,7 +474,7 @@ export default function OwnerAdminDashboard() {
       {institutions.length > 0 && <>
         <p className="collegePrivacyNote">Provision a specific account for this institution. You may also assign the platform owner account an explicit institution role when needed; this creates an audited, institution-scoped membership and does not grant access to other colleges.</p>
         <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
-          <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}><option value="">Choose institution…</option>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" className="secondary" disabled={institutionBusy || !selectedInstitutionId} onClick={() => { setSelectedInstitutionId(""); setInstitutionAudit({}); }}>Clear selection</button></label>
           <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}><option value="">Choose account…</option>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select></label>
           <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="warden">Warden (hostel operations)</option><option value="read_only">Read only</option></select></label>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSelectedMemberUserId(""); setSelectedMemberRole("student"); }}>Clear selection</button>
