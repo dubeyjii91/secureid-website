@@ -43,7 +43,7 @@ test("the product design layer includes accessible responsive navigation and con
   assert.match(design, /background:#f4f7fb!important/);
   assert.match(design, /#root \.sidebar \{[\s\S]*?background:#10243d!important/);
   assert.match(design, /#root \.securityStats b \{ color:#172b45!important; \}/);
-  assert.match(design, /quickAccessCard:not\(\.primary\).*background:#fff!important/);
+  assert.match(design, /button\.quickAccessCard:not\(\.primary\):not\(\.btn-primary\).*background:#fff!important;background-image:none!important/s);
   assert.match(launchers, /\.quickAccessCard:hover/);
   assert.match(launchers, /@media\(max-width:560px\)/);
 });
