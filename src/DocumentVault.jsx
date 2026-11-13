@@ -324,6 +324,7 @@ export default function DocumentVault(){
               maxLength={500}
               onChange={event=>updateField(key,event.target.value)}
             />
+            <button type="button" className="secondary clearFieldButton" onClick={()=>updateField(key,"")} disabled={!profile[key]}>Clear value</button>
           </label>
         )}
 
@@ -340,7 +341,7 @@ export default function DocumentVault(){
         const existing=documents.find(doc=>doc.category===category);
         return <div className="proofUpload" key={category}>
           <div><strong>{label}</strong><small>{existing ? "Current: "+existing.name : "No proof uploaded yet."}</small></div>
-          <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={event=>setProofFiles(current=>({...current,[category]:event.target.files?.[0] || null}))}/>
+          <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={event=>setProofFiles(current=>({...current,[category]:event.target.files?.[0] || null}))}/><button type="button" className="secondary clearFieldButton" onClick={()=>setProofFiles(current=>({...current,[category]:null}))} disabled={!proofFiles[category]}>Clear selection</button>
           <button className="primary" onClick={()=>uploadProof(category)} disabled={proofUploading===category || !proofFiles[category]}>{proofUploading===category ? "Encrypting…" : existing ? "Replace proof" : "Upload proof"}</button>
         </div>;
       })}
@@ -388,7 +389,7 @@ export default function DocumentVault(){
           <option value="driving_licence">Driving Licence</option>
         </select>
       </label>
-      <input id="secureid-document-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={event=>setSelected(Array.from(event.target.files || []))}/>
+      <input id="secureid-document-input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={event=>setSelected(Array.from(event.target.files || []))}/><button type="button" className="secondary clearFieldButton" onClick={()=>{setSelected([]);const el=document.getElementById("secureid-document-input");if(el)el.value="";}} disabled={selected.length===0}>Clear selected files</button>
       <small>PDF/JPEG/PNG/WebP · maximum 10 MB per file · up to 5 files at once</small>
       <button className="primary" onClick={upload} disabled={uploading || selected.length===0}>{uploading ? "Encrypting & uploading…" : uploadCategory === "aadhaar" ? "Securely save Aadhaar" : uploadCategory === "pan" ? "Securely save PAN" : "Secure upload"}</button>
     </section>
@@ -396,10 +397,10 @@ export default function DocumentVault(){
     <section className="vaultBlock">
       <h3>Your documents</h3>
       <div className="vaultDocumentFilters">
-        <label><span>Search documents</span><input value={vaultSearch} onChange={event=>setVaultSearch(event.target.value)} placeholder="Name, type or expiry date" /></label>
-        <label><span>Filter by category</span><select value={vaultCategory} onChange={event=>setVaultCategory(event.target.value)}><option value="all">All categories</option>{documentCategories.map(category=><option key={category} value={category}>{category.replace(/_/g," ")}</option>)}</select></label>
+        <label><span>Search documents</span><input value={vaultSearch} onChange={event=>setVaultSearch(event.target.value)} placeholder="Name, type or expiry date" /><button type="button" className="secondary clearFieldButton" onClick={()=>setVaultSearch("")} disabled={!vaultSearch}>Clear value</button></label>
+        <label><span>Filter by category</span><select value={vaultCategory} onChange={event=>setVaultCategory(event.target.value)}><option value="all">All categories</option>{documentCategories.map(category=><option key={category} value={category}>{category.replace(/_/g," ")}</option>)}</select><button type="button" className="secondary clearFieldButton" onClick={()=>setVaultCategory("all")} disabled={vaultCategory==="all"}>Clear selection</button></label>
       </div>
-      <label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /></label>
+      <label className="documentShareContext"><span>Share purpose (optional)</span><input maxLength={160} value={docContext} onChange={e=>setDocContext(e.target.value)} placeholder="e.g. College verification" /><button type="button" className="secondary clearFieldButton" onClick={()=>setDocContext("")} disabled={!docContext}>Clear value</button></label>
 
       {documents.length===0 ? (
         <p>No documents stored yet.</p>
@@ -412,7 +413,7 @@ export default function DocumentVault(){
                 <small>{({"aadhaar":"Aadhaar Card","pan":"PAN Card","passport":"Passport","voter_id":"Voter ID","driving_licence":"Driving Licence","student_id":"Student ID","institution_proof":"Institution Proof","general":"Other Document"}[doc.category] || "Other Document")}</small>
                 <small>{doc.mimeType} · {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</small>
                 <div className="documentExpiryEditor">
-                  <label><span>Expiry date (optional)</span><input type="date" value={expiryDrafts[doc.id] ?? doc.expiryDate ?? ""} onChange={event=>setExpiryDrafts(current=>({...current,[doc.id]:event.target.value}))} /></label>
+                  <label><span>Expiry date (optional)</span><input type="date" value={expiryDrafts[doc.id] ?? doc.expiryDate ?? ""} onChange={event=>setExpiryDrafts(current=>({...current,[doc.id]:event.target.value}))} /><button type="button" className="secondary clearFieldButton" onClick={()=>setExpiryDrafts(current=>({...current,[doc.id]:""}))} disabled={!(expiryDrafts[doc.id] ?? doc.expiryDate ?? "")}>Clear value</button></label>
                   <button type="button" onClick={()=>saveExpiry(doc)} disabled={savingExpiryId===doc.id}>{savingExpiryId===doc.id ? "Saving…" : "Save expiry"}</button>
                   {doc.expiryDate && <small className={expiryLabel(doc.expiryDate)==="Expired" ? "documentExpiryStatus expired" : expiryLabel(doc.expiryDate).startsWith("Expires in") || expiryLabel(doc.expiryDate)==="Expires today" ? "documentExpiryStatus soon" : "documentExpiryStatus"}>{expiryLabel(doc.expiryDate)}</small>}
                 </div>
