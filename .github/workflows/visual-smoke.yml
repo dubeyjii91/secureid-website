@@ -96,9 +96,10 @@ jobs:
                 cardBackground: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundImage,
                 cardColor: getComputedStyle(document.querySelector('.quickAccessCard')).backgroundColor,
                 primaryText: getComputedStyle(document.querySelector('.quickAccessCard strong')).color,
-                navText: getComputedStyle(document.querySelector('.sidebar .navItem')).color,
-                navFill: getComputedStyle(document.querySelector('.sidebar .navItem')).webkitTextFillColor,
-                metricText: getComputedStyle(document.querySelector('.securityStats b')).color,
+                navText: getComputedStyle(document.querySelector('.sidebar .navItem:not(.active)')).color,
+                navFill: getComputedStyle(document.querySelector('.sidebar .navItem:not(.active)')).webkitTextFillColor,
+                activeNavText: getComputedStyle(document.querySelector('.sidebar .navItem.active')).color,
+                                metricText: getComputedStyle(document.querySelector('.securityStats b')).color,
                 healthText: getComputedStyle(document.querySelector('.systemHealthGrid strong')).color
               }));
               console.log('VISUAL ' + viewport.name.toUpperCase() + ' ' + JSON.stringify(checks));
@@ -107,7 +108,7 @@ jobs:
               if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
               if (checks.rootColor !== 'rgb(247, 244, 237)' || checks.bodyColor !== 'rgb(20, 36, 58)') failures.push(viewport.name + ': premium light page background or readable body text is missing.');
               if (checks.cardColor !== 'rgb(255, 255, 255)') failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
-              if (checks.primaryText !== 'rgb(23, 43, 69)' || checks.navText !== 'rgb(210, 222, 235)' || checks.metricText !== 'rgb(23, 43, 69)' || !['rgb(38, 60, 86)','rgb(22, 132, 93)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard or navigation text contrast is not using the premium light palette.');
+              if (checks.primaryText !== 'rgb(23, 43, 69)' || checks.navText !== 'rgb(210, 222, 235)' || checks.navFill !== 'rgb(210, 222, 235)' || checks.activeNavText !== 'rgb(255, 255, 255)' || checks.metricText !== 'rgb(23, 43, 69)' || !['rgb(38, 60, 86)','rgb(22, 132, 93)'].includes(checks.healthText)) failures.push(viewport.name + ': dashboard text, inactive navigation contrast, or active navigation contrast is incorrect.');
               await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
 
               if (viewport.name === 'desktop') {
