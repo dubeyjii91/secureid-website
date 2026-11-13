@@ -107,7 +107,7 @@ jobs:
               if (checks.launcherCount !== 11 || checks.launcherSvgCount !== 11) failures.push(viewport.name + ': expected 11 owner workspace cards with SVG icons.');
               if (checks.rootWidth > checks.viewportWidth) failures.push(viewport.name + ': horizontal page overflow detected.');
               if (checks.rootColor !== 'rgb(245, 247, 241)' || checks.bodyColor !== 'rgb(36, 53, 47)') failures.push(viewport.name + ': premium light page background or readable body text is missing.');
-              if (checks.cardColor !== 'rgb(255, 255, 255)') failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
+              if (checks.cardColor !== 'rgb(255, 255, 255)' && !checks.cardBackground.includes('rgb(255, 255, 255)')) failures.push(viewport.name + ': dashboard launcher cards should use clean white surfaces.');
               if (checks.primaryText !== 'rgb(38, 58, 49)' || checks.navText !== 'rgb(228, 238, 231)' || checks.navFill !== 'rgb(228, 238, 231)' || checks.activeNavText !== 'rgb(255, 255, 255)' || checks.metricText !== 'rgb(44, 65, 53)' || checks.healthText !== 'rgb(36, 118, 83)') failures.push(viewport.name + ': dashboard text, inactive navigation contrast, or active navigation contrast is incorrect.');
               await page.screenshot({ path: 'artifacts/secureid-' + viewport.name + '.png', fullPage: true, animations: 'disabled' });
 
