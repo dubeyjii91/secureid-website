@@ -180,7 +180,7 @@ test("verified Razorpay fee webhook settles the exact invoice balance idempotent
   process.env.RAZORPAY_WEBHOOK_SECRET="fee-webhook-secret";
   t.after(()=>{if(previousSecret===undefined)delete process.env.RAZORPAY_WEBHOOK_SECRET;else process.env.RAZORPAY_WEBHOOK_SECRET=previousSecret;});
   const ts=new Date().toISOString();
-  database.prepare("INSERT INTO institution_fee_invoices(id,institution_id,student_user_id,fee_head,amount_paise,status,created_by,created_at,updated_at) VALUES('invoice-fee-1','college-a','student','Tuition',150000,'unpaid','college-admin',?,?,?)").run(ts,ts,ts);
+  database.prepare("INSERT INTO institution_fee_invoices(id,institution_id,student_user_id,fee_head,amount_paise,status,created_by,created_at,updated_at) VALUES('invoice-fee-1','college-a','student','Tuition',150000,'unpaid','college-admin',?,?)").run(ts,ts,ts);
   database.prepare("INSERT INTO institution_fee_payment_links(id,institution_id,invoice_id,student_user_id,provider_link_id,amount_paise,short_url,created_by,created_at) VALUES('fee-link-row','college-a','invoice-fee-1','student','plink_fee_001',150000,'https://rzp.io/fee','college-admin',?)").run(ts);
   const payload={event:"payment_link.paid",payload:{payment_link:{entity:{id:"plink_fee_001",amount_paid:150000,currency:"INR"}},payment:{entity:{id:"pay_fee_001"}}}};
   const raw=JSON.stringify(payload),signature=(await import("node:crypto")).createHmac("sha256","fee-webhook-secret").update(raw).digest("hex");
