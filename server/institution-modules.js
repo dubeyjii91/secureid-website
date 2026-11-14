@@ -315,7 +315,7 @@ export function registerInstitutionModules({
         .run(sectionId,institutionId,courseId,sectionCode,sectionName,capacity,req.user.id,now,now);
       audit(institutionId,req.user.id,"course_section_created","course_section",sectionId,{courseId,sectionCode,capacity});
       res.status(201).json({success:true,section:{id:sectionId,courseId,sectionCode,sectionName,capacity,status:"active",enrolledCount:0}});
-    }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That section code already exists for this course.");next(error);}
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT")||error?.errcode===2067||/UNIQUE constraint failed/i.test(String(error?.message||"")))return fail(res,409,"That section code already exists for this course.");next(error);}
   });
   app.patch("/api/institutions/:institutionId/sections/:sectionId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
