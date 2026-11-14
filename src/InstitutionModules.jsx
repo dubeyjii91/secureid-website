@@ -103,7 +103,7 @@ export default function InstitutionModules({ institutionId }) {
           <span className="institutionModuleLauncherAction">Open workspace <span aria-hidden="true">→</span></span>
         </button>)}
       </div>
-      <p className="collegePrivacyNote">Staff records do not create SecureID accounts or grant permissions. Fee entries are manual records; no payment gateway is connected. All writes remain institution-scoped and audited.</p>
+      <p className="collegePrivacyNote">Staff account linking requires an exact matching email and active institution membership; linking does not grant additional permissions. Online fee links require configured Razorpay credentials and are settled only by signed webhooks. All writes remain institution-scoped and audited.</p>
     </>}
     {tab!=="Overview"&&<div className="institutionModuleHeader">
       <button type="button" className="secondary" onClick={()=>{setMessage("");setError("");setTab("Overview");}}>← All institution modules</button>
