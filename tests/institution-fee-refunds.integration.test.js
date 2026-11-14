@@ -17,7 +17,7 @@ async function setup(t){
   INSERT INTO users VALUES('admin','admin@college.test'),('finance','finance@college.test'),('student','student@college.test'),('other','other@college.test');
   INSERT INTO institutions VALUES('college','RVS College'),('other-college','Other College');
   INSERT INTO institution_subscriptions VALUES('college','["finance"]','active'),('other-college','["finance"]','active');
-  INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('f','college','finance','finance_manager','active'),('s','college','student','student','active'),('o','other-college','other','institution_admin','active');
+  INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('f','college','finance','institution_admin','active'),('s','college','student','student','active'),('o','other-college','other','institution_admin','active');
   INSERT INTO institution_fee_invoices VALUES('invoice','college','student','Tuition Fee',100000,'paid','2026-11-14T10:00:00.000Z');
   INSERT INTO institution_fee_payments VALUES('payment','college','invoice','student',100000,'upi','UPI-001','2026-11-14T10:00:00.000Z');
  `);
