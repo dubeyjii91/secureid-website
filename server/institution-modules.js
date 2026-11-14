@@ -32,6 +32,26 @@ export function registerInstitutionModules({
       created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       UNIQUE(institution_id,course_code,academic_year)
     );
+    CREATE TABLE IF NOT EXISTS institution_course_enrollments (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'enrolled' CHECK(status IN ('enrolled','completed','withdrawn')),
+      enrolled_at TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id), updated_at TEXT NOT NULL,
+      UNIQUE(course_id,student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_enrollments_student
+      ON institution_course_enrollments(institution_id,student_user_id,status);
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_validate_membership
+    BEFORE INSERT ON institution_course_enrollments
+    WHEN NOT EXISTS (
+      SELECT 1 FROM institution_courses c JOIN institution_memberships m
+        ON m.institution_id=c.institution_id AND m.user_id=NEW.student_user_id
+      WHERE c.id=NEW.course_id AND c.institution_id=NEW.institution_id
+        AND m.role='student' AND m.status='active'
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_INSTITUTION_STUDENT_ENROLLMENT'); END;
+
     CREATE TABLE IF NOT EXISTS institution_timetable_entries (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -225,6 +245,58 @@ export function registerInstitutionModules({
       res.status(201).json({success:true,course:{id:courseId,courseCode,title,department,academicYear}});
     }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That course code already exists for this academic year.");next(error);}
   });
+  app.get("/api/institutions/:institutionId/enrollments", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Course enrollment access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
+      const rows=database.prepare(`
+        SELECT e.id,e.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,
+          e.student_user_id AS studentUserId,u.email AS studentEmail,e.status,e.enrolled_at AS enrolledAt
+        FROM institution_course_enrollments e
+        JOIN institution_courses c ON c.id=e.course_id
+        JOIN users u ON u.id=e.student_user_id
+        WHERE e.institution_id=? ${studentOnly?"AND e.student_user_id=?":""}
+        ORDER BY c.title,u.email COLLATE NOCASE LIMIT 1000
+      `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,enrollments:rows});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/enrollments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),studentUserId=safeText(req.body?.studentUserId,128);
+      const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
+      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      if(!course||!student)return fail(res,400,"Choose a course and an active student from this institution.");
+      const existing=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE course_id=? AND student_user_id=?").get(courseId,studentUserId);
+      if(existing?.status==="enrolled")return fail(res,409,"This student is already enrolled in the selected course.");
+      const now=iso(),enrollmentId=existing?.id||id();
+      if(existing)database.prepare("UPDATE institution_course_enrollments SET status='enrolled',enrolled_at=?,created_by=?,updated_at=? WHERE id=? AND institution_id=?")
+        .run(now,req.user.id,now,enrollmentId,institutionId);
+      else database.prepare("INSERT INTO institution_course_enrollments(id,institution_id,course_id,student_user_id,status,enrolled_at,created_by,updated_at) VALUES(?,?,?,?,'enrolled',?,?,?)")
+        .run(enrollmentId,institutionId,courseId,studentUserId,now,req.user.id,now);
+      audit(institutionId,req.user.id,existing?"course_enrollment_reactivated":"course_student_enrolled","course_enrollment",enrollmentId,{courseId,studentUserId});
+      res.status(existing?200:201).json({success:true,enrollment:{id:enrollmentId,courseId,studentUserId,status:"enrolled"}});
+    }catch(error){
+      if(String(error?.message||"").includes("INVALID_INSTITUTION_STUDENT_ENROLLMENT"))return fail(res,400,"Only an active student in this institution can be enrolled.");
+      if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"This course enrollment conflicts with an existing record.");
+      next(error);
+    }
+  });
+  app.delete("/api/institutions/:institutionId/enrollments/:enrollmentId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const enrollmentId=safeText(req.params.enrollmentId,128),row=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE id=? AND institution_id=?").get(enrollmentId,institutionId);
+      if(!row)return fail(res,404,"Course enrollment was not found.");
+      if(row.status!=="enrolled")return fail(res,409,"Only an active enrollment can be withdrawn.");
+      database.prepare("UPDATE institution_course_enrollments SET status='withdrawn',updated_at=? WHERE id=? AND institution_id=?").run(iso(),enrollmentId,institutionId);
+      audit(institutionId,req.user.id,"course_student_withdrawn","course_enrollment",enrollmentId);
+      res.json({success:true,status:"withdrawn"});
+    }catch(error){next(error);}
+  });
+
   app.get("/api/institutions/:institutionId/timetable", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
