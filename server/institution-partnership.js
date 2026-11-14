@@ -40,6 +40,12 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       checked_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_institution_evidence_institution ON institution_verification_evidence(institution_id, checked_at DESC);
+    CREATE TABLE IF NOT EXISTS institution_partnership_audit (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      actor_user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, details_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_partnership_audit_institution ON institution_partnership_audit(institution_id,created_at DESC);
   `);
 
   function requireMfa(req, res, next) {
@@ -61,6 +67,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
     const subscription = database.prepare("SELECT plan_key AS planKey,status,starts_at AS startsAt,ends_at AS endsAt,features_json AS featuresJson FROM institution_subscriptions WHERE institution_id=?").get(institutionId) || null;
     const members = database.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active FROM institution_memberships WHERE institution_id=?").get(institutionId);
     const evidence = database.prepare("SELECT id,check_type AS checkType,outcome,evidence_reference AS evidenceReference,notes,checked_at AS checkedAt FROM institution_verification_evidence WHERE institution_id=? ORDER BY checked_at DESC LIMIT 30").all(institutionId);
+    const audit = database.prepare("SELECT id,actor_user_id AS actorUserId,action,details_json AS detailsJson,created_at AS createdAt FROM institution_partnership_audit WHERE institution_id=? ORDER BY created_at DESC LIMIT 50").all(institutionId);
     const paidOrPilot = subscriptionEligible(subscription, profile.payment_status);
     const prerequisites = profile.identity_status === "verified" && profile.representative_status === "verified" && profile.agreement_status === "signed" && Boolean(paidOrPilot);
     const connected = profile.connection_status === "connected" && prerequisites;
@@ -80,7 +87,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       subscription: subscription ? { planKey: subscription.planKey, status: subscription.status, startsAt: subscription.startsAt, endsAt: subscription.endsAt } : null,
       members: { total: Number(members.total || 0), active: Number(members.active || 0) },
       readiness: { identityVerified: profile.identity_status === "verified", representativeVerified: profile.representative_status === "verified", agreementSigned: profile.agreement_status === "signed", subscriptionCleared: Boolean(paidOrPilot), canConnect: Boolean(prerequisites), connected },
-      evidence
+      evidence, audit
     };
   }
 
@@ -122,8 +129,12 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       const upstreamChanged = identityChanged || representativeChanged || agreementChanged || paymentChanged || connectionChanged;
       database.prepare(`UPDATE institution_partnership_profiles SET aishe_code=?,institution_type=?,affiliation=?,official_website=?,official_email_domain=?,address=?,representative_name=?,representative_title=?,representative_email=?,agreement_reference=?,payment_reference=?,payment_amount_paise=?,connection_mode=?,notes=?,identity_status=CASE WHEN ? THEN 'pending' ELSE identity_status END,representative_status=CASE WHEN ? THEN 'pending' ELSE representative_status END,agreement_status=CASE WHEN ? THEN 'draft' ELSE agreement_status END,payment_status=CASE WHEN ? THEN 'pending' ELSE payment_status END,payment_verified_at=CASE WHEN ? THEN NULL ELSE payment_verified_at END,connection_status=CASE WHEN ? THEN 'not_connected' ELSE connection_status END,connection_verified_at=CASE WHEN ? THEN NULL ELSE connection_verified_at END,updated_by=?,updated_at=? WHERE institution_id=?`)
         .run(values.aisheCode||null,values.institutionType||null,values.affiliation||null,values.officialWebsite||null,values.officialEmailDomain||null,values.address||null,values.representativeName||null,values.representativeTitle||null,values.representativeEmail||null,values.agreementReference||null,values.paymentReference||null,values.paymentAmountPaise,values.connectionMode,values.notes||null,identityChanged?1:0,representativeChanged?1:0,agreementChanged?1:0,paymentChanged?1:0,paymentChanged?1:0,upstreamChanged?1:0,upstreamChanged?1:0,req.user.id,timestamp,institutionId);
-      database.prepare("INSERT INTO institution_verification_evidence(id,institution_id,check_type,outcome,evidence_reference,notes,checked_by,checked_at) VALUES(?,?,'institution_identity','pending','profile_updated','Institution profile details updated; this is not identity verification.',?,?)")
-        .run(id(),institutionId,req.user.id,timestamp);
+      const changedFields = Object.keys(values).filter(key => {
+        const column = ({aisheCode:"aishe_code",institutionType:"institution_type",affiliation:"affiliation",officialWebsite:"official_website",officialEmailDomain:"official_email_domain",address:"address",representativeName:"representative_name",representativeTitle:"representative_title",representativeEmail:"representative_email",agreementReference:"agreement_reference",paymentReference:"payment_reference",paymentAmountPaise:"payment_amount_paise",connectionMode:"connection_mode",notes:"notes"})[key];
+        return previous[column] !== (values[key] || null);
+      });
+      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'institution_profile_updated',?,?)")
+        .run(id(),institutionId,req.user.id,JSON.stringify({changedFields}),timestamp);
       return res.json({success:true,...snapshot(institutionId)});
     } catch(error) { next(error); }
   });
@@ -165,6 +176,8 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       const extra = kind === "payment" ? ",payment_verified_at=?" : kind === "connection" ? ",connection_verified_at=?" : "";
       const params = [status, ...(extra ? [outcome === "verified" ? timestamp : null] : []), timestamp, req.user.id, institutionId];
       database.prepare("UPDATE institution_partnership_profiles SET "+column+"=?"+extra+",updated_at=?,updated_by=? WHERE institution_id=?").run(...params);
+      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'verification_check_recorded',?,?)")
+        .run(id(),institutionId,req.user.id,JSON.stringify({checkType,outcome,evidenceReference}),timestamp);
       return res.json({success:true,...snapshot(institutionId)});
     } catch(error) { next(error); }
   });
