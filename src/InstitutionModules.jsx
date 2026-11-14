@@ -15,7 +15,7 @@ import InstitutionHR from "./institution-modules/InstitutionHR.jsx";
 import InstitutionCalendar from "./institution-modules/InstitutionCalendar.jsx";
 
 const moduleCards = [
-  { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"graduation" },
+  { key:"Students", title:"Student Management", description:"Student profiles, guardian contacts, status history and enrollment.", icon:"graduation" },
   { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"users" },
   { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"book" },
   { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" },
