@@ -238,7 +238,7 @@ export function registerInstitutionModules({
         audit(institutionId,req.user.id,"student_profile_updated","student",userId,{status,previousStatus,membershipStatus,statusReasonProvided:status!==previousStatus});
         database.exec("COMMIT");
       } catch(error) { try{database.exec("ROLLBACK");}catch{} throw error; }
-      res.setHeader("Cache-Control","private, no-store");res.json({success:true,membershipStatus});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true});
     } catch(error){next(error);}
   });
 
