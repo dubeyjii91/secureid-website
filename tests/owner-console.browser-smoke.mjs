@@ -40,6 +40,10 @@ try {
       return route.fulfill(json({ users: state.users, total: state.users.length, active: state.users.length, suspended: 0 }));
     }
     if (path === "/api/admin/activity" && method === "GET") return route.fulfill(json({ events: [] }));
+    if (path === "/api/admin/test-institution-cleanup/preview" && method === "GET") return route.fulfill(json({ institutions: state.institutions, missingTargets: [], unsupportedRelationships: [], totalRecords: 0, previewHash: "browser-test-preview", cleanupStatus: { completed: false } }));
+    if (path === "/api/admin/monetization/overview" && method === "GET") return route.fulfill(json({ billingMode: "manual_ledger_only", livePaymentsEnabled: false, totals: { paidPaise: 0, pendingPaise: 0, entryCount: 0, paidCount: 0 }, storage: { documents: 0, bytes: 0 }, sponsorships: { total: 0, active: 0 } }));
+    if (path === "/api/admin/monetization/entries" && method === "GET") return route.fulfill(json({ entries: [] }));
+    if (path === "/api/admin/monetization/sponsorships" && method === "GET") return route.fulfill(json({ sponsorships: [] }));
     if (path === "/api/admin/notifications" && method === "GET") return route.fulfill(json({ notifications: [], totals: { total: 0, pending: 0, sent: 0, failed: 0 } }));
     if (path === "/api/admin/institutions" && method === "GET") return route.fulfill(json({ institutions: state.institutions, memberships: state.memberships }));
     if (path === "/api/admin/institutions/institution-1/subscription" && method === "GET") return route.fulfill(json({ subscription: { planKey: "pilot", status: "pilot", features: ["hostel","scholarship","student_submissions"], startsAt: null, endsAt: null } }));
