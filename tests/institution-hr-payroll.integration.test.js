@@ -43,6 +43,7 @@ test("payroll enforces configured amounts, approval and payment lifecycle with s
 test("payroll rejects invalid paise and exports formula-safe CSV only to administrators",async t=>{
  const {request}=await setup(t);
  let r=await request("admin","/api/institutions/college/hr/payroll",{method:"POST",body:JSON.stringify({staffId:"staff-1",periodStart:"2026-10-01",periodEnd:"2026-10-31",grossPaise:100,deductionsPaise:101})});assert.equal(r.status,400);
+ r=await request("admin","/api/institutions/college/hr/payroll",{method:"POST",body:JSON.stringify({staffId:"staff-1",periodStart:"2026-11-01",periodEnd:"2026-11-30",grossPaise:100000,deductionsPaise:0})});assert.equal(r.status,201);
  r=await request("staff-user","/api/institutions/college/hr/payroll.csv");assert.equal(r.status,403);
  r=await request("admin","/api/institutions/college/hr/payroll.csv");assert.equal(r.status,200);
  const csv=await r.text();assert.match(csv,/'=HYPERLINK/);assert.match(csv,/net_paise/);
