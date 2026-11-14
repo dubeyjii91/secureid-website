@@ -4,6 +4,16 @@ const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const clean = (value, max = 240) => String(value ?? "").trim().slice(0, max);
 const fail = (res, status, message, code) => res.status(status).json({ success: false, message, ...(code ? { code } : {}) });
+function subscriptionEligible(subscription, paymentStatus) {
+  if (!subscription || !["pilot","active"].includes(subscription.status)) return false;
+  const startsValue = subscription.starts_at ?? subscription.startsAt;
+  const endsValue = subscription.ends_at ?? subscription.endsAt;
+  const starts = startsValue ? Date.parse(startsValue) : 0;
+  const ends = endsValue ? Date.parse(endsValue) : Infinity;
+  if ((startsValue && !Number.isFinite(starts)) || (endsValue && !Number.isFinite(ends))) return false;
+  if ((starts && Date.now() < starts) || (ends !== Infinity && Date.now() >= ends)) return false;
+  return subscription.status === "pilot" || paymentStatus === "verified";
+}
 
 export function registerInstitutionPartnership({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin }) {
   database.exec(`
@@ -47,7 +57,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, req
     const subscription = database.prepare("SELECT plan_key AS planKey,status,starts_at AS startsAt,ends_at AS endsAt,features_json AS featuresJson FROM institution_subscriptions WHERE institution_id=?").get(institutionId) || null;
     const members = database.prepare("SELECT COUNT(*) AS total,SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active FROM institution_memberships WHERE institution_id=?").get(institutionId);
     const evidence = database.prepare("SELECT id,check_type AS checkType,outcome,evidence_reference AS evidenceReference,notes,checked_at AS checkedAt FROM institution_verification_evidence WHERE institution_id=? ORDER BY checked_at DESC LIMIT 30").all(institutionId);
-    const paidOrPilot = subscription && (subscription.status === "pilot" || (subscription.status === "active" && profile.payment_status === "verified"));
+    const paidOrPilot = subscriptionEligible(subscription, profile.payment_status);
     const prerequisites = profile.identity_status === "verified" && profile.representative_status === "verified" && profile.agreement_status === "signed" && Boolean(paidOrPilot);
     const connected = profile.connection_status === "connected" && prerequisites;
     return {
@@ -105,8 +115,9 @@ export function registerInstitutionPartnership({ app, database, requireAuth, req
       const agreementChanged = previous.agreement_reference !== (values.agreementReference||null);
       const paymentChanged = previous.payment_reference !== (values.paymentReference||null) || Number(previous.payment_amount_paise||0) !== Number(values.paymentAmountPaise||0);
       const connectionChanged = previous.connection_mode !== values.connectionMode;
+      const upstreamChanged = identityChanged || representativeChanged || agreementChanged || paymentChanged || connectionChanged;
       database.prepare(`UPDATE institution_partnership_profiles SET aishe_code=?,institution_type=?,affiliation=?,official_website=?,official_email_domain=?,address=?,representative_name=?,representative_title=?,representative_email=?,agreement_reference=?,payment_reference=?,payment_amount_paise=?,connection_mode=?,notes=?,identity_status=CASE WHEN ? THEN 'pending' ELSE identity_status END,representative_status=CASE WHEN ? THEN 'pending' ELSE representative_status END,agreement_status=CASE WHEN ? THEN 'draft' ELSE agreement_status END,payment_status=CASE WHEN ? THEN 'pending' ELSE payment_status END,payment_verified_at=CASE WHEN ? THEN NULL ELSE payment_verified_at END,connection_status=CASE WHEN ? THEN 'not_connected' ELSE connection_status END,connection_verified_at=CASE WHEN ? THEN NULL ELSE connection_verified_at END,updated_by=?,updated_at=? WHERE institution_id=?`)
-        .run(values.aisheCode||null,values.institutionType||null,values.affiliation||null,values.officialWebsite||null,values.officialEmailDomain||null,values.address||null,values.representativeName||null,values.representativeTitle||null,values.representativeEmail||null,values.agreementReference||null,values.paymentReference||null,values.paymentAmountPaise,values.connectionMode,values.notes||null,identityChanged?1:0,representativeChanged?1:0,agreementChanged?1:0,paymentChanged?1:0,paymentChanged?1:0,connectionChanged?1:0,connectionChanged?1:0,req.user.id,timestamp,institutionId);
+        .run(values.aisheCode||null,values.institutionType||null,values.affiliation||null,values.officialWebsite||null,values.officialEmailDomain||null,values.address||null,values.representativeName||null,values.representativeTitle||null,values.representativeEmail||null,values.agreementReference||null,values.paymentReference||null,values.paymentAmountPaise,values.connectionMode,values.notes||null,identityChanged?1:0,representativeChanged?1:0,agreementChanged?1:0,paymentChanged?1:0,paymentChanged?1:0,upstreamChanged?1:0,upstreamChanged?1:0,req.user.id,timestamp,institutionId);
       database.prepare("INSERT INTO institution_verification_evidence(id,institution_id,check_type,outcome,evidence_reference,notes,checked_by,checked_at) VALUES(?,?,'institution_identity','pending','profile_updated','Institution profile details updated; this is not identity verification.',?,?)")
         .run(id(),institutionId,req.user.id,timestamp);
       return res.json({success:true,...snapshot(institutionId)});
@@ -127,7 +138,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, req
         if (checkType === "partnership_agreement" && !profile.agreement_reference) return fail(res,409,"Save the signed agreement reference before marking the agreement verified.");
         if (checkType === "subscription_payment" && (!profile.payment_reference || !profile.payment_amount_paise || profile.payment_amount_paise < 1)) return fail(res,409,"Save a payment reference and amount before verifying receipt.");
         if (checkType === "technical_connection") {
-          const paidOrPilot = subscription && (subscription.status === "pilot" || (subscription.status === "active" && profile.payment_status === "verified"));
+          const paidOrPilot = subscriptionEligible(subscription, profile.payment_status);
           if (profile.identity_status !== "verified" || profile.representative_status !== "verified" || profile.agreement_status !== "signed" || !paidOrPilot) return fail(res,409,"Verify institution identity, representative authority, signed agreement and subscription/payment before connecting.");
         }
       }
