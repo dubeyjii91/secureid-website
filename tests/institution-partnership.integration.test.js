@@ -20,7 +20,7 @@ async function setup(t) {
     INSERT INTO institution_memberships VALUES('m2','college-a','student','student','active');
   `);
   const app = express();
-  app.use(express.json());
+  app.use(express.json({verify(req,res,buffer){req.rawBody=Buffer.from(buffer);}}));
   app.use((req,res,next)=>{req.user={id:req.get("x-user")||"",role:req.get("x-role")||"user",mfaVerified:req.get("x-mfa")!=="false"};next();});
   const requireAuth=(req,res,next)=>req.user.id?next():res.status(401).json({success:false});
   const requireMfaProduction=(req,res,next)=>req.user.mfaVerified?next():res.status(403).json({success:false,code:"MFA_REQUIRED"});
@@ -109,4 +109,55 @@ test("free pilot access cannot be recorded as a paid subscription",async t=>{
     checkType:"subscription_payment",outcome:"verified",evidenceReference:"PILOT-TEST-REF"
   })});
   assert.equal(response.status,409);
+});
+
+
+test("Razorpay payment webhook requires a valid signature and activates the paid institution only after settlement",async t=>{
+  const {database,request}=await setup(t);
+  const previousSecret=process.env.RAZORPAY_WEBHOOK_SECRET;
+  process.env.RAZORPAY_WEBHOOK_SECRET="test-webhook-secret";
+  t.after(()=>{if(previousSecret===undefined)delete process.env.RAZORPAY_WEBHOOK_SECRET;else process.env.RAZORPAY_WEBHOOK_SECRET=previousSecret;});
+  await request("/api/admin/institutions/college-a/partnership",{method:"PUT",body:JSON.stringify({
+    aisheCode:"U-1234",officialWebsite:"https://college.example",officialEmailDomain:"college.example",
+    address:"Example Road",representativeName:"Principal Test",representativeEmail:"principal@college.example",
+    agreementReference:"AGR-2026-001",paymentAmountPaise:250000,connectionMode:"dashboard"
+  })});
+  database.prepare("INSERT INTO institution_payment_links(id,institution_id,provider_link_id,amount_paise,short_url,created_by,created_at) VALUES('link-row','college-a','plink_test',250000,'https://rzp.io/test','owner',?)").run(new Date().toISOString());
+  const payload={event:"payment_link.paid",payload:{payment_link:{entity:{id:"plink_test",amount_paid:250000,currency:"INR"}}}};
+  const raw=JSON.stringify(payload);
+  const bad=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":"0".repeat(64),"x-razorpay-event-id":"evt_bad"}});
+  assert.equal(bad.status,401);
+  const signature=(await import("node:crypto")).createHmac("sha256","test-webhook-secret").update(raw).digest("hex");
+  const good=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_paid_001"}});
+  const goodBody=await good.text();
+  assert.equal(good.status,200,"Signed webhook response: "+goodBody);
+  assert.equal(database.prepare("SELECT status FROM institution_payment_links WHERE provider_link_id='plink_test'").get().status,"paid");
+  assert.equal(database.prepare("SELECT payment_status FROM institution_partnership_profiles WHERE institution_id='college-a'").get().payment_status,"verified");
+  assert.equal(database.prepare("SELECT status FROM institution_subscriptions WHERE institution_id='college-a'").get().status,"active");
+  const duplicate=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_paid_001"}});
+  assert.equal(duplicate.status,200);
+});
+
+
+test("API and ERP modes cannot be declared connected without an actual integration handshake",async t=>{
+  const {request}=await setup(t);
+  await request("/api/admin/institutions/college-a/partnership",{method:"PUT",body:JSON.stringify({
+    aisheCode:"U-1234",officialWebsite:"https://college.example",officialEmailDomain:"college.example",
+    address:"Example Road",representativeName:"Principal Test",representativeEmail:"principal@college.example",
+    agreementReference:"AGR-2026-001",paymentReference:"UTR-TEST-123456",paymentAmountPaise:250000,connectionMode:"api"
+  })});
+  for(const [checkType,evidenceReference] of [
+    ["institution_identity","AISHE-RECORD-001"],
+    ["representative_authority","OFFICIAL-AUTHORITY-001"],
+    ["partnership_agreement","SIGNED-MOU-001"],
+    ["subscription_payment","BANK-UTR-001"]
+  ]){
+    const response=await request("/api/admin/institutions/college-a/partnership/checks",{method:"POST",body:JSON.stringify({checkType,outcome:"verified",evidenceReference})});
+    assert.equal(response.status,200);
+  }
+  const response=await request("/api/admin/institutions/college-a/partnership/checks",{method:"POST",body:JSON.stringify({
+    checkType:"technical_connection",outcome:"verified",evidenceReference:"API-CLAIM-001"
+  })});
+  assert.equal(response.status,409);
+  assert.match((await response.json()).message,/real authenticated integration handshake/i);
 });
