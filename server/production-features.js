@@ -7,6 +7,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { enforceShareRateLimit } from "./share-rate-limit.js";
 import { registerInstitutionModules } from "./institution-modules.js";
 import { registerInstitutionQueue } from "./institution-queue.js";
+import { registerInstitutionLibrary } from "./institution-library.js";
 import { registerStudentAdmissions } from "./student-admissions.js";
 import { registerSecureIdMonetization } from "./secureid-monetization.js";
 import { registerInstitutionPartnership } from "./institution-partnership.js";
@@ -2749,6 +2750,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
 
   registerInstitutionModules({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionQueue({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
+  registerInstitutionLibrary({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionPartnership({ app, database, requireAuth, enforceSameOrigin });
   registerStudentAdmissions({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, encrypt: value => jsonEncrypt(value,key), decrypt: value => jsonDecrypt(value,key) });
   registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
