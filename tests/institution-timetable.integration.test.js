@@ -126,7 +126,7 @@ test("student suspension and withdrawal revoke institution access and preserve s
  assert.equal(r.status,200);
  assert.equal(db.prepare("SELECT status FROM institution_memberships WHERE user_id='student'").get().status,"suspended");
  r=await request("student","/api/institutions/college/courses");assert.equal(r.status,403);
- r=await request("admin","/api/institutions/college/students");assert.equal(r.status,200);assert.equal((await r.json()).students[0].membershipStatus,"suspended");
+ r=await request("admin","/api/institutions/college/students");assert.equal(r.status,200);const directory=(await r.json()).students;assert.equal(directory.find(item=>item.userId==="student").membershipStatus,"suspended");
  r=await request("admin","/api/institutions/college/students/student/status-history");assert.equal(r.status,200);assert.equal((await r.json()).history.length,1);
  r=await request("admin","/api/institutions/college/students/student",{method:"PUT",body:JSON.stringify({studentNumber:"RVS-01",department:"AIML",program:"B.Tech",academicYear:"2026-2027",status:"active",statusReason:"Suspension period completed and cleared."})});
  assert.equal(r.status,200);assert.equal(db.prepare("SELECT status FROM institution_memberships WHERE user_id='student'").get().status,"active");
