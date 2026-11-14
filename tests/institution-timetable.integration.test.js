@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import {DatabaseSync} from "node:sqlite";
 import {registerInstitutionModules} from "../server/institution-modules.js";
+import {registerInstitutionStudentLifecycle} from "../server/institution-student-lifecycle.js";
 
 async function setup(t){
  const db=new DatabaseSync(":memory:");
@@ -11,7 +12,7 @@ async function setup(t){
   CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE);
   CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT);
   CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,features_json TEXT,status TEXT,updated_at TEXT);
-  CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT);
+  CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
   INSERT INTO users VALUES('admin','admin@test'),('student','student@test'),('student2','student2@test'),('other','other@test');
   INSERT INTO institutions VALUES('college','College'),('other-college','Other College');
   INSERT INTO institution_subscriptions VALUES('college','["academics","student_management","staff_management","finance"]','active',CURRENT_TIMESTAMP),('other-college','["academics"]','active',CURRENT_TIMESTAMP);
@@ -22,6 +23,7 @@ async function setup(t){
  const membership=(u,i)=>db.prepare("SELECT role,status FROM institution_memberships WHERE user_id=? AND institution_id=?").get(u,i)||null;
  const feature=(i,f)=>db.prepare("SELECT features_json FROM institution_subscriptions WHERE institution_id=? AND status IN ('pilot','active')").get(i)?.features_json?.includes('"'+f+'"')||false;
  registerInstitutionModules({app,database:db,requireAuth:auth,requireMfaProduction:pass,enforceSameOrigin:pass,getInstitutionMembership:membership,hasInstitutionFeature:feature});
+ registerInstitutionStudentLifecycle({app,database:db,requireAuth:auth,requireMfaProduction:pass,enforceSameOrigin:pass,getInstitutionMembership:membership,hasInstitutionFeature:feature});
  const server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));
  const request=(u,p,o={})=>fetch("http://127.0.0.1:"+server.address().port+p,{...o,headers:{"content-type":"application/json","x-user":u,...(o.headers||{})}});
  t.after(async()=>{await new Promise(r=>server.close(r));db.close();});
@@ -99,4 +101,34 @@ test("course sections enforce institution scope, unique codes, capacity and stud
  r=await request("admin",`/api/institutions/college/sections/${section.id}`,{method:"PATCH",body:JSON.stringify({status:"active",capacity:1})});assert.equal(r.status,200);
  assert.equal(db.prepare("SELECT section_id FROM institution_course_enrollments WHERE student_user_id='student'").get().section_id,section.id);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_section'").get().n,3);
+});
+
+
+test("guardian contacts are validated, audited, private and institution-scoped",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/students/student/guardians",{method:"POST",body:JSON.stringify({fullName:"Parent One",relationship:"parent",email:"parent@example.test",phone:"+919876543210",isPrimary:true})});
+ assert.equal(r.status,201);const guardian=(await r.json()).guardian;
+ r=await request("admin","/api/institutions/college/students/student/guardians",{method:"POST",body:JSON.stringify({fullName:"Parent Two",relationship:"guardian",email:"parent2@example.test",isPrimary:true})});
+ assert.equal(r.status,409,"Only one primary guardian is allowed.");
+ r=await request("student","/api/institutions/college/students/student/guardians");assert.equal(r.status,200);assert.equal((await r.json()).guardians.length,1);
+ r=await request("student","/api/institutions/college/students/student/guardians",{method:"POST",body:JSON.stringify({fullName:"Student edit",relationship:"parent",email:"x@example.test"})});assert.equal(r.status,403);
+ r=await request("admin",`/api/institutions/college/students/student/guardians/${guardian.id}`,{method:"PATCH",body:JSON.stringify({fullName:"Parent One Updated",relationship:"parent",phone:"9876543210",isPrimary:true})});assert.equal(r.status,200);
+ r=await request("other","/api/institutions/college/students/student/guardians");assert.equal(r.status,403);
+ r=await request("admin",`/api/institutions/college/students/student/guardians/${guardian.id}`,{method:"DELETE"});assert.equal(r.status,200);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_student_lifecycle_audit").get().n,3);
+});
+
+test("student suspension and withdrawal revoke institution access and preserve status history with reasons",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/students/student",{method:"PUT",body:JSON.stringify({studentNumber:"RVS-01",department:"AIML",program:"B.Tech",academicYear:"2026-2027",status:"suspended"})});
+ assert.equal(r.status,400,"Status changes without a reason must be rejected.");
+ r=await request("admin","/api/institutions/college/students/student",{method:"PUT",body:JSON.stringify({studentNumber:"RVS-01",department:"AIML",program:"B.Tech",academicYear:"2026-2027",status:"suspended",statusReason:"Temporary disciplinary suspension approved."})});
+ assert.equal(r.status,200);
+ assert.equal(db.prepare("SELECT status FROM institution_memberships WHERE user_id='student'").get().status,"suspended");
+ r=await request("student","/api/institutions/college/courses");assert.equal(r.status,403);
+ r=await request("admin","/api/institutions/college/students");assert.equal(r.status,200);assert.equal((await r.json()).students[0].membershipStatus,"suspended");
+ r=await request("admin","/api/institutions/college/students/student/status-history");assert.equal(r.status,200);assert.equal((await r.json()).history.length,1);
+ r=await request("admin","/api/institutions/college/students/student",{method:"PUT",body:JSON.stringify({studentNumber:"RVS-01",department:"AIML",program:"B.Tech",academicYear:"2026-2027",status:"active",statusReason:"Suspension period completed and cleared."})});
+ assert.equal(r.status,200);assert.equal(db.prepare("SELECT status FROM institution_memberships WHERE user_id='student'").get().status,"active");
+ r=await request("admin","/api/institutions/college/students/student/status-history");assert.equal(r.status,200);assert.equal((await r.json()).history.length,2);
 });
