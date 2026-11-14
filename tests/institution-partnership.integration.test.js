@@ -136,7 +136,10 @@ test("Razorpay payment webhook requires a valid signature and activates the paid
   assert.equal(database.prepare("SELECT payment_status FROM institution_partnership_profiles WHERE institution_id='college-a'").get().payment_status,"verified");
   assert.equal(database.prepare("SELECT status FROM institution_subscriptions WHERE institution_id='college-a'").get().status,"active");
   const duplicate=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_paid_001"}});
-  assert.equal(duplicate.status,200);
+  const duplicateBody=await duplicate.text();
+  assert.equal(duplicate.status,200,`Duplicate webhook response (${duplicate.status}): ${duplicateBody}`);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_payment_webhook_events").get().n,1);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_partnership_audit WHERE action='payment_confirmed_by_gateway'").get().n,1);
 });
 
 
