@@ -51,6 +51,7 @@ export default function InstitutionExaminations({institutionId,students=[]}){
    {exam.status==="scheduled"&&<button className="secondary" disabled={busy} onClick={()=>transition(exam,"marks_entry")}>Start marks entry</button>}
    {exam.status==="marks_entry"&&<button className="secondary" disabled={busy} onClick={()=>transition(exam,"published")}>Publish results</button>}
    {exam.status==="registration_open"&&<button className="primary" disabled={busy} onClick={()=>register(exam)}>Register for exam</button>}
+   {exam.status==="published"&&data.registrations.some(r=>r.examId===exam.id&&r.status==="approved")&&<button className="primary" onClick={()=>window.open(`/api/institutions/${encodeURIComponent(institutionId)}/examinations/${encodeURIComponent(exam.id)}/result-statement?format=print`,"_blank","noopener,noreferrer")}>Print / Save published result statement</button>}
   </div>
   {data.subjects.filter(s=>s.examId===exam.id).map(subject=><div key={subject.id}><small>{subject.subjectCode} · {subject.title} · {subject.examDate} · {subject.venue||"Venue pending"} · Max {(subject.totalMarksHundredths/100).toFixed(2)}</small>{exam.status==="marks_entry"&&students.map(st=><button key={st.userId} className="secondary" disabled={busy} onClick={()=>enterMarks(exam,subject,st)}>Enter {st.email} marks</button>)}</div>)}
   </article>)}</div>}
