@@ -43,3 +43,25 @@ test("weekly timetable persists, rejects overlaps, enforces tenant roles and rec
  r=await request("admin",`/api/institutions/college/timetable/${entry.id}`,{method:"DELETE"});assert.equal(r.status,200);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='timetable'").get().n,3);
 });
+
+
+test("course enrollment is tenant-scoped, rejects duplicates and supports withdrawal/reactivation",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/courses",{method:"POST",body:JSON.stringify({courseCode:"AI201",title:"Applied AI",academicYear:"2026-2027"})});
+ assert.equal(r.status,201);const course=(await r.json()).course;
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student"})});
+ assert.equal(r.status,201);const enrollment=(await r.json()).enrollment;
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student"})});
+ assert.equal(r.status,409);
+ r=await request("student","/api/institutions/college/enrollments");
+ assert.equal(r.status,200);let rows=(await r.json()).enrollments;assert.equal(rows.length,1);assert.equal(rows[0].courseId,course.id);
+ r=await request("other","/api/institutions/college/enrollments");assert.equal(r.status,403);
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"other"})});
+ assert.equal(r.status,400);
+ r=await request("student",`/api/institutions/college/enrollments/${enrollment.id}`,{method:"DELETE"});assert.equal(r.status,403);
+ r=await request("admin",`/api/institutions/college/enrollments/${enrollment.id}`,{method:"DELETE"});assert.equal(r.status,200);
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student"})});
+ assert.equal(r.status,200);assert.equal((await r.json()).enrollment.status,"enrolled");
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_course_enrollments").get().n,1);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_enrollment'").get().n,3);
+});
