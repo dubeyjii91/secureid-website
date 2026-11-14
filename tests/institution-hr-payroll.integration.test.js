@@ -48,3 +48,14 @@ test("payroll rejects invalid paise and exports formula-safe CSV only to adminis
  r=await request("admin","/api/institutions/college/hr/payroll.csv");assert.equal(r.status,200);
  const csv=await r.text();assert.match(csv,/'=HYPERLINK/);assert.match(csv,/net_paise/);
 });
+
+test("payslip is printable only after payment and remains private to the linked staff member",async t=>{
+ const {request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/hr/payroll",{method:"POST",body:JSON.stringify({staffId:"staff-1",periodStart:"2026-10-01",periodEnd:"2026-10-31",grossPaise:5000000,deductionsPaise:500000})});assert.equal(r.status,201);const payroll=(await r.json()).payroll;
+ const path=`/api/institutions/college/hr/payroll/${payroll.id}/payslip`;
+ r=await request("staff-user",path);assert.equal(r.status,409);
+ r=await request("admin",`/api/institutions/college/hr/payroll/${payroll.id}/approve`,{method:"PATCH",body:"{}"});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/hr/payroll/${payroll.id}/pay`,{method:"PATCH",body:JSON.stringify({paymentMethod:"bank_transfer",paymentReference:"UTR-PAID-001"})});assert.equal(r.status,200);
+ r=await request("other",path);assert.equal(r.status,403);
+ r=await request("staff-user",path);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\\/html/);const html=await r.text();assert.match(html,/Salary payslip/);assert.match(html,/EMP-001/);assert.match(html,/UTR-PAID-001/);assert.match(html,/Print \/ Save as PDF/);
+});
