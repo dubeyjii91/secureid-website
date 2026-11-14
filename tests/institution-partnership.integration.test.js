@@ -122,7 +122,6 @@ test("Razorpay payment webhook requires a valid signature and activates the paid
     address:"Example Road",representativeName:"Principal Test",representativeEmail:"principal@college.example",
     agreementReference:"AGR-2026-001",paymentAmountPaise:250000,connectionMode:"dashboard"
   })});
-  database.prepare("INSERT INTO institution_partnership_profiles(institution_id,created_at,updated_at) VALUES('college-a',?,?)").run(new Date().toISOString(),new Date().toISOString());
   database.prepare("INSERT INTO institution_payment_links(id,institution_id,provider_link_id,amount_paise,short_url,created_by,created_at) VALUES('link-row','college-a','plink_test',250000,'https://rzp.io/test','owner',?)").run(new Date().toISOString());
   const payload={event:"payment_link.paid",payload:{payment_link:{entity:{id:"plink_test",amount_paid:250000,currency:"INR"}}}};
   const raw=JSON.stringify(payload);
