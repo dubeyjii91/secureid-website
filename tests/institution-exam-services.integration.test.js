@@ -77,5 +77,4 @@ test("transcript contains only complete published approved results and is studen
   assert.match(await response.text(),/Consolidated academic transcript/);
   response=await request("faculty","/api/institutions/college/transcript");
   assert.equal(response.status,403);
-  db.prepare("UPDATE institution_exam_exams SET status='draft' WHERE id='exam'").run();
-}).catch?.(()=>{});
+});
