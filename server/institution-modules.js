@@ -353,7 +353,7 @@ export function registerInstitutionModules({
       const courseId=safeText(req.params.courseId,128),studentUserId=safeText(req.body?.studentUserId,128),date=safeText(req.body?.date,10),status=safeText(req.body?.status,20);
       if(!/^20\d{2}-\d{2}-\d{2}$/.test(date)||!["present","absent","late","excused"].includes(status))return fail(res,400,"Enter a valid date and attendance status.");
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
-      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!course||!student)return fail(res,404,"Course or active student membership was not found.");
       const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=? AND student_user_id=? AND status='enrolled'").get(institutionId,courseId,studentUserId);
       if(!enrollment)return fail(res,409,"The student must be actively enrolled in this course before attendance can be marked.");
@@ -462,7 +462,7 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics",["institution_admin","reviewer"]))return;
       const assessmentId=safeText(req.params.assessmentId,128),studentUserId=safeText(req.params.studentUserId,128),marks=Number(req.body?.marksObtained);
       const assessment=database.prepare("SELECT id,total_marks_hundredths AS totalMarks FROM institution_assessments WHERE id=? AND institution_id=?").get(assessmentId,institutionId);
-      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!assessment||!student||!Number.isFinite(marks)||marks<0||Math.round(marks*100)!==marks*100||Math.round(marks*100)>Number(assessment.totalMarks))return fail(res,400,"Choose an active student and enter marks within the assessment maximum.");
       const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=(SELECT course_id FROM institution_assessments WHERE id=? AND institution_id=?) AND student_user_id=? AND status='enrolled'").get(institutionId,assessmentId,institutionId,studentUserId);
       if(!enrollment)return fail(res,409,"The student must be actively enrolled in the assessment course before marks can be recorded.");
