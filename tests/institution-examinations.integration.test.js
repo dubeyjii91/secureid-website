@@ -94,3 +94,20 @@ test("admit cards are student-private and require approval, roll number, seat an
  r=await request("admin","/api/institutions/college/examinations/settings",{method:"PATCH",body:JSON.stringify({institutionType:"school"})});assert.equal(r.status,200);
  r=await request("student","/api/institutions/college/examinations");assert.equal(r.status,200);const workspace=await r.json();assert.equal(workspace.institutionType,"school");assert.equal(workspace.canDownloadAdmitCards,true);
 });
+
+test("published examination result statement is student-private and printable",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/examinations",{method:"POST",body:JSON.stringify({title:"Results Exam",academicYear:"2026-27",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-10T17:00:00Z",feeClearanceRequired:false})});const exam=(await r.json()).exam;
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/subjects`,{method:"POST",body:JSON.stringify({subjectCode:"R1",title:"Mathematics",examDate:"2026-12-01",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-01T12:00:00Z",totalMarks:100,passingMarks:40})});assert.equal(r.status,201);const subject=(await r.json()).subject;
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"registration_open"})});assert.equal(r.status,200);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/register`,{method:"POST",body:"{}"});assert.equal(r.status,201);const reg=db.prepare("SELECT id FROM institution_exam_registrations WHERE exam_id=?").get(exam.id);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/registrations/${reg.id}`,{method:"PATCH",body:JSON.stringify({status:"approved",rollNumber:"R-RESULT-1"})});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"scheduled"})});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"marks_entry"})});assert.equal(r.status,200);
+ r=await request("faculty",`/api/institutions/college/examinations/${exam.id}/subjects/${subject.id}/marks/student`,{method:"PUT",body:JSON.stringify({marks:82.5})});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"published"})});assert.equal(r.status,200);
+ const path=`/api/institutions/college/examinations/${exam.id}/result-statement`;
+ r=await request("other",path);assert.equal(r.status,403);
+ r=await request("student",path);assert.equal(r.status,200);const body=await r.json();assert.equal(body.resultStatement.obtainedMarksHundredths,8250);assert.equal(body.resultStatement.percentage,82.5);assert.equal(body.resultStatement.result,"PASS");
+ r=await request("student",path+"?format=print");assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\\/html/);const html=await r.text();assert.match(html,/Examination result statement/);assert.match(html,/R-RESULT-1/);assert.match(html,/82.50%/);assert.match(html,/not a university-issued consolidated transcript/i);
+});
