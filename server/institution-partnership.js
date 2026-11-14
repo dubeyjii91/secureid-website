@@ -46,6 +46,17 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_institution_partnership_audit_institution ON institution_partnership_audit(institution_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS institution_payment_links (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      provider_link_id TEXT NOT NULL UNIQUE, amount_paise INTEGER NOT NULL CHECK(amount_paise > 0),
+      currency TEXT NOT NULL DEFAULT 'INR' CHECK(currency='INR'), short_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('created','paid','expired','cancelled')),
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, paid_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS institution_payment_webhook_events (
+      event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, provider_link_id TEXT NOT NULL,
+      received_at TEXT NOT NULL
+    );
   `);
 
   function requireMfa(req, res, next) {
@@ -179,6 +190,85 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'verification_check_recorded',?,?)")
         .run(id(),institutionId,req.user.id,JSON.stringify({checkType,outcome,evidenceReference}),timestamp);
       return res.json({success:true,...snapshot(institutionId)});
+    } catch(error) { next(error); }
+  });
+
+  // Create a real Razorpay Payment Link; payment is never marked paid by the browser.
+  app.post("/api/admin/institutions/:institutionId/partnership/payment-link", enforceSameOrigin, requireAuth, owner, async (req,res,next) => {
+    try {
+      const institutionId = clean(req.params.institutionId,128);
+      const institution = database.prepare("SELECT id,name FROM institutions WHERE id=?").get(institutionId);
+      if (!institution) return fail(res,404,"Institution was not found.");
+      const profile = getProfile(institutionId);
+      const subscription = database.prepare("SELECT plan_key AS planKey,status FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
+      if (!subscription || subscription.planKey === "pilot") return fail(res,409,"Choose a paid institution plan before creating a payment link.");
+      if (!Number.isSafeInteger(profile.payment_amount_paise) || profile.payment_amount_paise < 1) return fail(res,409,"Save the exact subscription amount in rupees before creating a payment link.");
+      const keyId = process.env.RAZORPAY_KEY_ID || "", keySecret = process.env.RAZORPAY_KEY_SECRET || "";
+      if (!keyId || !keySecret) return fail(res,503,"Razorpay is not configured yet. Add the live/test API key ID and secret in Railway after merchant onboarding.");
+      const referenceId = crypto.randomUUID().replaceAll("-","").slice(0,32);
+      const response = await fetch("https://api.razorpay.com/v1/payment_links", {
+        method:"POST",
+        headers:{Authorization:"Basic "+Buffer.from(keyId+":"+keySecret).toString("base64"),"Content-Type":"application/json"},
+        body:JSON.stringify({
+          amount:profile.payment_amount_paise,currency:"INR",accept_partial:false,
+          reference_id:referenceId,description:"SecureID institution subscription - "+institution.name,
+          notes:{institution_id:institutionId,plan_key:subscription.planKey,created_by:req.user.id},
+          notify:{email:true,sms:false}
+        }),
+        signal:AbortSignal.timeout(15000)
+      });
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok || !result.id || !result.short_url) {
+        console.error("razorpay_payment_link_create_failed", {status:response.status,providerError:result.error?.code||"unknown"});
+        return fail(res,502,"Payment provider could not create the link. Check the Razorpay account and API configuration.");
+      }
+      const timestamp = now();
+      database.prepare("INSERT INTO institution_payment_links(id,institution_id,provider_link_id,amount_paise,short_url,created_by,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run(id(),institutionId,result.id,profile.payment_amount_paise,result.short_url,req.user.id,timestamp);
+      database.prepare("UPDATE institution_partnership_profiles SET payment_status='pending',payment_reference=?,payment_verified_at=NULL,updated_by=?,updated_at=? WHERE institution_id=?")
+        .run(result.id,req.user.id,timestamp,institutionId);
+      database.prepare("UPDATE institution_subscriptions SET status='past_due',updated_by=?,updated_at=? WHERE institution_id=? AND status='active'")
+        .run(req.user.id,timestamp,institutionId);
+      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'payment_link_created',?,?)")
+        .run(id(),institutionId,req.user.id,JSON.stringify({provider:"razorpay",paymentLinkId:result.id,amountPaise:profile.payment_amount_paise}),timestamp);
+      return res.status(201).json({success:true,paymentLink:{id:result.id,shortUrl:result.short_url,amountPaise:profile.payment_amount_paise,currency:"INR",status:"created"}});
+    } catch(error) { next(error); }
+  });
+
+  // Razorpay signs the exact raw request body. Duplicate webhook deliveries are idempotent.
+  app.post("/api/webhooks/razorpay", (req,res,next) => {
+    try {
+      const secret = process.env.RAZORPAY_WEBHOOK_SECRET || "";
+      const signature = String(req.headers["x-razorpay-signature"] || "");
+      const raw = req.rawBody;
+      if (!secret || !Buffer.isBuffer(raw) || !/^[a-f0-9]{64}$/i.test(signature)) return fail(res,401,"Invalid payment webhook signature.");
+      const expected = crypto.createHmac("sha256",secret).update(raw).digest();
+      const supplied = Buffer.from(signature,"hex");
+      if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied,expected)) return fail(res,401,"Invalid payment webhook signature.");
+      const eventId = clean(req.headers["x-razorpay-event-id"],180);
+      const eventType = clean(req.body?.event,100);
+      const paymentLink = req.body?.payload?.payment_link?.entity;
+      if (eventType !== "payment_link.paid" || !paymentLink?.id) return res.status(200).json({success:true,ignored:true});
+      const link = database.prepare("SELECT * FROM institution_payment_links WHERE provider_link_id=?").get(paymentLink.id);
+      if (!link) return res.status(200).json({success:true,ignored:true});
+      const paidAmount = Number(paymentLink.amount_paid);
+      if (!Number.isSafeInteger(paidAmount) || paidAmount < link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
+      const timestamp = now();
+      try {
+        database.prepare("INSERT INTO institution_payment_webhook_events(event_id,event_type,provider_link_id,received_at) VALUES(?,?,?,?)")
+          .run(eventId || crypto.createHash("sha256").update(raw).digest("hex"),eventType,paymentLink.id,timestamp);
+      } catch(error) {
+        if (String(error.code || "").includes("SQLITE_CONSTRAINT")) return res.status(200).json({success:true,duplicate:true});
+        throw error;
+      }
+      database.prepare("UPDATE institution_payment_links SET status='paid',paid_at=? WHERE provider_link_id=? AND status<>'paid'").run(timestamp,paymentLink.id);
+      database.prepare("UPDATE institution_partnership_profiles SET payment_status='verified',payment_verified_at=?,updated_at=? WHERE institution_id=?")
+        .run(timestamp,timestamp,link.institution_id);
+      database.prepare("UPDATE institution_subscriptions SET status='active',starts_at=COALESCE(starts_at,?),updated_at=? WHERE institution_id=? AND status='past_due'")
+        .run(timestamp,timestamp,link.institution_id);
+      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,NULL,'payment_confirmed_by_gateway',?,?)")
+        .run(id(),link.institution_id,JSON.stringify({provider:"razorpay",paymentLinkId:paymentLink.id,amountPaidPaise:paidAmount}),timestamp);
+      return res.status(200).json({success:true,recorded:true});
     } catch(error) { next(error); }
   });
 
