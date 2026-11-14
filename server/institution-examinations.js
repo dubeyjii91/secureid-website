@@ -109,4 +109,23 @@ export function registerInstitutionExaminations({app,database,requireAuth,requir
   database.prepare("INSERT INTO institution_exam_seating(id,institution_id,exam_id,registration_id,venue,room,seat_number,assigned_by,assigned_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(registration_id) DO UPDATE SET venue=excluded.venue,room=excluded.room,seat_number=excluded.seat_number,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at").run(seatId,i,examId,registrationId,venue,room,seat,req.user.id,ts);
   audit(i,req.user.id,examId,"exam_seat_assigned",{registrationId,venue,room,seatNumber:seat});return res.json({success:true,seating:{registrationId,venue,room,seatNumber:seat,assignedAt:ts}});
  }catch(e){if(String(e.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"This seat is already assigned to another student in the same examination.");next(e);}});
+ app.get("/api/institutions/:institutionId/examinations/:examId/admit-card",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),examId=clean(req.params.examId,128),m=member(req,res,i,["student"]);if(!m)return;
+  const row=database.prepare(`
+   SELECT e.id AS examId,e.title AS examTitle,e.academic_year AS academicYear,e.term,e.starts_at AS startsAt,e.ends_at AS endsAt,e.status AS examStatus,
+    ins.name AS institutionName,r.id AS registrationId,r.roll_number AS rollNumber,s.venue,s.room,s.seat_number AS seatNumber,s.assigned_at AS seatAssignedAt
+   FROM institution_exams e JOIN institutions ins ON ins.id=e.institution_id
+   JOIN institution_exam_registrations r ON r.exam_id=e.id AND r.institution_id=e.institution_id
+   LEFT JOIN institution_exam_seating s ON s.registration_id=r.id AND s.exam_id=e.id AND s.institution_id=e.institution_id
+   WHERE e.id=? AND e.institution_id=? AND r.student_user_id=? AND r.status='approved'
+  `).get(examId,i,req.user.id);
+  if(!row)return fail(res,404,"Approved examination registration was not found.");
+  if(row.examStatus==="cancelled")return fail(res,409,"Admit cards are unavailable for a cancelled examination.");
+  if(!row.rollNumber||!row.venue||!row.room||!row.seatNumber)return fail(res,409,"Your admit card is not ready. The institution must approve your registration, assign a roll number and allocate your examination seat.");
+  const subjects=database.prepare("SELECT subject_code AS subjectCode,title,exam_date AS examDate,starts_at AS startsAt,ends_at AS endsAt,venue FROM institution_exam_subjects WHERE exam_id=? AND institution_id=? ORDER BY exam_date,starts_at").all(examId,i);
+  if(!subjects.length)return fail(res,409,"The examination timetable is not available yet.");
+  res.setHeader("Cache-Control","private, no-store");
+  return res.json({success:true,admitCard:{...row,subjects,studentEmail:req.user.email,issuedAt:now()}});
+ }catch(e){next(e);}});
+
 }
