@@ -203,7 +203,7 @@ export function registerInstitutionModules({
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only"].includes(member.role)) return fail(res,403,"Student directory access is not allowed for this role.");
       if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Student management is not enabled.","FEATURE_NOT_ENTITLED");
       const rows=database.prepare(`
-        SELECT m.user_id AS userId,u.email,p.student_number AS studentNumber,p.department,p.program,
+        SELECT m.user_id AS userId,u.email,m.status AS membershipStatus,p.student_number AS studentNumber,p.department,p.program,
           p.academic_year AS academicYear,COALESCE(p.status,'active') AS status,m.created_at AS joinedAt
         FROM institution_memberships m JOIN users u ON u.id=m.user_id
         LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id
