@@ -11,6 +11,7 @@ import InstitutionExaminations from "./institution-modules/InstitutionExaminatio
 import InstitutionGrievances from "./institution-modules/InstitutionGrievances.jsx";
 import InstitutionCertificates from "./institution-modules/InstitutionCertificates.jsx";
 import InstitutionReports from "./institution-modules/InstitutionReports.jsx";
+import InstitutionHR from "./institution-modules/InstitutionHR.jsx";
 
 const moduleCards = [
   { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"graduation" },
@@ -22,7 +23,8 @@ const moduleCards = [
   { key:"Examinations", title:"Examinations", description:"Exam schedules, registration, roll numbers, marks and results.", icon:"graduation-cap" },
   { key:"Grievances", title:"Grievances & Helpdesk", description:"Student tickets, service deadlines, staff replies and resolution.", icon:"message-square" },
   { key:"Certificates", title:"Certificates", description:"Bonafide, character, transfer and fee-clearance certificate workflow.", icon:"file-check" },
-  { key:"Reports", title:"Reports & Exports", description:"Download student, attendance, finance, library and examination reports.", icon:"file-spreadsheet" }
+  { key:"Reports", title:"Reports & Exports", description:"Download student, attendance, finance, library and examination reports.", icon:"file-spreadsheet" },
+  { key:"HR", title:"HR & Staff Operations", description:"Staff account mapping, leave approvals and daily attendance.", icon:"users" }
 ];
 const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -118,6 +120,7 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Grievances"&&<InstitutionGrievances institutionId={institutionId}/>}
     {tab==="Certificates"&&<InstitutionCertificates institutionId={institutionId}/>}
     {tab==="Reports"&&<InstitutionReports institutionId={institutionId}/>}
+    {tab==="HR"&&<InstitutionHR institutionId={institutionId} staff={staff}/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
   </section>;
 }
