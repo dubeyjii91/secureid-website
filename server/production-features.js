@@ -2743,7 +2743,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   registerInstitutionModules({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
-  registerInstitutionPartnership({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
+  registerInstitutionPartnership({ app, database, requireAuth, enforceSameOrigin });
   registerStudentAdmissions({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, encrypt: value => jsonEncrypt(value,key), decrypt: value => jsonDecrypt(value,key) });
   registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
 
