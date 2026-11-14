@@ -40,8 +40,21 @@ try {
       return route.fulfill(json({ users: state.users, total: state.users.length, active: state.users.length, suspended: 0 }));
     }
     if (path === "/api/admin/activity" && method === "GET") return route.fulfill(json({ events: [] }));
+    if (path === "/api/admin/test-institution-cleanup/preview" && method === "GET") return route.fulfill(json({ institutions: state.institutions, missingTargets: [], unsupportedRelationships: [], totalRecords: 0, previewHash: "browser-test-preview", cleanupStatus: { completed: false } }));
+    if (path === "/api/admin/monetization/overview" && method === "GET") return route.fulfill(json({ billingMode: "manual_ledger_only", livePaymentsEnabled: false, totals: { paidPaise: 0, pendingPaise: 0, entryCount: 0, paidCount: 0 }, storage: { documents: 0, bytes: 0 }, sponsorships: { total: 0, active: 0 } }));
+    if (path === "/api/admin/monetization/entries" && method === "GET") return route.fulfill(json({ entries: [] }));
+    if (path === "/api/admin/monetization/sponsorships" && method === "GET") return route.fulfill(json({ sponsorships: [] }));
     if (path === "/api/admin/notifications" && method === "GET") return route.fulfill(json({ notifications: [], totals: { total: 0, pending: 0, sent: 0, failed: 0 } }));
     if (path === "/api/admin/institutions" && method === "GET") return route.fulfill(json({ institutions: state.institutions, memberships: state.memberships }));
+    if (path === "/api/admin/institutions/institution-1/subscription" && method === "GET") return route.fulfill(json({ subscription: { planKey: "pilot", status: "pilot", features: ["hostel","scholarship","student_submissions"], startsAt: null, endsAt: null } }));
+    if (path === "/api/admin/institutions/institution-1/partnership" && method === "GET") return route.fulfill(json({
+      institution: { id: "institution-1", name: "SecureID Browser Test College" },
+      profile: { aisheCode: "", institutionType: "", affiliation: "", officialWebsite: "", officialEmailDomain: "", address: "", representativeName: "", representativeTitle: "", representativeEmail: "", agreementReference: "", identityStatus: "pending", representativeStatus: "pending", agreementStatus: "draft", paymentStatus: "not_required", paymentReference: "", paymentAmountPaise: null, connectionMode: "dashboard", connectionStatus: "not_connected", notes: "" },
+      subscription: { planKey: "pilot", status: "pilot", startsAt: null, endsAt: null },
+      members: { total: state.memberships.length, active: state.memberships.filter(item => item.status === "active").length },
+      readiness: { identityVerified: false, representativeVerified: false, agreementSigned: false, subscriptionCleared: true, canConnect: false, connected: false },
+      evidence: [], audit: []
+    }));
     if (path === "/api/admin/institutions" && method === "POST") {
       const body = request.postDataJSON();
       const institution = { id: "institution-1", name: body.name };
@@ -80,10 +93,9 @@ try {
   await page.getByRole("button", { name: /Continue securely/i }).click();
   await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
-  try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
-  catch { throw new Error("Created institution did not reappear after reload. Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
-  // Institution selectors intentionally stay empty after reload; choose the institution explicitly.
-  await page.locator("form").filter({ has: page.getByRole("button", { name: "Provision membership" }) }).locator("label").first().locator("select").selectOption("institution-1");
+  // Select the reloaded institution from the membership provisioning form.
+  const institutionMembershipForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Provision membership" }) });
+  await institutionMembershipForm.locator("label").first().locator("select").selectOption("institution-1");
 
   await page.getByLabel("Institution role").selectOption("reviewer");
   await page.getByRole("button", { name: "Provision membership" }).click();

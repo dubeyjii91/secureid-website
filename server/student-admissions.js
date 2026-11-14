@@ -41,7 +41,10 @@ export function registerStudentAdmissions({ app, database, requireAuth, requireM
     SELECT i.id, i.name
     FROM institutions i
     JOIN institution_subscriptions s ON s.institution_id=i.id
-    WHERE s.status IN ('pilot','active')
+    WHERE (s.status='pilot' OR (s.status='active' AND EXISTS (
+        SELECT 1 FROM institution_partnership_profiles p
+        WHERE p.institution_id=i.id AND p.payment_status='verified'
+      )))
       AND (s.starts_at IS NULL OR s.starts_at='' OR s.starts_at<=?)
       AND (s.ends_at IS NULL OR s.ends_at='' OR s.ends_at>?)
     ORDER BY i.name COLLATE NOCASE
