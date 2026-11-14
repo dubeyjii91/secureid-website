@@ -80,3 +80,23 @@ test("course enrollment is tenant-scoped, rejects duplicates and supports withdr
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_course_enrollments").get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_enrollment'").get().n,3);
 });
+
+
+test("course sections enforce institution scope, unique codes, capacity and student assignment visibility",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/courses",{method:"POST",body:JSON.stringify({courseCode:"SEC101",title:"Sectioned Course",academicYear:"2026-2027"})});
+ assert.equal(r.status,201);const course=(await r.json()).course;
+ r=await request("admin","/api/institutions/college/sections",{method:"POST",body:JSON.stringify({courseId:course.id,sectionCode:"A",sectionName:"Batch A",capacity:1})});
+ assert.equal(r.status,201);const section=(await r.json()).section;
+ r=await request("admin","/api/institutions/college/sections",{method:"POST",body:JSON.stringify({courseId:course.id,sectionCode:"A",sectionName:"Duplicate",capacity:5})});assert.equal(r.status,409);
+ r=await request("other","/api/institutions/college/sections");assert.equal(r.status,403);
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student",sectionId:section.id})});assert.equal(r.status,201);
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student2",sectionId:section.id})});assert.equal(r.status,409);
+ r=await request("student","/api/institutions/college/sections");assert.equal(r.status,200);let rows=(await r.json()).sections;assert.equal(rows.length,1);assert.equal(rows[0].id,section.id);assert.equal(rows[0].enrolledCount,1);
+ r=await request("student2","/api/institutions/college/sections");assert.equal(r.status,200);assert.equal((await r.json()).sections.length,0);
+ r=await request("admin",`/api/institutions/college/sections/${section.id}`,{method:"PATCH",body:JSON.stringify({status:"inactive",capacity:1})});assert.equal(r.status,200);
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student2",sectionId:section.id})});assert.equal(r.status,400);
+ r=await request("admin",`/api/institutions/college/sections/${section.id}`,{method:"PATCH",body:JSON.stringify({status:"active",capacity:1})});assert.equal(r.status,200);
+ assert.equal(db.prepare("SELECT section_id FROM institution_course_enrollments WHERE student_user_id='student'").get().section_id,section.id);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_section'").get().n,2);
+});
