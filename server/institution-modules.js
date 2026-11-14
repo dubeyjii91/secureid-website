@@ -221,7 +221,7 @@ export function registerInstitutionModules({
       const membership=database.prepare("SELECT id,status FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status IN ('active','suspended')").get(institutionId,userId);
       if(!membership) return fail(res,404,"Active student membership was not found.");
       const studentNumber=safeText(req.body?.studentNumber,60),department=safeText(req.body?.department,100),program=safeText(req.body?.program,120),academicYear=safeText(req.body?.academicYear,20),status=safeText(req.body?.status||"active",20),statusReason=safeText(req.body?.statusReason,500);
-      if(!["active","graduated","suspended","withdrawn"].includes(status)||!/^$|^20\\d{2}-20\\d{2}$/.test(academicYear)) return fail(res,400,"Enter a valid student status and academic year.");
+      if(!["active","graduated","suspended","withdrawn"].includes(status)||!/^$|^20\d{2}-20\d{2}$/.test(academicYear)) return fail(res,400,"Enter a valid student status and academic year.");
       const current=database.prepare("SELECT status FROM institution_student_profiles WHERE institution_id=? AND user_id=?").get(institutionId,userId);
       const previousStatus=current?.status||"active";
       if(status!==previousStatus&&statusReason.length<5) return fail(res,400,"A status-change reason of at least 5 characters is required.");
