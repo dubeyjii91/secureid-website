@@ -136,6 +136,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       const allowed = ["institution_identity","representative_authority","partnership_agreement","subscription_payment","technical_connection"];
       if (!allowed.includes(checkType) || !["pending","verified","rejected"].includes(outcome) || evidenceReference.length < 4) return fail(res,400,"Choose a valid verification check, outcome and evidence reference.");
       const profile = getProfile(institutionId), subscription = database.prepare("SELECT status,starts_at,ends_at FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
+      if (checkType === "subscription_payment" && subscription?.status !== "active") return fail(res,409,"Payment can only be verified for an active paid subscription. Pilot access is not a paid membership.");
       if (outcome === "verified") {
         if (checkType === "institution_identity" && (!profile.aishe_code || !profile.official_website || !profile.address)) return fail(res,409,"Complete AISHE code, official HTTPS website and address before verifying the institution.");
         if (checkType === "representative_authority" && (!profile.representative_name || !profile.representative_email || !profile.official_email_domain || !profile.representative_email.endsWith("@"+profile.official_email_domain))) return fail(res,409,"Representative details must include an email on the institution's declared official domain. Confirm authority independently before marking verified.");
