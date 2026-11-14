@@ -38,7 +38,7 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
 
  app.get("/api/institutions/:institutionId/finance/refunds",requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
-   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","finance_manager","accounts"]);if(!m)return;
+   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin"]);if(!m)return;
    const studentOnly=false;
    const payments=database.prepare(`
     SELECT p.id,p.invoice_id AS invoiceId,p.student_user_id AS studentUserId,u.email AS studentEmail,p.amount_paise AS amountPaise,p.method,p.reference,p.created_at AS createdAt,
