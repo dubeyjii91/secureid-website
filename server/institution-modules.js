@@ -79,7 +79,7 @@ export function registerInstitutionModules({
 
   // New pilot modules are included for existing pilot institutions; this does not change paid plans or billing.
   const pilots = database.prepare("SELECT institution_id,features_json FROM institution_subscriptions WHERE status='pilot'").all();
-  const added = ["student_management","staff_management","finance","academics"];
+  const added = ["student_management","staff_management","finance","academics","library"];
   for (const row of pilots) {
     let features = [];
     try { features = JSON.parse(row.features_json || "[]"); } catch {}
