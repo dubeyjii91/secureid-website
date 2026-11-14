@@ -38,13 +38,13 @@ test("refund requests reserve payment balance, require independent review and re
  let response=await request("admin","/api/institutions/college/finance/refunds");
  assert.equal(response.status,200);
  let data=await response.json();assert.equal(data.payments[0].refundablePaise,100000);assert.equal(data.payments[0].studentEmail,"student@college.test");
- response=await request("student","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({amountPaise:30000,reason:"Student withdrew before the final course start date."})});
+ response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({studentUserId:"student",amountPaise:30000,reason:"Student withdrew before the final course start date."})});
  assert.equal(response.status,201);const refund=(await response.json()).refund;
  response=await request("student","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({studentUserId:"student",amountPaise:30000,reason:"Student withdrew before the final course start date."})});
  assert.equal(response.status,200);assert.equal((await response.json()).duplicate,true);
- response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0002"},body:JSON.stringify({amountPaise:80000,reason:"Second refund request would exceed the remaining payment balance."})});
+ response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0002"},body:JSON.stringify({studentUserId:"student",amountPaise:80000,reason:"Second refund request would exceed the remaining payment balance."})});
  assert.equal(response.status,409);
- response=await request("student","/api/institutions/college/finance/refunds");assert.equal(response.status,200);assert.equal((await response.json()).canRequest,true);
+ response=await request("student","/api/institutions/college/finance/refunds");assert.equal(response.status,403);
  response=await request("other","/api/institutions/college/finance/refunds");assert.equal(response.status,403);
  response=await request("admin",`/api/institutions/college/finance/refunds/${refund.id}`,{method:"PATCH",body:JSON.stringify({decision:"approve",reviewNote:"Reviewed and eligible."})});
  assert.equal(response.status,403,"The initiator cannot approve their own refund.");
@@ -61,7 +61,7 @@ test("refund requests reserve payment balance, require independent review and re
 
 test("refunds cannot be recorded before approval or without a completed external transfer reference",async t=>{
  const {request}=await setup(t);
- let response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0003"},body:JSON.stringify({amountPaise:10000,reason:"Refund due to duplicate payment transaction."})});
+ let response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0003"},body:JSON.stringify({studentUserId:"student",amountPaise:10000,reason:"Refund due to duplicate payment transaction."})});
  const refund=(await response.json()).refund;
  response=await request("finance",`/api/institutions/college/finance/refunds/${refund.id}`,{method:"PATCH",body:JSON.stringify({decision:"record",reviewNote:"Attempting early record.",externalReference:"UTR-001"})});
  assert.equal(response.status,409);
