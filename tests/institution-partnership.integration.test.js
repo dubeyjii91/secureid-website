@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
 import { registerInstitutionPartnership } from "../server/institution-partnership.js";
+import { registerInstitutionFeeGateway } from "../server/institution-fee-gateway.js";
 
 async function setup(t) {
   const database = new DatabaseSync(":memory:");
@@ -14,10 +15,13 @@ async function setup(t) {
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL,status TEXT NOT NULL);
     INSERT INTO users VALUES('owner','owner@example.test'),('college-admin','admin@college.example'),('student','student@example.test');
     INSERT INTO institutions VALUES('college-a','Example College','2026-01-01T00:00:00.000Z'),('college-b','Other College','2026-01-01T00:00:00.000Z');
-    INSERT INTO institution_subscriptions VALUES('college-a','standard','active','[]',NULL,NULL,'owner','2026-01-01T00:00:00.000Z');
+    INSERT INTO institution_subscriptions VALUES('college-a','standard','active','[\"finance\"]',NULL,NULL,'owner','2026-01-01T00:00:00.000Z');
     INSERT INTO institution_subscriptions VALUES('college-b','pilot','pilot','[]',NULL,NULL,'owner','2026-01-01T00:00:00.000Z');
     INSERT INTO institution_memberships VALUES('m1','college-a','college-admin','institution_admin','active');
     INSERT INTO institution_memberships VALUES('m2','college-a','student','student','active');
+    CREATE TABLE institution_fee_invoices(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,student_user_id TEXT NOT NULL,fee_head TEXT NOT NULL,description TEXT,amount_paise INTEGER NOT NULL,due_date TEXT,status TEXT NOT NULL DEFAULT 'unpaid',created_by TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+    CREATE TABLE institution_fee_payments(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,invoice_id TEXT NOT NULL,student_user_id TEXT NOT NULL,amount_paise INTEGER NOT NULL,method TEXT NOT NULL,reference TEXT,idempotency_key TEXT NOT NULL,received_by TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(institution_id,idempotency_key));
+    CREATE TABLE institution_operations_audit(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,actor_user_id TEXT NOT NULL,action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT,details_json TEXT,created_at TEXT NOT NULL);
   `);
   const app = express();
   app.use(express.json({verify(req,res,buffer){req.rawBody=Buffer.from(buffer);}}));
@@ -26,6 +30,9 @@ async function setup(t) {
   const requireMfaProduction=(req,res,next)=>req.user.mfaVerified?next():res.status(403).json({success:false,code:"MFA_REQUIRED"});
   const enforceSameOrigin=(req,res,next)=>next();
   registerInstitutionPartnership({app,database,requireAuth,requireMfaProduction,enforceSameOrigin});
+  const getInstitutionMembership=(userId,institutionId)=>database.prepare("SELECT role,status FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId)||null;
+  const hasInstitutionFeature=(institutionId,feature)=>database.prepare("SELECT features_json FROM institution_subscriptions WHERE institution_id=? AND status='active'").get(institutionId)?.features_json?.includes('"'+feature+'"')||false;
+  registerInstitutionFeeGateway({app,database,requireAuth,requireMfaProduction,enforceSameOrigin,getInstitutionMembership,hasInstitutionFeature});
   app.use((error,req,res,next)=>res.status(500).json({success:false,message:error.message}));
   const server=app.listen(0,"127.0.0.1");
   await new Promise(resolve=>server.once("listening",resolve));
@@ -164,4 +171,24 @@ test("API and ERP modes cannot be declared connected without an actual integrati
   })});
   assert.equal(response.status,409);
   assert.match((await response.json()).message,/real authenticated integration handshake/i);
+});
+
+
+test("verified Razorpay fee webhook settles the exact invoice balance idempotently",async t=>{
+  const {database,request}=await setup(t);
+  const previousSecret=process.env.RAZORPAY_WEBHOOK_SECRET;
+  process.env.RAZORPAY_WEBHOOK_SECRET="fee-webhook-secret";
+  t.after(()=>{if(previousSecret===undefined)delete process.env.RAZORPAY_WEBHOOK_SECRET;else process.env.RAZORPAY_WEBHOOK_SECRET=previousSecret;});
+  const ts=new Date().toISOString();
+  database.prepare("INSERT INTO institution_fee_invoices(id,institution_id,student_user_id,fee_head,amount_paise,status,created_by,created_at,updated_at) VALUES('invoice-fee-1','college-a','student','Tuition',150000,'unpaid','college-admin',?,?,?)").run(ts,ts,ts);
+  database.prepare("INSERT INTO institution_fee_payment_links(id,institution_id,invoice_id,student_user_id,provider_link_id,amount_paise,short_url,created_by,created_at) VALUES('fee-link-row','college-a','invoice-fee-1','student','plink_fee_001',150000,'https://rzp.io/fee','college-admin',?)").run(ts);
+  const payload={event:"payment_link.paid",payload:{payment_link:{entity:{id:"plink_fee_001",amount_paid:150000,currency:"INR"}},payment:{entity:{id:"pay_fee_001"}}}};
+  const raw=JSON.stringify(payload),signature=(await import("node:crypto")).createHmac("sha256","fee-webhook-secret").update(raw).digest("hex");
+  let response=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_fee_paid_001"}});
+  const body=await response.json();assert.equal(response.status,200);assert.equal(body.kind,"fee_payment");
+  assert.equal(database.prepare("SELECT status FROM institution_fee_invoices WHERE id='invoice-fee-1'").get().status,"paid");
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_fee_payments WHERE invoice_id='invoice-fee-1'").get().n,1);
+  response=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_fee_paid_001"}});
+  assert.equal(response.status,200);assert.equal((await response.json()).duplicate,true);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_fee_payments WHERE invoice_id='invoice-fee-1'").get().n,1);
 });
