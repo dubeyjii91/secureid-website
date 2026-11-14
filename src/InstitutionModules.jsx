@@ -74,7 +74,7 @@ export default function InstitutionModules({ institutionId }) {
         api(`/api/institutions/${encodeURIComponent(institutionId)}/operations/overview`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/sections`,{cache:"no-store"}),
-        api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/refunds`,{cache:"no-store"})
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/refunds`,{cache:"no-store"}).catch(()=>({payments:[],refunds:[],canRequest:false,canReview:false}))
       ]);
       setStudents(s.students||[]);setCanManageStudents(!!s.canManage);setProfileDrafts(Object.fromEntries((s.students||[]).map(item=>[item.userId,{studentNumber:item.studentNumber||"",department:item.department||"",program:item.program||"",academicYear:item.academicYear||"",status:item.status||"active",statusReason:""}])));setStaff(st.staff||[]);setInvoices(f.invoices||[]);setRefundPayments(refundData.payments||[]);setRefundRequests(refundData.refunds||[]);setCanRequestRefund(!!refundData.canRequest);setCanReviewRefunds(!!refundData.canReview);setCourses(c.courses||[]);setEnrollments(e.enrollments||[]);setSections(sec.sections||[]);setOverview(o.overview||null);setTimetable(t.entries||[]);
       const firstCourse=(c.courses||[])[0];
@@ -100,9 +100,9 @@ export default function InstitutionModules({ institutionId }) {
   async function withdrawEnrollment(enrollmentId){if(!window.confirm("Withdraw this student from the course?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/enrollments/${encodeURIComponent(enrollmentId)}`,{method:"DELETE"}),"Course enrollment withdrawn.");}
   async function deleteTimetableEntry(entryId){if(!window.confirm("Delete this timetable entry?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable/${encodeURIComponent(entryId)}`,{method:"DELETE"}),"Timetable entry deleted.");}
   async function receivePayment(e){e.preventDefault();const key=crypto.randomUUID();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(paymentForm.invoiceId)}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise:Math.round(Number(paymentForm.amount)*100),method:paymentForm.method,reference:paymentForm.reference,idempotencyKey:key})}),"Payment recorded.");setPaymentForm({invoiceId:"",amount:"",method:"upi",reference:""});}
-  async function requestRefund(paymentId,amountPaise,reason){
+  async function requestRefund(paymentId,studentUserId,amountPaise,reason){
     const key=crypto.randomUUID();
-    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/payments/${encodeURIComponent(paymentId)}/refunds`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise,reason})}),"Refund request submitted for institution review.");
+    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/payments/${encodeURIComponent(paymentId)}/refunds`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({studentUserId,amountPaise,reason})}),"Refund request submitted for independent institution review.");
   }
   async function reviewRefund(refund,decision){
     const reviewNote=window.prompt("Add the institution review note:");
