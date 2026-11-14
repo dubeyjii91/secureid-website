@@ -88,5 +88,9 @@ test("admit cards are student-private and require approval, roll number, seat an
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,403);
  r=await request("other",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,403);
  r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,200);
- const body=await r.json();assert.equal(body.admitCard.rollNumber,"RVS-ADMIT-001");assert.equal(body.admitCard.seatNumber,"A-01");assert.equal(body.admitCard.subjects.length,1);assert.equal(body.admitCard.institutionName,"College");
+ const body=await r.json();assert.equal(body.admitCard.rollNumber,"RVS-ADMIT-001");assert.equal(body.admitCard.seatNumber,"A-01");assert.equal(body.admitCard.subjects.length,1);assert.equal(body.admitCard.institutionName,"College");assert.equal(body.admitCard.institutionType,"college");
+ r=await request("admin","/api/institutions/college/examinations/settings",{method:"PATCH",body:JSON.stringify({institutionType:"university"})});assert.equal(r.status,200);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card?format=print`);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\/html/);const printable=await r.text();assert.match(printable,/UNIVERSITY EXAMINATION ADMIT CARD/);assert.match(printable,/RVS-ADMIT-001/);assert.match(printable,/Print \/ Save as PDF/);
+ r=await request("admin","/api/institutions/college/examinations/settings",{method:"PATCH",body:JSON.stringify({institutionType:"school"})});assert.equal(r.status,200);
+ r=await request("student","/api/institutions/college/examinations");assert.equal(r.status,200);const workspace=await r.json();assert.equal(workspace.institutionType,"school");assert.equal(workspace.canDownloadAdmitCards,true);
 });
