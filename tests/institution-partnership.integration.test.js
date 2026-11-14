@@ -61,6 +61,17 @@ test("institution cannot be marked connected until identity, representative, agr
   assert.equal(result.readiness.connected,true);
   assert.equal(result.profile.connectionStatus,"connected");
   assert.equal(result.evidence.length,5);
+  response=await request("/api/admin/institutions/college-a/partnership",{method:"PUT",body:JSON.stringify({
+    aisheCode:"U-1234",officialWebsite:"https://college.example",officialEmailDomain:"college.example",
+    address:"Example Road",representativeName:"Principal Test",representativeTitle:"Principal",
+    representativeEmail:"new-principal@college.example",agreementReference:"AGR-2026-001",
+    paymentReference:"UTR-TEST-123456",paymentAmountPaise:250000,connectionMode:"dashboard"
+  })});
+  assert.equal(response.status,200);
+  const changed=await response.json();
+  assert.equal(changed.profile.representativeStatus,"pending");
+  assert.equal(changed.profile.connectionStatus,"not_connected");
+  assert.equal(changed.readiness.connected,false);
 });
 
 test("representative must use the institution's declared official email domain",async t=>{
