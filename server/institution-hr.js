@@ -46,12 +46,16 @@ export function registerInstitutionHR({app,database,requireAuth,requireMfaProduc
   res.setHeader("Cache-Control","private, no-store");return res.json({success:true,requests:rows});
  }catch(e){next(e);}});
  app.post("/api/institutions/:institutionId/hr/leave",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
-  const i=clean(req.params.institutionId,128),m=member(req,res,i,["reviewer"]);if(!m)return;
-  const staff=database.prepare("SELECT id FROM institution_staff WHERE institution_id=? AND user_id=? AND status='active'").get(i,req.user.id);if(!staff)return fail(res,403,"Link your institution staff record before requesting leave.");
+  const i=clean(req.params.institutionId,128),m=member(req,res,i,["institution_admin","reviewer"]);if(!m)return;
+  const requestedStaffId=clean(req.body?.staffId,128);
+  const staff=m.role==="institution_admin"&&requestedStaffId
+    ?database.prepare("SELECT id,user_id AS userId FROM institution_staff WHERE institution_id=? AND id=? AND status='active'").get(i,requestedStaffId)
+    :database.prepare("SELECT id,user_id AS userId FROM institution_staff WHERE institution_id=? AND user_id=? AND status='active'").get(i,req.user.id);
+  if(!staff||!staff.userId)return fail(res,403,"Link the active staff account before creating a leave request.");
   const type=clean(req.body?.leaveType,40),start=clean(req.body?.startsOn,10),end=clean(req.body?.endsOn,10),reason=clean(req.body?.reason,1000);
   if(!["casual","sick","earned","duty","unpaid","other"].includes(type)||!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start||reason.length<5)return fail(res,400,"Enter valid leave type, dates and reason.");
   const overlap=database.prepare("SELECT 1 FROM institution_staff_leave WHERE staff_id=? AND status IN ('pending','approved') AND starts_on<=? AND ends_on>=?").get(staff.id,end,start);if(overlap)return fail(res,409,"A pending or approved leave request overlaps these dates.");
-  const leaveId=id(),ts=now();database.prepare("INSERT INTO institution_staff_leave(id,institution_id,staff_id,user_id,leave_type,starts_on,ends_on,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(leaveId,i,staff.id,req.user.id,type,start,end,reason,ts,ts);
+  const leaveId=id(),ts=now();database.prepare("INSERT INTO institution_staff_leave(id,institution_id,staff_id,user_id,leave_type,starts_on,ends_on,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(leaveId,i,staff.id,staff.userId,type,start,end,reason,ts,ts);
   audit(i,req.user.id,"leave_requested",leaveId,{type,start,end});return res.status(201).json({success:true,request:{id:leaveId,status:"pending"}});
  }catch(e){next(e);}});
  app.patch("/api/institutions/:institutionId/hr/leave/:leaveId",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
