@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { createCipheriv, randomBytes, createHash } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -17,6 +17,25 @@ function backupAlertConfiguration(){
   };
 }
 function isBackupAlertingConfigured(){ const config=backupAlertConfiguration(); return config.recipientConfigured && config.senderConfigured && config.providerConfigured; }
+
+export function resolveDocumentStorageDirectory(env=process.env){
+  const explicit=String(env.DOCUMENT_STORAGE_PATH||"").trim();
+  if(explicit)return explicit;
+  const volume=String(env.RAILWAY_VOLUME_MOUNT_PATH||"").trim();
+  if(volume)return path.join(volume,"secureid-documents");
+  return env.NODE_ENV==="production" ? "/data/secureid-documents" : "./data/secureid-documents";
+}
+
+function countBackupDocuments(filename){
+  const payload=JSON.parse(readFileSync(filename,"utf8"));
+  const decipher=createDecipheriv("aes-256-gcm",backupKey(),Buffer.from(payload.iv,"base64"));
+  decipher.setAuthTag(Buffer.from(payload.tag,"base64"));
+  const plaintext=Buffer.concat([decipher.update(Buffer.from(payload.data,"base64")),decipher.final()]);
+  const actualHash=createHash("sha256").update(plaintext).digest("hex");
+  if(actualHash!==payload.sha256)throw new Error("Encrypted backup checksum validation failed.");
+  const content=JSON.parse(plaintext.toString("utf8"));
+  return Array.isArray(content.documents)?content.documents.length:0;
+}
 
 let status = { enabled:false, lastRunAt:null, lastSuccessAt:null, lastError:null, lastFile:null, alertingConfigured:isBackupAlertingConfigured() };
 
@@ -78,7 +97,7 @@ function backupKey(){
 export function runEncryptedBackup(){
   const dbPath=process.env.DATABASE_PATH || "./data/secureid.sqlite";
   const backupDir=process.env.BACKUP_DIR || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-backups") : "./data/backups");
-  const documentDir=process.env.DOCUMENT_STORAGE_PATH || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH,"secureid-documents") : "./data/secureid-documents");
+  const documentDir=resolveDocumentStorageDirectory();
   const key=backupKey();
   if(!existsSync(dbPath)) throw new Error("DATABASE_PATH does not exist.");
   mkdirSync(backupDir,{recursive:true});
@@ -122,7 +141,7 @@ export function runEncryptedBackup(){
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
     for(const file of files.slice(retention)) rmSync(path.join(backupDir,file.name),{force:true});
     status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out,alertingConfigured:isBackupAlertingConfigured()};
-    return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256};
+    return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256,documentCount:documents.length};
   }catch(error){
     status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error),alertingConfigured:isBackupAlertingConfigured()};
     void sendBackupAlert("SecureID encrypted backup failed","An automatic SecureID encrypted backup failed at "+new Date().toISOString()+". Review the production logs and backup status immediately.");
@@ -143,6 +162,7 @@ export function runEncryptedBackupRestoreDrill(){
     .sort((a,b)=>b.mtime-a.mtime);
   if(!candidates.length) throw new Error("No encrypted production backup is available for the restore drill.");
   const backup=candidates[0];
+  const sourceDocumentCount=countBackupDocuments(backup.fullPath);
   const tempRoot=mkdtempSync(path.join(tmpdir(),"secureid-restore-drill-"));
   const restoredDb=path.join(tempRoot,"restored.sqlite");
   const restoredDocuments=path.join(tempRoot,"documents");
@@ -169,7 +189,9 @@ export function runEncryptedBackupRestoreDrill(){
     const restoredDocumentCount=existsSync(restoredDocuments)
       ? readdirSync(restoredDocuments).filter(name=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/i.test(name)).length
       : 0;
-    const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,restoredDocumentCount,isolated:true};
+    const documentRestoreVerified=sourceDocumentCount>0 && restoredDocumentCount===sourceDocumentCount;
+    if(sourceDocumentCount>0 && !documentRestoreVerified)throw new Error("Document restore count mismatch: backup contains "+sourceDocumentCount+" files but restore recovered "+restoredDocumentCount+".");
+    const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,sourceDocumentCount,restoredDocumentCount,documentRestoreVerified,isolated:true};
     console.log(JSON.stringify({level:"info",event:"encrypted_backup_restore_drill_completed",...resultSummary}));
     return resultSummary;
   }finally{
@@ -195,7 +217,7 @@ export function startAutomaticBackup(){
     },20_000).unref();
   }
   const intervalHours=Math.max(1,Number(process.env.BACKUP_INTERVAL_HOURS||24));
-  const run=()=>{ try{ runEncryptedBackup(); console.log(JSON.stringify({level:"info",event:"encrypted_backup_completed",file:status.lastFile})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
+  const run=()=>{ try{ const result=runEncryptedBackup(); console.log(JSON.stringify({level:"info",event:"encrypted_backup_completed",file:status.lastFile,documentCount:result.documentCount})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
   // Create a verified encrypted backup shortly after startup so a new deployment
   // does not remain without a recovery point for the first five minutes.
   setTimeout(run,10_000).unref();
