@@ -102,7 +102,7 @@ test("free pilot access cannot be recorded as a paid subscription",async t=>{
   const {request}=await setup(t);
   const saved=await request("/api/admin/institutions/college-b/partnership",{method:"PUT",body:JSON.stringify({
     aisheCode:"U-5678",officialWebsite:"https://other.example",officialEmailDomain:"other.example",
-    address:"Other Road",paymentReference:"PILOT-NOT-PAID",paymentAmountPaise:100000
+    address:"Other Road",paymentReference:"PILOT-NOT-PAID",paymentAmountPaise:100000,connectionMode:"dashboard"
   })});
   assert.equal(saved.status,200);
   const response=await request("/api/admin/institutions/college-b/partnership/checks",{method:"POST",body:JSON.stringify({
