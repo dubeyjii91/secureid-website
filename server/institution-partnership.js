@@ -167,6 +167,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
         if (checkType === "technical_connection") {
           const paidOrPilot = subscriptionEligible(subscription, profile.payment_status);
           if (profile.identity_status !== "verified" || profile.representative_status !== "verified" || profile.agreement_status !== "signed" || !paidOrPilot) return fail(res,409,"Verify institution identity, representative authority, signed agreement and subscription/payment before connecting.");
+          if (["api","erp"].includes(profile.connection_mode)) return fail(res,409,"API/ERP connections cannot be marked connected by a manual evidence reference. A real authenticated integration handshake and data-exchange test must pass first.");
         }
       }
       const timestamp = now();
