@@ -210,7 +210,7 @@ export function registerInstitutionModules({
         WHERE m.institution_id=? AND m.role='student' AND m.status IN ('active','suspended')
         ORDER BY u.email COLLATE NOCASE LIMIT 500
       `).all(institutionId);
-      res.setHeader("Cache-Control","private, no-store");res.json({success:true,students:rows});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,students:rows,canManage:member.role==="institution_admin"});
     } catch(error){next(error);}
   });
 
