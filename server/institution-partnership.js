@@ -201,8 +201,9 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       if (!institution) return fail(res,404,"Institution was not found.");
       const profile = getProfile(institutionId);
       const subscription = database.prepare("SELECT plan_key AS planKey,status FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
-      if (!subscription || subscription.planKey === "pilot") return fail(res,409,"Choose a paid institution plan before creating a payment link.");
+      if (!subscription || subscription.planKey === "pilot" || !["active","past_due"].includes(subscription.status)) return fail(res,409,"Choose a paid institution plan with a valid billing period before creating a payment link.");
       if (!Number.isSafeInteger(profile.payment_amount_paise) || profile.payment_amount_paise < 1) return fail(res,409,"Save the exact subscription amount in rupees before creating a payment link.");
+      if (database.prepare("SELECT 1 FROM institution_payment_links WHERE institution_id=? AND status='created' LIMIT 1").get(institutionId)) return fail(res,409,"An unpaid payment link already exists for this institution. Resolve or cancel it before creating another.");
       const keyId = process.env.RAZORPAY_KEY_ID || "", keySecret = process.env.RAZORPAY_KEY_SECRET || "";
       if (!keyId || !keySecret) return fail(res,503,"Razorpay is not configured yet. Add the live/test API key ID and secret in Railway after merchant onboarding.");
       const referenceId = crypto.randomUUID().replaceAll("-","").slice(0,32);
@@ -211,9 +212,11 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
         headers:{Authorization:"Basic "+Buffer.from(keyId+":"+keySecret).toString("base64"),"Content-Type":"application/json"},
         body:JSON.stringify({
           amount:profile.payment_amount_paise,currency:"INR",accept_partial:false,
-          reference_id:referenceId,description:"SecureID institution subscription - "+institution.name,
+          reference_id:referenceId,expire_by:Math.floor(Date.now()/1000)+7*24*60*60,
+          description:"SecureID institution subscription - "+institution.name,
+          customer:{name:profile.representative_name||institution.name,email:profile.representative_email||undefined},
           notes:{institution_id:institutionId,plan_key:subscription.planKey,created_by:req.user.id},
-          notify:{email:true,sms:false}
+          notify:{email:Boolean(profile.representative_email),sms:false}
         }),
         signal:AbortSignal.timeout(15000)
       });
@@ -252,7 +255,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       const link = database.prepare("SELECT * FROM institution_payment_links WHERE provider_link_id=?").get(paymentLink.id);
       if (!link) return res.status(200).json({success:true,ignored:true});
       const paidAmount = Number(paymentLink.amount_paid);
-      if (!Number.isSafeInteger(paidAmount) || paidAmount < link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
+      if (!Number.isSafeInteger(paidAmount) || paidAmount !== link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
       const timestamp = now();
       try {
         database.prepare("INSERT INTO institution_payment_webhook_events(event_id,event_type,provider_link_id,received_at) VALUES(?,?,?,?)")
