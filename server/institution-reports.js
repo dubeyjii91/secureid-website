@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 const safe=(v)=>{let s=String(v??"");if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
 export function registerInstitutionReports({app,database,requireAuth,requireMfaProduction,getInstitutionMembership,hasInstitutionFeature}){
  const reports={
@@ -20,4 +21,4 @@ export function registerInstitutionReports({app,database,requireAuth,requireMfaP
   return res.send("\uFEFF"+csv);
  }catch(e){next(e);}});
 }
-function cryptoId(){return globalThis.crypto?.randomUUID?.()||"report-"+Date.now()+"-"+Math.random().toString(16).slice(2);}
+function cryptoId(){return crypto.randomUUID();}
