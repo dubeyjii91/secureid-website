@@ -94,7 +94,7 @@ try {
   await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
   try { await page.locator('select option[value="institution-1"]').waitFor({ state: "attached", timeout: 5000 }); }
-  catch { throw new Error("Created institution did not reappear after reload. Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
+  catch { throw new Error("Created institution did not reappear after reload. Selects=" + JSON.stringify(await page.locator("select").evaluateAll(items => items.map(item => item.outerHTML))) + "; Alert=" + await page.getByRole("alert").allTextContents() + "; Mock state=" + JSON.stringify(state) + "; API trace=" + apiTrace.join(" | ")); }
   // Institution selectors intentionally stay empty after reload; choose the institution explicitly.
   await page.locator("form").filter({ has: page.getByRole("button", { name: "Provision membership" }) }).locator("label").first().locator("select").selectOption("institution-1");
 
