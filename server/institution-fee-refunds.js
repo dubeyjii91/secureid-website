@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 const clean=(value,max=300)=>String(value??"").trim().slice(0,max);
 const now=()=>new Date().toISOString();
 const id=()=>crypto.randomUUID();
-const fail=(res,status,message)=>res.status(status).json({success:false,message});
+const fail=(res,status,message,code)=>res.status(status).json({success:false,message,...(code?{code}:{})});
 
 export function registerInstitutionFeeRefunds({app,database,requireAuth,requireMfaProduction,enforceSameOrigin,getInstitutionMembership,hasInstitutionFeature}){
  database.exec(`
