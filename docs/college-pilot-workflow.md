@@ -28,6 +28,22 @@ An institution's `approved` or `rejected` status is only an administrative workf
 
 Pilot-interest forms must contain only a college name, general role/population/workflow preferences, and a short non-sensitive note. Never enter student names, identity numbers, document images, OTPs, passwords, or other sensitive personal data in the interest form.
 
+
+## Institution partnership and connection gate
+
+The Owner/Admin dashboard now has an Institution Partnership Verification panel. It keeps these states separate:
+- Institution identity (AISHE code, official HTTPS website, address, and independently checked evidence).
+- Authorized representative (name, designation, official institutional-domain email, and independently checked authority evidence).
+- Signed partnership agreement (agreement reference and verification evidence).
+- Subscription/payment (a pilot is explicitly not a paid subscription; an active paid plan requires a separately verified payment reference and amount).
+- Technical connection (cannot be marked connected until the preceding identity, representative, agreement and subscription gates pass).
+
+Each check stores an append-only evidence reference, outcome, operator and timestamp. The evidence reference is a pointer to the source record, not proof by itself. The SecureID owner must independently inspect official sources, contact the institution through an independently obtained official channel, review the signed agreement, and confirm settled funds in the bank/payment provider before recording a verified outcome. Never record an institution as verified based only on a typed college name, an email-domain match, a screenshot, or an unverified payment receipt.
+
+The institution admin can view their institution's partnership status from an authenticated, MFA-protected endpoint. No public institution self-approval or self-role assignment is provided. Selecting API/ERP/CSV as an integration mode is a planning label only; a technical connection is not complete until the corresponding real integration has been tested and its evidence recorded.
+
+Live payment gateway collection and automatic AISHE/UGC/AICTE verification are not enabled by this module. Payment verification is a controlled manual check for the current zero-budget setup. Do not claim government verification or automated institutional validation. Legal review, data-processing agreement, retention/deletion policy, and the two-account cross-tenant acceptance test remain required before production use with real student data.
+
 ## Not yet ready for real college data
 
 Before inviting real institutions or uploading real student documents, complete and review:
