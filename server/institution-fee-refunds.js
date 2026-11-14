@@ -41,11 +41,12 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
    const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","finance_manager","accounts"]);if(!m)return;
    const studentOnly=false;
    const payments=database.prepare(`
-    SELECT p.id,p.invoice_id AS invoiceId,p.amount_paise AS amountPaise,p.method,p.reference,p.created_at AS createdAt,
+    SELECT p.id,p.invoice_id AS invoiceId,p.student_user_id AS studentUserId,u.email AS studentEmail,p.amount_paise AS amountPaise,p.method,p.reference,p.created_at AS createdAt,
       i.fee_head AS feeHead,COALESCE(SUM(r.amount_paise),0) AS reservedRefundPaise,
       p.amount_paise-COALESCE(SUM(r.amount_paise),0) AS refundablePaise
     FROM institution_fee_payments p
     JOIN institution_fee_invoices i ON i.id=p.invoice_id AND i.institution_id=p.institution_id
+    JOIN users u ON u.id=p.student_user_id
     LEFT JOIN institution_fee_refund_requests r ON r.payment_id=p.id AND r.status IN ('requested','approved','recorded')
     WHERE p.institution_id=? ${studentOnly?"AND p.student_user_id=?":""}
     GROUP BY p.id ORDER BY p.created_at DESC LIMIT 500
