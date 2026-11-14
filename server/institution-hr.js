@@ -69,7 +69,7 @@ export function registerInstitutionHR({app,database,requireAuth,requireMfaProduc
  app.get("/api/institutions/:institutionId/hr/payroll.csv",requireAuth,requireMfaProduction,(req,res,next)=>{try{
   const i=clean(req.params.institutionId,128);if(!member(req,res,i,["institution_admin"]))return;
   const rows=database.prepare("SELECT s.employee_code,s.full_name,s.email,p.period_start,p.period_end,p.gross_paise,p.deductions_paise,p.net_paise,p.status,p.payment_method,p.payment_reference,p.paid_at FROM institution_staff_payroll p JOIN institution_staff s ON s.id=p.staff_id WHERE p.institution_id=? ORDER BY p.period_start DESC,s.full_name").all(i);
-  const quote=v=>'"'+String(v??"").replace(/"/g,'""')+'"',csv=[["employee_code","staff_name","email","period_start","period_end","gross_paise","deductions_paise","net_paise","status","payment_method","payment_reference","paid_at"],...rows.map(r=>Object.values(r))].map(row=>row.map(quote).join(",")).join("\r\n");
+  const quote=v=>{let value=String(v??"");if(/^[=+\\-@\\t\\r]/.test(value))value="\'"+value;return '"' + value.replace(/"/g,'""') + '"' ;},csv=[["employee_code","staff_name","email","period_start","period_end","gross_paise","deductions_paise","net_paise","status","payment_method","payment_reference","paid_at"],...rows.map(r=>Object.values(r))].map(row=>row.map(quote).join(",")).join("\r\n");
   res.setHeader("Cache-Control","private, no-store");res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition",'attachment; filename="secureid-payroll.csv"');return res.send(csv);
  }catch(e){next(e);}});
  app.post("/api/institutions/:institutionId/staff/:staffId/link-account",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
