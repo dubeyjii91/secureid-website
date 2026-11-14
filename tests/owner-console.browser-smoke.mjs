@@ -102,7 +102,7 @@ try {
   await page.getByText("Institution membership provisioned and audit entry recorded.").waitFor();
 
   await page.getByRole("button", { name: "View selected institution audit" }).click();
-  await page.getByText("membership provisioned").waitFor();
+  await page.getByRole("cell",{name:"membership provisioned"}).waitFor();
 
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Suspend" }).last().click();
