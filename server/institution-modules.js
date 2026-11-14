@@ -47,8 +47,10 @@ export function registerInstitutionModules({
     WHEN NOT EXISTS (
       SELECT 1 FROM institution_courses c JOIN institution_memberships m
         ON m.institution_id=c.institution_id AND m.user_id=NEW.student_user_id
+      LEFT JOIN institution_student_profiles p
+        ON p.institution_id=c.institution_id AND p.user_id=NEW.student_user_id
       WHERE c.id=NEW.course_id AND c.institution_id=NEW.institution_id
-        AND m.role='student' AND m.status='active'
+        AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'
     )
     BEGIN SELECT RAISE(ABORT,'INVALID_INSTITUTION_STUDENT_ENROLLMENT'); END;
 
@@ -268,7 +270,7 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
       const courseId=safeText(req.body?.courseId,128),studentUserId=safeText(req.body?.studentUserId,128);
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
-      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!course||!student)return fail(res,400,"Choose a course and an active student from this institution.");
       const existing=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE course_id=? AND student_user_id=?").get(courseId,studentUserId);
       if(existing?.status==="enrolled")return fail(res,409,"This student is already enrolled in the selected course.");
@@ -353,6 +355,8 @@ export function registerInstitutionModules({
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
       const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
       if(!course||!student)return fail(res,404,"Course or active student membership was not found.");
+      const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=? AND student_user_id=? AND status='enrolled'").get(institutionId,courseId,studentUserId);
+      if(!enrollment)return fail(res,409,"The student must be actively enrolled in this course before attendance can be marked.");
       const now=iso(),attendanceId=id();
       database.prepare(`INSERT INTO institution_attendance(id,institution_id,course_id,student_user_id,attendance_date,status,marked_by,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(course_id,student_user_id,attendance_date) DO UPDATE SET status=excluded.status,marked_by=excluded.marked_by,updated_at=excluded.updated_at`)
@@ -460,6 +464,8 @@ export function registerInstitutionModules({
       const assessment=database.prepare("SELECT id,total_marks_hundredths AS totalMarks FROM institution_assessments WHERE id=? AND institution_id=?").get(assessmentId,institutionId);
       const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
       if(!assessment||!student||!Number.isFinite(marks)||marks<0||Math.round(marks*100)!==marks*100||Math.round(marks*100)>Number(assessment.totalMarks))return fail(res,400,"Choose an active student and enter marks within the assessment maximum.");
+      const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=(SELECT course_id FROM institution_assessments WHERE id=? AND institution_id=?) AND student_user_id=? AND status='enrolled'").get(institutionId,assessmentId,institutionId,studentUserId);
+      if(!enrollment)return fail(res,409,"The student must be actively enrolled in the assessment course before marks can be recorded.");
       const now=iso(),resultId=id(),marksHundredths=Math.round(marks*100);
       database.prepare(`INSERT INTO institution_assessment_results(id,institution_id,assessment_id,student_user_id,marks_hundredths,recorded_by,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,student_user_id) DO UPDATE SET marks_hundredths=excluded.marks_hundredths,recorded_by=excluded.recorded_by,updated_at=excluded.updated_at`)
