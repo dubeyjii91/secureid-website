@@ -45,7 +45,7 @@ test("institution reports are admin-only, tenant-scoped, auditable and CSV-formu
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE action='report_exported'").get().n,1);
  response=await request("admin","/api/institutions/college/reports/unknown.csv");assert.equal(response.status,404);
  response=await request("admin","/api/institutions/college/reports/hostel.csv");assert.equal(response.status,200);assert.match(await response.text(),/North Block/);
- response=await request("admin","/api/institutions/college/reports/hr.csv");assert.equal(response.status,200);assert.match(await response.text(),/EMP-01/);assert.match(await response.text(),/present/);
+ response=await request("admin","/api/institutions/college/reports/hr.csv");assert.equal(response.status,200);const hrCsv=await response.text();assert.match(hrCsv,/EMP-01/);assert.match(hrCsv,/present/);
  response=await request("admin","/api/institutions/college/reports/payroll.csv");assert.equal(response.status,200);assert.match(await response.text(),/UTR-001/);
  response=await request("student","/api/institutions/college/reports/hostel.csv");assert.equal(response.status,403);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE action='report_exported'").get().n,4);
