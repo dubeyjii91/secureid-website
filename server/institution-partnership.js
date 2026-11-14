@@ -259,20 +259,30 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       if (!Number.isSafeInteger(paidAmount) || paidAmount !== link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
       const timestamp = now();
       const webhookEventId = eventId || crypto.createHash("sha256").update(raw).digest("hex");
-      // SQLite's node:sqlite constraint errors do not expose a stable SQLITE_CONSTRAINT
-      // code across supported Node releases. INSERT OR IGNORE makes duplicate delivery
-      // detection deterministic and keeps all other writes behind the idempotency gate.
-      const insertedEvent = database.prepare(
-        "INSERT OR IGNORE INTO institution_payment_webhook_events(event_id,event_type,provider_link_id,received_at) VALUES(?,?,?,?)"
-      ).run(webhookEventId,eventType,paymentLink.id,timestamp);
-      if (Number(insertedEvent.changes) === 0) return res.status(200).json({success:true,duplicate:true});
-      database.prepare("UPDATE institution_payment_links SET status='paid',paid_at=? WHERE provider_link_id=? AND status<>'paid'").run(timestamp,paymentLink.id);
-      database.prepare("UPDATE institution_partnership_profiles SET payment_status='verified',payment_verified_at=?,updated_at=? WHERE institution_id=?")
-        .run(timestamp,timestamp,link.institution_id);
-      database.prepare("UPDATE institution_subscriptions SET status='active',starts_at=COALESCE(starts_at,?),updated_at=? WHERE institution_id=? AND status='past_due'")
-        .run(timestamp,timestamp,link.institution_id);
-      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'payment_confirmed_by_gateway',?,?)")
-        .run(id(),link.institution_id,link.created_by,JSON.stringify({provider:"razorpay",paymentLinkId:paymentLink.id,amountPaidPaise:paidAmount}),timestamp);
+      // Claim the event and apply every settlement write atomically. SQLite's node:sqlite
+      // constraint error codes vary across Node releases, so INSERT OR IGNORE provides
+      // deterministic duplicate detection without relying on driver-specific error text.
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const insertedEvent = database.prepare(
+          "INSERT OR IGNORE INTO institution_payment_webhook_events(event_id,event_type,provider_link_id,received_at) VALUES(?,?,?,?)"
+        ).run(webhookEventId,eventType,paymentLink.id,timestamp);
+        if (Number(insertedEvent.changes) === 0) {
+          database.exec("COMMIT");
+          return res.status(200).json({success:true,duplicate:true});
+        }
+        database.prepare("UPDATE institution_payment_links SET status='paid',paid_at=? WHERE provider_link_id=? AND status<>'paid'").run(timestamp,paymentLink.id);
+        database.prepare("UPDATE institution_partnership_profiles SET payment_status='verified',payment_verified_at=?,updated_at=? WHERE institution_id=?")
+          .run(timestamp,timestamp,link.institution_id);
+        database.prepare("UPDATE institution_subscriptions SET status='active',starts_at=COALESCE(starts_at,?),updated_at=? WHERE institution_id=? AND status='past_due'")
+          .run(timestamp,timestamp,link.institution_id);
+        database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'payment_confirmed_by_gateway',?,?)")
+          .run(id(),link.institution_id,link.created_by,JSON.stringify({provider:"razorpay",paymentLinkId:paymentLink.id,amountPaidPaise:paidAmount}),timestamp);
+        database.exec("COMMIT");
+      } catch(error) {
+        try { database.exec("ROLLBACK"); } catch {}
+        throw error;
+      }
       return res.status(200).json({success:true,recorded:true});
     } catch(error) { next(error); }
   });
