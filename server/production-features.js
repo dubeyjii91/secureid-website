@@ -8,6 +8,7 @@ import { enforceShareRateLimit } from "./share-rate-limit.js";
 import { registerInstitutionModules } from "./institution-modules.js";
 import { registerStudentAdmissions } from "./student-admissions.js";
 import { registerSecureIdMonetization } from "./secureid-monetization.js";
+import { registerInstitutionPartnership } from "./institution-partnership.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
@@ -2742,6 +2743,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   registerInstitutionModules({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
+  registerInstitutionPartnership({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
   registerStudentAdmissions({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, encrypt: value => jsonEncrypt(value,key), decrypt: value => jsonDecrypt(value,key) });
   registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
 
