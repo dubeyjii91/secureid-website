@@ -266,8 +266,8 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
         .run(timestamp,timestamp,link.institution_id);
       database.prepare("UPDATE institution_subscriptions SET status='active',starts_at=COALESCE(starts_at,?),updated_at=? WHERE institution_id=? AND status='past_due'")
         .run(timestamp,timestamp,link.institution_id);
-      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,NULL,'payment_confirmed_by_gateway',?,?)")
-        .run(id(),link.institution_id,JSON.stringify({provider:"razorpay",paymentLinkId:paymentLink.id,amountPaidPaise:paidAmount}),timestamp);
+      database.prepare("INSERT INTO institution_partnership_audit(id,institution_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,'payment_confirmed_by_gateway',?,?)")
+        .run(id(),link.institution_id,link.created_by,JSON.stringify({provider:"razorpay",paymentLinkId:paymentLink.id,amountPaidPaise:paidAmount}),timestamp);
       return res.status(200).json({success:true,recorded:true});
     } catch(error) { next(error); }
   });
