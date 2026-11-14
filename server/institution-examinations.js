@@ -113,13 +113,14 @@ export function registerInstitutionExaminations({app,database,requireAuth,requir
   const i=clean(req.params.institutionId,128),examId=clean(req.params.examId,128),m=member(req,res,i,["student"]);if(!m)return;
   const row=database.prepare(`
    SELECT e.id AS examId,e.title AS examTitle,e.academic_year AS academicYear,e.term,e.starts_at AS startsAt,e.ends_at AS endsAt,e.status AS examStatus,
-    ins.name AS institutionName,r.id AS registrationId,r.roll_number AS rollNumber,s.venue,s.room,s.seat_number AS seatNumber,s.assigned_at AS seatAssignedAt
+    ins.name AS institutionName,r.id AS registrationId,r.roll_number AS rollNumber,r.status AS registrationStatus,s.venue,s.room,s.seat_number AS seatNumber,s.assigned_at AS seatAssignedAt
    FROM institution_exams e JOIN institutions ins ON ins.id=e.institution_id
    JOIN institution_exam_registrations r ON r.exam_id=e.id AND r.institution_id=e.institution_id
    LEFT JOIN institution_exam_seating s ON s.registration_id=r.id AND s.exam_id=e.id AND s.institution_id=e.institution_id
-   WHERE e.id=? AND e.institution_id=? AND r.student_user_id=? AND r.status='approved'
+   WHERE e.id=? AND e.institution_id=? AND r.student_user_id=?
   `).get(examId,i,req.user.id);
-  if(!row)return fail(res,404,"Approved examination registration was not found.");
+  if(!row)return fail(res,404,"Examination registration was not found.");
+  if(row.registrationStatus!=="approved")return fail(res,409,"Your examination registration must be approved before an admit card can be issued.");
   if(row.examStatus==="cancelled")return fail(res,409,"Admit cards are unavailable for a cancelled examination.");
   if(!row.rollNumber||!row.venue||!row.room||!row.seatNumber)return fail(res,409,"Your admit card is not ready. The institution must approve your registration, assign a roll number and allocate your examination seat.");
   const subjects=database.prepare("SELECT subject_code AS subjectCode,title,exam_date AS examDate,starts_at AS startsAt,ends_at AS endsAt,venue FROM institution_exam_subjects WHERE exam_id=? AND institution_id=? ORDER BY exam_date,starts_at").all(examId,i);
