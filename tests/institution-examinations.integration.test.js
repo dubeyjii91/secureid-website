@@ -109,5 +109,5 @@ test("published examination result statement is student-private and printable",a
  const path=`/api/institutions/college/examinations/${exam.id}/result-statement`;
  r=await request("other",path);assert.equal(r.status,403);
  r=await request("student",path);assert.equal(r.status,200);const body=await r.json();assert.equal(body.resultStatement.obtainedMarksHundredths,8250);assert.equal(body.resultStatement.percentage,82.5);assert.equal(body.resultStatement.result,"PASS");
- r=await request("student",path+"?format=print");assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\\/html/);const html=await r.text();assert.match(html,/Examination result statement/);assert.match(html,/R-RESULT-1/);assert.match(html,/82.50%/);assert.match(html,/not a university-issued consolidated transcript/i);
+ r=await request("student",path+"?format=print");assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\/html/);const html=await r.text();assert.match(html,/Examination result statement/);assert.match(html,/R-RESULT-1/);assert.match(html,/82.50%/);assert.match(html,/not a university-issued consolidated transcript/i);
 });
