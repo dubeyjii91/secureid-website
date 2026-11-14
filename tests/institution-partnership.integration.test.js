@@ -136,3 +136,27 @@ test("Razorpay payment webhook requires a valid signature and activates the paid
   const duplicate=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_paid_001"}});
   assert.equal(duplicate.status,200);
 });
+
+
+test("API and ERP modes cannot be declared connected without an actual integration handshake",async t=>{
+  const {request}=await setup(t);
+  await request("/api/admin/institutions/college-a/partnership",{method:"PUT",body:JSON.stringify({
+    aisheCode:"U-1234",officialWebsite:"https://college.example",officialEmailDomain:"college.example",
+    address:"Example Road",representativeName:"Principal Test",representativeEmail:"principal@college.example",
+    agreementReference:"AGR-2026-001",paymentReference:"UTR-TEST-123456",paymentAmountPaise:250000,connectionMode:"api"
+  })});
+  for(const [checkType,evidenceReference] of [
+    ["institution_identity","AISHE-RECORD-001"],
+    ["representative_authority","OFFICIAL-AUTHORITY-001"],
+    ["partnership_agreement","SIGNED-MOU-001"],
+    ["subscription_payment","BANK-UTR-001"]
+  ]){
+    const response=await request("/api/admin/institutions/college-a/partnership/checks",{method:"POST",body:JSON.stringify({checkType,outcome:"verified",evidenceReference})});
+    assert.equal(response.status,200);
+  }
+  const response=await request("/api/admin/institutions/college-a/partnership/checks",{method:"POST",body:JSON.stringify({
+    checkType:"technical_connection",outcome:"verified",evidenceReference:"API-CLAIM-001"
+  })});
+  assert.equal(response.status,409);
+  assert.match((await response.json()).message,/real authenticated integration handshake/i);
+});
