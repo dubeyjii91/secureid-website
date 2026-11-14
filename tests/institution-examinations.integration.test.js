@@ -86,7 +86,7 @@ test("admit cards are student-private and require approval, roll number, seat an
  r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,409);
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:registration.id,venue:"Main Block",room:"101",seatNumber:"A-01"})});assert.equal(r.status,200);
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,403);
- r=await request("other",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,404);
+ r=await request("other",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,403);
  r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,200);
  const body=await r.json();assert.equal(body.admitCard.rollNumber,"RVS-ADMIT-001");assert.equal(body.admitCard.seatNumber,"A-01");assert.equal(body.admitCard.subjects.length,1);assert.equal(body.admitCard.institutionName,"College");
 });
