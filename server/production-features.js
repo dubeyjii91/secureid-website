@@ -12,6 +12,7 @@ import { registerInstitutionExaminations } from "./institution-examinations.js";
 import { registerInstitutionGrievances } from "./institution-grievances.js";
 import { registerInstitutionCertificates } from "./institution-certificates.js";
 import { registerInstitutionFeeGateway } from "./institution-fee-gateway.js";
+import { registerInstitutionReports } from "./institution-reports.js";
 import { registerStudentAdmissions } from "./student-admissions.js";
 import { registerSecureIdMonetization } from "./secureid-monetization.js";
 import { registerInstitutionPartnership } from "./institution-partnership.js";
@@ -2759,6 +2760,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   registerInstitutionGrievances({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionCertificates({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionFeeGateway({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
+  registerInstitutionReports({ app, database, requireAuth, requireMfaProduction, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionPartnership({ app, database, requireAuth, enforceSameOrigin });
   registerStudentAdmissions({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, encrypt: value => jsonEncrypt(value,key), decrypt: value => jsonDecrypt(value,key) });
   registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
