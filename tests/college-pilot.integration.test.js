@@ -631,7 +631,7 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(subscriptionUpdate.status, 200, await subscriptionUpdate.clone().text());
   // Active paid entitlements now require an independently verified payment record.
-  database.prepare("INSERT INTO institution_partnership_profiles(institution_id,payment_status) VALUES('college-a','verified') ON CONFLICT(institution_id) DO UPDATE SET payment_status='verified'").run();
+  database.prepare("INSERT INTO institution_partnership_profiles(institution_id,payment_status,created_at,updated_at) VALUES('college-a','verified',?,?) ON CONFLICT(institution_id) DO UPDATE SET payment_status='verified',updated_at=excluded.updated_at").run(new Date().toISOString(),new Date().toISOString());
   const hostelBlockedByEntitlement = await fetch(base + "/api/institutions/hostel-inventory?institutionId=college-a", { headers: headers("user-c") });
   assert.equal(hostelBlockedByEntitlement.status, 403);
   const scholarshipStillEnabled = await fetch(base + "/api/institutions/scholarship-workspace?institutionId=college-a", { headers: headers("user-c") });
