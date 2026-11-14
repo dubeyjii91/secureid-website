@@ -168,7 +168,7 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
     } catch(error) { next(error); }
   });
 
-  app.get("/api/institutions/:institutionId/partnership-status", requireAuth, requireMfaProduction, (req,res,next) => {
+  app.get("/api/institutions/:institutionId/partnership-status", requireAuth, requireMfa, (req,res,next) => {
     try {
       const institutionId = clean(req.params.institutionId,128);
       const member = database.prepare("SELECT role,status FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,req.user.id);
