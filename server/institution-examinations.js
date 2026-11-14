@@ -37,6 +37,7 @@ export function registerInstitutionExaminations({app,database,requireAuth,requir
    actor_user_id TEXT NOT NULL REFERENCES users(id),exam_id TEXT,action TEXT NOT NULL,details_json TEXT NOT NULL,created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_exam_registrations_student ON institution_exam_registrations(institution_id,student_user_id,status);
+  CREATE TABLE IF NOT EXISTS institution_exam_seating(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,exam_id TEXT NOT NULL REFERENCES institution_exams(id) ON DELETE CASCADE,registration_id TEXT NOT NULL UNIQUE REFERENCES institution_exam_registrations(id) ON DELETE CASCADE,venue TEXT NOT NULL,room TEXT NOT NULL,seat_number TEXT NOT NULL,assigned_by TEXT NOT NULL REFERENCES users(id),assigned_at TEXT NOT NULL,UNIQUE(exam_id,venue,room,seat_number));
  `);
  function member(req,res,i,roles){const m=getInstitutionMembership(req.user.id,i);if(!m||m.status!=="active"||!roles.includes(m.role)){fail(res,403,"Your institution role does not allow this examination action.");return null;}if(!hasInstitutionFeature(i,"academics")){fail(res,403,"Academics entitlement is required.");return null;}return m;}
  function audit(i,u,e,a,d={}){database.prepare("INSERT INTO institution_exam_audit(id,institution_id,actor_user_id,exam_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(id(),i,u,e||null,a,JSON.stringify(d),now());}
@@ -98,4 +99,14 @@ export function registerInstitutionExaminations({app,database,requireAuth,requir
   const ts=now();database.prepare("INSERT INTO institution_exam_marks(id,institution_id,exam_id,subject_id,student_user_id,marks_hundredths,entered_by,entered_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(subject_id,student_user_id) DO UPDATE SET marks_hundredths=excluded.marks_hundredths,entered_by=excluded.entered_by,updated_at=excluded.updated_at").run(id(),i,examId,subjectId,studentId,marks,req.user.id,ts,ts);
   audit(i,req.user.id,examId,"marks_recorded",{subjectId,studentId,marks});return res.json({success:true,marks});
  }catch(e){next(e);}});
+ app.post("/api/institutions/:institutionId/examinations/:examId/seating",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),examId=clean(req.params.examId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const registrationId=clean(req.body?.registrationId,128),venue=clean(req.body?.venue,120),room=clean(req.body?.room,80),seat=clean(req.body?.seatNumber,30);
+  const registration=database.prepare("SELECT id FROM institution_exam_registrations WHERE id=? AND institution_id=? AND exam_id=? AND status IN ('registered','approved')").get(registrationId,i,examId);
+  if(!registration)return fail(res,404,"Active examination registration not found.");
+  if(venue.length<2||room.length<1||seat.length<1)return fail(res,400,"Enter venue, room and seat number.");
+  const seatId=id(),ts=now();
+  database.prepare("INSERT INTO institution_exam_seating(id,institution_id,exam_id,registration_id,venue,room,seat_number,assigned_by,assigned_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(registration_id) DO UPDATE SET venue=excluded.venue,room=excluded.room,seat_number=excluded.seat_number,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at").run(seatId,i,examId,registrationId,venue,room,seat,req.user.id,ts);
+  audit(i,req.user.id,examId,"exam_seat_assigned",{registrationId,venue,room,seatNumber:seat});return res.json({success:true,seating:{registrationId,venue,room,seatNumber:seat,assignedAt:ts}});
+ }catch(e){if(String(e.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"This seat is already assigned to another student in the same examination.");next(e);}});
 }
