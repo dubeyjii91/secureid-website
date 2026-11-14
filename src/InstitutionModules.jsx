@@ -9,6 +9,7 @@ import InstitutionQueue from "./institution-modules/InstitutionQueue.jsx";
 import InstitutionLibrary from "./institution-modules/InstitutionLibrary.jsx";
 import InstitutionExaminations from "./institution-modules/InstitutionExaminations.jsx";
 import InstitutionGrievances from "./institution-modules/InstitutionGrievances.jsx";
+import InstitutionCertificates from "./institution-modules/InstitutionCertificates.jsx";
 
 const moduleCards = [
   { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"graduation" },
@@ -18,7 +19,8 @@ const moduleCards = [
   { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters and live student service flow.", icon:"clock" },
   { key:"Library", title:"Library", description:"Catalogue, book circulation, overdue returns and reservations.", icon:"book-open" },
   { key:"Examinations", title:"Examinations", description:"Exam schedules, registration, roll numbers, marks and results.", icon:"graduation-cap" },
-  { key:"Grievances", title:"Grievances & Helpdesk", description:"Student tickets, service deadlines, staff replies and resolution.", icon:"message-square" }
+  { key:"Grievances", title:"Grievances & Helpdesk", description:"Student tickets, service deadlines, staff replies and resolution.", icon:"message-square" },
+  { key:"Certificates", title:"Certificates", description:"Bonafide, character, transfer and fee-clearance certificate workflow.", icon:"file-check" }
 ];
 const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -111,6 +113,7 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Library"&&<InstitutionLibrary institutionId={institutionId} students={students}/>}
     {tab==="Examinations"&&<InstitutionExaminations institutionId={institutionId} students={students}/>}
     {tab==="Grievances"&&<InstitutionGrievances institutionId={institutionId}/>}
+    {tab==="Certificates"&&<InstitutionCertificates institutionId={institutionId}/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
   </section>;
 }
