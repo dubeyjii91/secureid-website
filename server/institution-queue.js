@@ -28,6 +28,20 @@ export function registerInstitutionQueue({ app, database, requireAuth, requireMf
       actor_user_id TEXT NOT NULL REFERENCES users(id), token_id TEXT, counter_id TEXT,
       action TEXT NOT NULL, details_json TEXT NOT NULL, created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS institution_service_appointments (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      counter_id TEXT NOT NULL REFERENCES institution_service_counters(id) ON DELETE CASCADE,
+      student_user_id TEXT NOT NULL REFERENCES users(id), scheduled_for TEXT NOT NULL,
+      purpose TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'requested' CHECK(status IN ('requested','confirmed','rejected','completed','cancelled','no_show')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, reviewed_by TEXT REFERENCES users(id), review_note TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_service_appointments_queue ON institution_service_appointments(institution_id,status,scheduled_for);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_service_appointment_slot ON institution_service_appointments(counter_id,scheduled_for) WHERE status IN ('requested','confirmed');
+    CREATE TABLE IF NOT EXISTS institution_appointment_audit (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      appointment_id TEXT NOT NULL REFERENCES institution_service_appointments(id) ON DELETE CASCADE,
+      actor_user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, details_json TEXT NOT NULL, created_at TEXT NOT NULL
+    );
   `);
 
   function memberFor(req, res, institutionId, roles) {
@@ -174,4 +188,77 @@ export function registerInstitutionQueue({ app, database, requireAuth, requireMf
       return res.json({success:true,status:nextStatus});
     } catch(error) { next(error); }
   });
+  app.get("/api/institutions/:institutionId/appointments", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=textValue(req.params.institutionId,128);
+      const member=memberFor(req,res,institutionId,["institution_admin","reviewer","read_only","student"]);
+      if(!member)return;
+      const studentOnly=member.role==="student";
+      const appointments=database.prepare(`
+        SELECT a.id,a.counter_id AS counterId,c.department,c.name AS counterName,a.scheduled_for AS scheduledFor,
+          a.purpose,a.status,a.created_at AS createdAt,a.updated_at AS updatedAt,a.review_note AS reviewNote,
+          u.email AS studentEmail
+        FROM institution_service_appointments a
+        JOIN institution_service_counters c ON c.id=a.counter_id AND c.institution_id=a.institution_id
+        JOIN users u ON u.id=a.student_user_id
+        WHERE a.institution_id=? ${studentOnly?"AND a.student_user_id=?":""}
+        ORDER BY a.scheduled_for DESC LIMIT 300
+      `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,appointments,canBook:studentOnly,canManage:["institution_admin","reviewer"].includes(member.role)});
+    }catch(error){next(error);}
+  });
+
+  app.post("/api/institutions/:institutionId/appointments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=textValue(req.params.institutionId,128);
+      if(!memberFor(req,res,institutionId,["student"]))return;
+      const counterId=textValue(req.body?.counterId,128),purpose=textValue(req.body?.purpose,180),rawTime=textValue(req.body?.scheduledFor,50);
+      const scheduledMs=Date.parse(rawTime);
+      if(!Number.isFinite(scheduledMs)||scheduledMs<Date.now()+15*60*1000||scheduledMs>Date.now()+90*24*60*60*1000)
+        return fail(res,400,"Choose an appointment at least 15 minutes from now and within the next 90 days.");
+      if(purpose.length<3)return fail(res,400,"Enter the purpose of your appointment.");
+      const counter=database.prepare("SELECT id,status FROM institution_service_counters WHERE id=? AND institution_id=?").get(counterId,institutionId);
+      if(!counter)return fail(res,404,"Service counter was not found.");
+      if(counter.status!=="active")return fail(res,409,"This service counter is paused and cannot accept appointments.");
+      const appointmentId=id(),timestamp=now(),scheduledFor=new Date(scheduledMs).toISOString();
+      try{
+        database.prepare("INSERT INTO institution_service_appointments(id,institution_id,counter_id,student_user_id,scheduled_for,purpose,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
+          .run(appointmentId,institutionId,counterId,req.user.id,scheduledFor,purpose,timestamp,timestamp);
+      }catch(error){
+        if(String(error.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"This appointment slot is already requested or confirmed. Choose another time.");
+        throw error;
+      }
+      database.prepare("INSERT INTO institution_appointment_audit(id,institution_id,appointment_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run(id(),institutionId,appointmentId,req.user.id,"appointment_requested",JSON.stringify({counterId,scheduledFor,purpose}),timestamp);
+      return res.status(201).json({success:true,appointment:{id:appointmentId,counterId,scheduledFor,purpose,status:"requested",createdAt:timestamp}});
+    }catch(error){next(error);}
+  });
+
+  app.patch("/api/institutions/:institutionId/appointments/:appointmentId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=textValue(req.params.institutionId,128),appointmentId=textValue(req.params.appointmentId,128);
+      const member=memberFor(req,res,institutionId,["institution_admin","reviewer","student"]);
+      if(!member)return;
+      const appointment=database.prepare("SELECT id,counter_id AS counterId,student_user_id AS studentUserId,status FROM institution_service_appointments WHERE id=? AND institution_id=?").get(appointmentId,institutionId);
+      if(!appointment)return fail(res,404,"Service appointment was not found.");
+      const nextStatus=textValue(req.body?.status,20),reviewNote=textValue(req.body?.reviewNote,300);
+      if(member.role==="student"){
+        if(appointment.studentUserId!==req.user.id||!["requested","confirmed"].includes(appointment.status)||nextStatus!=="cancelled")
+          return fail(res,403,"Students can only cancel their own requested or confirmed appointments.");
+      }else{
+        const allowed={requested:["confirmed","rejected"],confirmed:["completed","no_show","cancelled"]};
+        if(!(allowed[appointment.status]||[]).includes(nextStatus))return fail(res,409,"This appointment status transition is not allowed.");
+        if(["rejected","cancelled"].includes(nextStatus)&&reviewNote.length<4)return fail(res,400,"Add a short note explaining this appointment decision.");
+      }
+      const timestamp=now();
+      const changed=database.prepare("UPDATE institution_service_appointments SET status=?,reviewed_by=?,review_note=?,updated_at=? WHERE id=? AND institution_id=? AND status=?")
+        .run(nextStatus,member.role==="student"?null:req.user.id,reviewNote||null,timestamp,appointmentId,institutionId,appointment.status);
+      if(!changed.changes)return fail(res,409,"Appointment was updated by another request. Refresh and try again.");
+      database.prepare("INSERT INTO institution_appointment_audit(id,institution_id,appointment_id,actor_user_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run(id(),institutionId,appointmentId,req.user.id,"appointment_status_changed",JSON.stringify({from:appointment.status,to:nextStatus,reviewNote:reviewNote||null}),timestamp);
+      return res.json({success:true,status:nextStatus});
+    }catch(error){next(error);}
+  });
+
 }
