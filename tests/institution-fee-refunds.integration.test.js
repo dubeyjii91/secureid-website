@@ -40,7 +40,7 @@ test("refund requests reserve payment balance, require independent review and re
  let data=await response.json();assert.equal(data.payments[0].refundablePaise,100000);assert.equal(data.payments[0].studentEmail,"student@college.test");
  response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({studentUserId:"student",amountPaise:30000,reason:"Student withdrew before the final course start date."})});
  assert.equal(response.status,201);const refund=(await response.json()).refund;
- response=await request("student","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({studentUserId:"student",amountPaise:30000,reason:"Student withdrew before the final course start date."})});
+ response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0001"},body:JSON.stringify({studentUserId:"student",amountPaise:30000,reason:"Student withdrew before the final course start date."})});
  assert.equal(response.status,200);assert.equal((await response.json()).duplicate,true);
  response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0002"},body:JSON.stringify({studentUserId:"student",amountPaise:80000,reason:"Second refund request would exceed the remaining payment balance."})});
  assert.equal(response.status,409);
