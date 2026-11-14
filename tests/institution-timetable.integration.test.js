@@ -34,11 +34,12 @@ test("weekly timetable persists, rejects overlaps, enforces tenant roles and rec
  assert.equal(r.status,201);const course=(await r.json()).course;
  r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:00",endsAt:"10:00",room:"A-101"})});
  assert.equal(r.status,201);const entry=(await r.json()).entry;
- r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:30",endsAt:"10:30"})});
+ r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:30",endsAt:"10:30",room:"A-101"})});
  assert.equal(r.status,409);
- r=await request("student","/api/institutions/college/timetable");assert.equal(r.status,200);const rows=(await r.json()).entries;assert.equal(rows.length,1);assert.equal(rows[0].room,"A-101");
+ r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:30",endsAt:"10:30",room:"B-202"})});assert.equal(r.status,201);
+ r=await request("student","/api/institutions/college/timetable");assert.equal(r.status,200);const rows=(await r.json()).entries;assert.equal(rows.length,2);assert.equal(rows[0].room,"A-101");
  r=await request("other","/api/institutions/college/timetable");assert.equal(r.status,403);
  r=await request("student",`/api/institutions/college/timetable/${entry.id}`,{method:"DELETE"});assert.equal(r.status,403);
  r=await request("admin",`/api/institutions/college/timetable/${entry.id}`,{method:"DELETE"});assert.equal(r.status,200);
- assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='timetable'").get().n,2);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='timetable'").get().n,3);
 });
