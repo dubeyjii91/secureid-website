@@ -42,6 +42,15 @@ try {
     if (path === "/api/admin/activity" && method === "GET") return route.fulfill(json({ events: [] }));
     if (path === "/api/admin/notifications" && method === "GET") return route.fulfill(json({ notifications: [], totals: { total: 0, pending: 0, sent: 0, failed: 0 } }));
     if (path === "/api/admin/institutions" && method === "GET") return route.fulfill(json({ institutions: state.institutions, memberships: state.memberships }));
+    if (path === "/api/admin/institutions/institution-1/subscription" && method === "GET") return route.fulfill(json({ subscription: { planKey: "pilot", status: "pilot", features: ["hostel","scholarship","student_submissions"], startsAt: null, endsAt: null } }));
+    if (path === "/api/admin/institutions/institution-1/partnership" && method === "GET") return route.fulfill(json({
+      institution: { id: "institution-1", name: "SecureID Browser Test College" },
+      profile: { aisheCode: "", institutionType: "", affiliation: "", officialWebsite: "", officialEmailDomain: "", address: "", representativeName: "", representativeTitle: "", representativeEmail: "", agreementReference: "", identityStatus: "pending", representativeStatus: "pending", agreementStatus: "draft", paymentStatus: "not_required", paymentReference: "", paymentAmountPaise: null, connectionMode: "dashboard", connectionStatus: "not_connected", notes: "" },
+      subscription: { planKey: "pilot", status: "pilot", startsAt: null, endsAt: null },
+      members: { total: state.memberships.length, active: state.memberships.filter(item => item.status === "active").length },
+      readiness: { identityVerified: false, representativeVerified: false, agreementSigned: false, subscriptionCleared: true, canConnect: false, connected: false },
+      evidence: [], audit: []
+    }));
     if (path === "/api/admin/institutions" && method === "POST") {
       const body = request.postDataJSON();
       const institution = { id: "institution-1", name: body.name };
