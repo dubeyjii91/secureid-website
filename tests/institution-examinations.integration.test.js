@@ -55,3 +55,19 @@ test("exam roles, marks bounds and publication completeness are enforced",async 
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"marks_entry"})});assert.equal(r.status,200);
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"published"})});assert.equal(r.status,409);
 });
+
+
+test("exam seating prevents duplicate room seats across registered students",async t=>{
+ const {db,request}=await setup(t);
+ db.prepare("INSERT INTO users VALUES('student-two','student-two@test')").run();
+ db.prepare("INSERT INTO institution_memberships VALUES('s2','college','student-two','student','active')").run();
+ let r=await request("admin","/api/institutions/college/examinations",{method:"POST",body:JSON.stringify({title:"Final Exam",academicYear:"2026-27",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-10T17:00:00Z",feeClearanceRequired:false})});
+ const exam=(await r.json()).exam;
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/subjects`,{method:"POST",body:JSON.stringify({subjectCode:"CS1",title:"Programming",examDate:"2026-12-01",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-01T12:00:00Z",totalMarks:100,passingMarks:40})});assert.equal(r.status,201);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"registration_open"})});assert.equal(r.status,200);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/register`,{method:"POST",body:"{}"});assert.equal(r.status,201);
+ r=await request("student-two",`/api/institutions/college/examinations/${exam.id}/register`,{method:"POST",body:"{}"});assert.equal(r.status,201);
+ const regs=db.prepare("SELECT id FROM institution_exam_registrations WHERE exam_id=? ORDER BY student_user_id").all(exam.id);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:regs[0].id,venue:"Main Block",room:"Room 101",seatNumber:"A-01"})});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:regs[1].id,venue:"Main Block",room:"Room 101",seatNumber:"A-01"})});assert.equal(r.status,409);
+});
