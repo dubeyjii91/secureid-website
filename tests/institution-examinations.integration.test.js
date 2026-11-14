@@ -71,3 +71,22 @@ test("exam seating prevents duplicate room seats across registered students",asy
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:regs[0].id,venue:"Main Block",room:"Room 101",seatNumber:"A-01"})});assert.equal(r.status,200);
  r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:regs[1].id,venue:"Main Block",room:"Room 101",seatNumber:"A-01"})});assert.equal(r.status,409);
 });
+
+
+test("admit cards are student-private and require approval, roll number, seat and timetable",async t=>{
+ const {db,request}=await setup(t);
+ let r=await request("admin","/api/institutions/college/examinations",{method:"POST",body:JSON.stringify({title:"Admit Card Exam",academicYear:"2026-27",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-10T17:00:00Z",feeClearanceRequired:false})});
+ assert.equal(r.status,201);const exam=(await r.json()).exam;
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/subjects`,{method:"POST",body:JSON.stringify({subjectCode:"CS101",title:"Programming",examDate:"2026-12-01",startsAt:"2026-12-01T09:00:00Z",endsAt:"2026-12-01T12:00:00Z",venue:"Main Block",totalMarks:100,passingMarks:40})});assert.equal(r.status,201);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/status`,{method:"PATCH",body:JSON.stringify({status:"registration_open"})});assert.equal(r.status,200);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/register`,{method:"POST",body:"{}"});assert.equal(r.status,201);
+ const registration=db.prepare("SELECT id FROM institution_exam_registrations WHERE exam_id=?").get(exam.id);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,409);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/registrations/${registration.id}`,{method:"PATCH",body:JSON.stringify({status:"approved",rollNumber:"RVS-ADMIT-001"})});assert.equal(r.status,200);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,409);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/seating`,{method:"POST",body:JSON.stringify({registrationId:registration.id,venue:"Main Block",room:"101",seatNumber:"A-01"})});assert.equal(r.status,200);
+ r=await request("admin",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,403);
+ r=await request("other",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,404);
+ r=await request("student",`/api/institutions/college/examinations/${exam.id}/admit-card`);assert.equal(r.status,200);
+ const body=await r.json();assert.equal(body.admitCard.rollNumber,"RVS-ADMIT-001");assert.equal(body.admitCard.seatNumber,"A-01");assert.equal(body.admitCard.subjects.length,1);assert.equal(body.admitCard.institutionName,"College");
+});
