@@ -98,5 +98,5 @@ test("course sections enforce institution scope, unique codes, capacity and stud
  r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student2",sectionId:section.id})});assert.equal(r.status,400);
  r=await request("admin",`/api/institutions/college/sections/${section.id}`,{method:"PATCH",body:JSON.stringify({status:"active",capacity:1})});assert.equal(r.status,200);
  assert.equal(db.prepare("SELECT section_id FROM institution_course_enrollments WHERE student_user_id='student'").get().section_id,section.id);
- assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_section'").get().n,2);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE entity_type='course_section'").get().n,3);
 });
