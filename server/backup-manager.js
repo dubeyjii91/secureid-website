@@ -34,7 +34,7 @@ function countBackupDocuments(filename){
   const actualHash=createHash("sha256").update(plaintext).digest("hex");
   if(actualHash!==payload.sha256)throw new Error("Encrypted backup checksum validation failed.");
   const content=JSON.parse(plaintext.toString("utf8"));
-  return Array.isArray(content.documents)?content.documents.length:0;
+  return {documentCount:Array.isArray(content.documents)?content.documents.length:0,databaseDocumentRecordCount:Number(content.databaseDocumentRecordCount||0)};
 }
 
 let status = { enabled:false, lastRunAt:null, lastSuccessAt:null, lastError:null, lastFile:null, alertingConfigured:isBackupAlertingConfigured() };
@@ -121,10 +121,18 @@ export function runEncryptedBackup(){
           .filter(entry=>entry.isFile() && entry.name.endsWith(".json") && entry.name.slice(0,-5).split("-").map(part=>part.length).join("-")==="8-4-4-4-12" && /^[a-f0-9-]+$/i.test(entry.name.slice(0,-5)))
           .map(entry=>({name:entry.name,data:readFileSync(path.join(documentDir,entry.name)).toString("base64")}))
       : [];
+    const snapshotDb=new DatabaseSync(tmp,{readOnly:true});
+    let databaseDocumentRecordCount=0;
+    try{
+      const hasDocumentsTable=snapshotDb.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='secure_documents'").get();
+      if(hasDocumentsTable)databaseDocumentRecordCount=Number(snapshotDb.prepare("SELECT COUNT(*) AS n FROM secure_documents WHERE deleted_at IS NULL").get().n);
+    }finally{snapshotDb.close();}
+    const documentStorageReconciled=databaseDocumentRecordCount===documents.length;
     const plaintext=Buffer.from(JSON.stringify({
       version:2,
       database:databaseBytes.toString("base64"),
-      documents
+      documents,
+      databaseDocumentRecordCount
     }),"utf8");
     const iv=randomBytes(12);
     const cipher=createCipheriv("aes-256-gcm",key,iv);
@@ -141,7 +149,7 @@ export function runEncryptedBackup(){
     const files=readdirSync(backupDir).filter(name=>name.endsWith(".backup.json")).map(name=>({name,mtime:statSync(path.join(backupDir,name)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime);
     for(const file of files.slice(retention)) rmSync(path.join(backupDir,file.name),{force:true});
     status={enabled:true,lastRunAt:Date.now(),lastSuccessAt:Date.now(),lastError:null,lastFile:out,alertingConfigured:isBackupAlertingConfigured()};
-    return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256,documentCount:documents.length};
+    return {success:true,file:out,bytes:plaintext.length,sha256:payload.sha256,documentCount:documents.length,databaseDocumentRecordCount,documentStorageReconciled};
   }catch(error){
     status={...status,enabled:true,lastRunAt:Date.now(),lastError:String(error?.message||error),alertingConfigured:isBackupAlertingConfigured()};
     void sendBackupAlert("SecureID encrypted backup failed","An automatic SecureID encrypted backup failed at "+new Date().toISOString()+". Review the production logs and backup status immediately.");
@@ -162,7 +170,9 @@ export function runEncryptedBackupRestoreDrill(){
     .sort((a,b)=>b.mtime-a.mtime);
   if(!candidates.length) throw new Error("No encrypted production backup is available for the restore drill.");
   const backup=candidates[0];
-  const sourceDocumentCount=countBackupDocuments(backup.fullPath);
+  const sourceCounts=countBackupDocuments(backup.fullPath);
+  const sourceDocumentCount=sourceCounts.documentCount;
+  const sourceDatabaseDocumentRecordCount=sourceCounts.databaseDocumentRecordCount;
   const tempRoot=mkdtempSync(path.join(tmpdir(),"secureid-restore-drill-"));
   const restoredDb=path.join(tempRoot,"restored.sqlite");
   const restoredDocuments=path.join(tempRoot,"documents");
@@ -179,19 +189,22 @@ export function runEncryptedBackupRestoreDrill(){
     if(!existsSync(restoredDb)) throw new Error("Isolated restore did not create a database.");
     const restored=new DatabaseSync(restoredDb,{readOnly:true});
     let tableCount=0;
+    let restoredDatabaseDocumentRecordCount=0;
     try{
       const integrity=restored.prepare("PRAGMA integrity_check").all();
       if(integrity.length!==1 || integrity[0].integrity_check!=="ok") throw new Error("Restored database failed SQLite integrity_check.");
       const tables=restored.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row=>row.name);
       if(!tables.includes("users")) throw new Error("Restored database is missing the users table.");
       tableCount=tables.length;
+      if(tables.includes("secure_documents"))restoredDatabaseDocumentRecordCount=Number(restored.prepare("SELECT COUNT(*) AS n FROM secure_documents WHERE deleted_at IS NULL").get().n);
     }finally{ restored.close(); }
     const restoredDocumentCount=existsSync(restoredDocuments)
       ? readdirSync(restoredDocuments).filter(name=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.json$/i.test(name)).length
       : 0;
-    const documentRestoreVerified=sourceDocumentCount>0 && restoredDocumentCount===sourceDocumentCount;
-    if(sourceDocumentCount>0 && !documentRestoreVerified)throw new Error("Document restore count mismatch: backup contains "+sourceDocumentCount+" files but restore recovered "+restoredDocumentCount+".");
-    const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,sourceDocumentCount,restoredDocumentCount,documentRestoreVerified,isolated:true};
+    const documentStorageReconciled=sourceDatabaseDocumentRecordCount===sourceDocumentCount && restoredDatabaseDocumentRecordCount===restoredDocumentCount;
+    const documentRestoreVerified=sourceDocumentCount>0 && documentStorageReconciled && restoredDocumentCount===sourceDocumentCount;
+    if(!documentStorageReconciled)throw new Error("Document storage reconciliation failed: backup DB records="+sourceDatabaseDocumentRecordCount+", backup blobs="+sourceDocumentCount+", restored DB records="+restoredDatabaseDocumentRecordCount+", restored blobs="+restoredDocumentCount+".");
+    const resultSummary={success:true,backup:path.basename(backup.fullPath),databaseIntegrity:"ok",tableCount,sourceDatabaseDocumentRecordCount,sourceDocumentCount,restoredDatabaseDocumentRecordCount,restoredDocumentCount,documentStorageReconciled,documentRestoreVerified,isolated:true};
     console.log(JSON.stringify({level:"info",event:"encrypted_backup_restore_drill_completed",...resultSummary}));
     return resultSummary;
   }finally{
@@ -217,7 +230,7 @@ export function startAutomaticBackup(){
     },20_000).unref();
   }
   const intervalHours=Math.max(1,Number(process.env.BACKUP_INTERVAL_HOURS||24));
-  const run=()=>{ try{ const result=runEncryptedBackup(); console.log(JSON.stringify({level:"info",event:"encrypted_backup_completed",file:status.lastFile,documentCount:result.documentCount})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
+  const run=()=>{ try{ const result=runEncryptedBackup(); console.log(JSON.stringify({level:result.documentStorageReconciled?"info":"warn",event:"encrypted_backup_completed",file:status.lastFile,documentCount:result.documentCount,databaseDocumentRecordCount:result.databaseDocumentRecordCount,documentStorageReconciled:result.documentStorageReconciled})); }catch(error){ console.error(JSON.stringify({level:"error",event:"encrypted_backup_failed",errorType:error?.name||"Error"})); } };
   // Create a verified encrypted backup shortly after startup so a new deployment
   // does not remain without a recovery point for the first five minutes.
   setTimeout(run,10_000).unref();

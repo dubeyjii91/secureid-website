@@ -20,12 +20,14 @@ test("encrypted backup includes document blobs and isolated restore verifies the
  const keys=["DATABASE_PATH","BACKUP_DIR","DOCUMENT_STORAGE_PATH","BACKUP_ENCRYPTION_KEY","RAILWAY_VOLUME_MOUNT_PATH","NODE_ENV"];
  const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
  try{
-  const db=new DatabaseSync(dbPath);
-  db.exec("CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL); INSERT INTO users VALUES('owner','owner@example.test');");
-  db.close();
-  mkdirSync(documentDir,{recursive:true});
   const documentId=randomUUID();
-  writeFileSync(path.join(documentDir,documentId+".json"),JSON.stringify({version:1,ciphertext:"test-encrypted-document"}),{mode:0o600});
+  mkdirSync(documentDir,{recursive:true});
+  const documentPath=path.join(documentDir,documentId+".json");
+  const db=new DatabaseSync(dbPath);
+  db.exec("CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL); INSERT INTO users VALUES('owner','owner@example.test'); CREATE TABLE secure_documents(id TEXT PRIMARY KEY,user_id TEXT,deleted_at INTEGER,encrypted_path TEXT);");
+  db.prepare("INSERT INTO secure_documents(id,user_id,deleted_at,encrypted_path) VALUES(?,?,NULL,?)").run(documentId,"owner",documentPath);
+  db.close();
+  writeFileSync(documentPath,JSON.stringify({version:1,ciphertext:"test-encrypted-document"}),{mode:0o600});
   process.env.DATABASE_PATH=dbPath;
   process.env.BACKUP_DIR=backupDir;
   process.env.DOCUMENT_STORAGE_PATH=documentDir;
@@ -34,10 +36,15 @@ test("encrypted backup includes document blobs and isolated restore verifies the
   delete process.env.RAILWAY_VOLUME_MOUNT_PATH;
   const backup=runEncryptedBackup();
   assert.equal(backup.documentCount,1);
+  assert.equal(backup.databaseDocumentRecordCount,1);
+  assert.equal(backup.documentStorageReconciled,true);
   const drill=runEncryptedBackupRestoreDrill();
   assert.equal(drill.databaseIntegrity,"ok");
+  assert.equal(drill.sourceDatabaseDocumentRecordCount,1);
   assert.equal(drill.sourceDocumentCount,1);
+  assert.equal(drill.restoredDatabaseDocumentRecordCount,1);
   assert.equal(drill.restoredDocumentCount,1);
+  assert.equal(drill.documentStorageReconciled,true);
   assert.equal(drill.documentRestoreVerified,true);
  }finally{
   for(const key of keys){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}
