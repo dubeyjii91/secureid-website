@@ -130,7 +130,8 @@ test("Razorpay payment webhook requires a valid signature and activates the paid
   const signature=(await import("node:crypto")).createHmac("sha256","test-webhook-secret").update(raw).digest("hex");
   const good=await request("/api/webhooks/razorpay",{method:"POST",body:raw,headers:{"x-razorpay-signature":signature,"x-razorpay-event-id":"evt_paid_001"}});
   const goodBody=await good.text();
-  assert.equal(good.status,200,"Signed webhook response: "+goodBody);
+  if (good.status !== 200) console.error("RAZORPAY_WEBHOOK_DIAGNOSTIC", { status: good.status, body: goodBody });
+  assert.equal(good.status,200,`Signed webhook response (${good.status}): ${goodBody}`);
   assert.equal(database.prepare("SELECT status FROM institution_payment_links WHERE provider_link_id='plink_test'").get().status,"paid");
   assert.equal(database.prepare("SELECT payment_status FROM institution_partnership_profiles WHERE institution_id='college-a'").get().payment_status,"verified");
   assert.equal(database.prepare("SELECT status FROM institution_subscriptions WHERE institution_id='college-a'").get().status,"active");
