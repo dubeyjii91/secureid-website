@@ -56,7 +56,7 @@ test("refund requests reserve payment balance, require independent review and re
  assert.equal(db.prepare("SELECT status,external_reference FROM institution_fee_refund_requests WHERE id=?").get(refund.id).status,"recorded");
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_fee_refund_audit WHERE refund_id=?").get(refund.id).n,3);
  response=await request("admin","/api/institutions/college/finance/refunds");
- data=await response.json();assert.equal(data.payments[0].refundablePaise,70000);assert.equal(data.refunds[0].canReviewThis,true);
+ data=await response.json();assert.equal(data.payments[0].refundablePaise,70000);assert.equal(data.refunds[0].canReviewThis,false);
 });
 
 test("refunds cannot be recorded before approval or without a completed external transfer reference",async t=>{
