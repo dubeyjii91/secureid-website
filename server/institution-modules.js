@@ -203,14 +203,14 @@ export function registerInstitutionModules({
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only"].includes(member.role)) return fail(res,403,"Student directory access is not allowed for this role.");
       if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Student management is not enabled.","FEATURE_NOT_ENTITLED");
       const rows=database.prepare(`
-        SELECT m.user_id AS userId,u.email,p.student_number AS studentNumber,p.department,p.program,
-          p.academic_year AS academicYear,COALESCE(p.status,'active') AS status,m.created_at AS joinedAt
+        SELECT m.user_id AS userId,u.email,m.status AS membershipStatus,p.student_number AS studentNumber,p.department,p.program,
+          p.academic_year AS academicYear,COALESCE(p.status,CASE WHEN m.status='suspended' THEN 'suspended' ELSE 'active' END) AS status,m.created_at AS joinedAt
         FROM institution_memberships m JOIN users u ON u.id=m.user_id
         LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id
-        WHERE m.institution_id=? AND m.role='student' AND m.status='active'
+        WHERE m.institution_id=? AND m.role='student' AND m.status IN ('active','suspended')
         ORDER BY u.email COLLATE NOCASE LIMIT 500
       `).all(institutionId);
-      res.setHeader("Cache-Control","private, no-store");res.json({success:true,students:rows});
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,students:rows,canManage:member.role==="institution_admin"});
     } catch(error){next(error);}
   });
 
@@ -218,15 +218,26 @@ export function registerInstitutionModules({
     try {
       const institutionId=safeText(req.params.institutionId,128), userId=safeText(req.params.userId,128);
       if(!access(req,res,institutionId,"student_management")) return;
-      const membership=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,userId);
+      const membership=database.prepare("SELECT id,status FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status IN ('active','suspended')").get(institutionId,userId);
       if(!membership) return fail(res,404,"Active student membership was not found.");
-      const studentNumber=safeText(req.body?.studentNumber,60),department=safeText(req.body?.department,100),program=safeText(req.body?.program,120),academicYear=safeText(req.body?.academicYear,20),status=safeText(req.body?.status||"active",20);
+      const studentNumber=safeText(req.body?.studentNumber,60),department=safeText(req.body?.department,100),program=safeText(req.body?.program,120),academicYear=safeText(req.body?.academicYear,20),status=safeText(req.body?.status||"active",20),statusReason=safeText(req.body?.statusReason,500);
       if(!["active","graduated","suspended","withdrawn"].includes(status)||!/^$|^20\d{2}-20\d{2}$/.test(academicYear)) return fail(res,400,"Enter a valid student status and academic year.");
-      const now=iso();
-      database.prepare(`INSERT INTO institution_student_profiles(institution_id,user_id,student_number,department,program,academic_year,status,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(institution_id,user_id) DO UPDATE SET student_number=excluded.student_number,department=excluded.department,program=excluded.program,academic_year=excluded.academic_year,status=excluded.status,updated_at=excluded.updated_at`)
-        .run(institutionId,userId,studentNumber||null,department||null,program||null,academicYear||null,status,now,now);
-      audit(institutionId,req.user.id,"student_profile_updated","student",userId,{status});
+      const current=database.prepare("SELECT status FROM institution_student_profiles WHERE institution_id=? AND user_id=?").get(institutionId,userId);
+      const previousStatus=current?.status||"active";
+      if(status!==previousStatus&&statusReason.length<5) return fail(res,400,"A status-change reason of at least 5 characters is required.");
+      const timestamp=iso();
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        database.prepare(`INSERT INTO institution_student_profiles(institution_id,user_id,student_number,department,program,academic_year,status,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(institution_id,user_id) DO UPDATE SET student_number=excluded.student_number,department=excluded.department,program=excluded.program,academic_year=excluded.academic_year,status=excluded.status,updated_at=excluded.updated_at`)
+          .run(institutionId,userId,studentNumber||null,department||null,program||null,academicYear||null,status,timestamp,timestamp);
+        const membershipStatus=["suspended","withdrawn"].includes(status)?"suspended":"active";
+        database.prepare("UPDATE institution_memberships SET status=?,updated_at=? WHERE id=?").run(membershipStatus,timestamp,membership.id);
+        if(status!==previousStatus) database.prepare("INSERT INTO institution_student_status_history(id,institution_id,student_user_id,from_status,to_status,reason,actor_user_id,changed_at) VALUES(?,?,?,?,?,?,?,?)")
+          .run(crypto.randomUUID(),institutionId,userId,previousStatus,status,statusReason,req.user.id,timestamp);
+        audit(institutionId,req.user.id,"student_profile_updated","student",userId,{status,previousStatus,membershipStatus,statusReasonProvided:status!==previousStatus});
+        database.exec("COMMIT");
+      } catch(error) { try{database.exec("ROLLBACK");}catch{} throw error; }
       res.setHeader("Cache-Control","private, no-store");res.json({success:true});
     } catch(error){next(error);}
   });
