@@ -28,7 +28,7 @@ test("certificate request approval issuance printable document and public verifi
  r=await request("staff",`/api/institutions/college/certificates/${req.id}`,{method:"PATCH",body:JSON.stringify({status:"approved",reviewNote:"Verified student record."})});assert.equal(r.status,200);
  r=await request("admin",`/api/institutions/college/certificates/${req.id}/issue`,{method:"POST",body:"{}"});assert.equal(r.status,201);const cert=(await r.json()).certificate;
  r=await request("student",`/api/institutions/college/certificates/${cert.id}/document`);assert.equal(r.status,200);const html=await r.text();assert.match(html,/Test Student/);assert.match(html,/RVS Test College/);
- r=await request("",cert.verificationPath);assert.equal(r.status,200);const verified=await r.json();assert.equal(verified.valid,true);assert.equal(verified.serialNumber,cert.serialNumber);
+ r=await request("", "/api/certificates/verify",{method:"POST",body:JSON.stringify({token:cert.verificationPath.split("#")[1]})});assert.equal(r.status,200);const verified=await r.json();assert.equal(verified.valid,true);assert.equal(verified.serialNumber,cert.serialNumber);
 });
 test("certificate access is student-private and requests cannot be issued before approval",async t=>{
  const {request}=await setup(t);
