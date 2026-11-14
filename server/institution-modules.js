@@ -156,7 +156,7 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only"].includes(member.role)) return fail(res,403,"Staff directory access is not allowed.");
       if(!hasInstitutionFeature(institutionId,"staff_management")) return fail(res,403,"Staff management is not enabled.","FEATURE_NOT_ENTITLED");
-      const staff=database.prepare("SELECT id,full_name AS fullName,email,employee_code AS employeeCode,department,designation,status,created_at AS createdAt FROM institution_staff WHERE institution_id=? ORDER BY full_name COLLATE NOCASE LIMIT 500").all(institutionId);
+      const staff=database.prepare("SELECT id,user_id AS userId,full_name AS fullName,email,employee_code AS employeeCode,department,designation,status,created_at AS createdAt FROM institution_staff WHERE institution_id=? ORDER BY full_name COLLATE NOCASE LIMIT 500").all(institutionId);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,staff});
     }catch(error){next(error);}
   });
