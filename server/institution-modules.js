@@ -54,6 +54,16 @@ export function registerInstitutionModules({
     )
     BEGIN SELECT RAISE(ABORT,'INVALID_INSTITUTION_STUDENT_ENROLLMENT'); END;
 
+    CREATE TABLE IF NOT EXISTS institution_course_sections (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      section_code TEXT NOT NULL, section_name TEXT NOT NULL, capacity INTEGER,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(course_id,section_code)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_sections_course
+      ON institution_course_sections(institution_id,course_id,status);
     CREATE TABLE IF NOT EXISTS institution_timetable_entries (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -118,6 +128,33 @@ export function registerInstitutionModules({
       actor_user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, entity_type TEXT NOT NULL,
       entity_id TEXT, details_json TEXT, created_at TEXT NOT NULL
     );
+  `);
+
+  const enrollmentColumns = database.prepare("PRAGMA table_info(institution_course_enrollments)").all();
+  if (!enrollmentColumns.some(column => column.name === "section_id")) {
+    database.exec("ALTER TABLE institution_course_enrollments ADD COLUMN section_id TEXT REFERENCES institution_course_sections(id) ON DELETE SET NULL");
+  }
+  database.exec(`
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_section_validate_insert
+    BEFORE INSERT ON institution_course_enrollments
+    WHEN NEW.section_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM institution_course_sections s
+      WHERE s.id=NEW.section_id AND s.institution_id=NEW.institution_id
+        AND s.course_id=NEW.course_id AND s.status='active'
+        AND (s.capacity IS NULL OR (SELECT COUNT(*) FROM institution_course_enrollments e
+          WHERE e.section_id=s.id AND e.status='enrolled') < s.capacity)
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_OR_FULL_INSTITUTION_SECTION'); END;
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_section_validate_update
+    BEFORE UPDATE OF section_id,status,course_id,institution_id ON institution_course_enrollments
+    WHEN NEW.section_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM institution_course_sections s
+      WHERE s.id=NEW.section_id AND s.institution_id=NEW.institution_id
+        AND s.course_id=NEW.course_id AND s.status='active'
+        AND (s.capacity IS NULL OR (SELECT COUNT(*) FROM institution_course_enrollments e
+          WHERE e.section_id=s.id AND e.status='enrolled' AND e.id<>NEW.id) < s.capacity)
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_OR_FULL_INSTITUTION_SECTION'); END;
   `);
 
   // New pilot modules are included for existing pilot institutions; this does not change paid plans or billing.
@@ -248,6 +285,53 @@ export function registerInstitutionModules({
       res.status(201).json({success:true,course:{id:courseId,courseCode,title,department,academicYear}});
     }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That course code already exists for this academic year.");next(error);}
   });
+  app.get("/api/institutions/:institutionId/sections", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Academic section access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
+      const sections=database.prepare(`
+        SELECT s.id,s.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,
+          s.section_code AS sectionCode,s.section_name AS sectionName,s.capacity,s.status,
+          (SELECT COUNT(*) FROM institution_course_enrollments e WHERE e.section_id=s.id AND e.status='enrolled') AS enrolledCount
+        FROM institution_course_sections s JOIN institution_courses c ON c.id=s.course_id
+        WHERE s.institution_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.section_id=s.id AND e.student_user_id=? AND e.status='enrolled') ":""}
+        ORDER BY c.title,s.section_code LIMIT 1000
+      `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,sections});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/sections", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),sectionCode=safeText(req.body?.sectionCode,24).toUpperCase();
+      const sectionName=safeText(req.body?.sectionName,80),capacityRaw=req.body?.capacity;
+      const capacity=capacityRaw===""||capacityRaw===null||capacityRaw===undefined?null:Number(capacityRaw);
+      if(!database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId))return fail(res,404,"Course was not found in this institution.");
+      if(!/^[A-Z0-9_-]{1,24}$/.test(sectionCode)||sectionName.length<1||capacity!==null&&(!Number.isSafeInteger(capacity)||capacity<1||capacity>10000))return fail(res,400,"Enter a valid section code, name and optional positive capacity.");
+      const sectionId=id(),now=iso();
+      database.prepare("INSERT INTO institution_course_sections(id,institution_id,course_id,section_code,section_name,capacity,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'active',?,?,?)")
+        .run(sectionId,institutionId,courseId,sectionCode,sectionName,capacity,req.user.id,now,now);
+      audit(institutionId,req.user.id,"course_section_created","course_section",sectionId,{courseId,sectionCode,capacity});
+      res.status(201).json({success:true,section:{id:sectionId,courseId,sectionCode,sectionName,capacity,status:"active",enrolledCount:0}});
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That section code already exists for this course.");next(error);}
+  });
+  app.patch("/api/institutions/:institutionId/sections/:sectionId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const sectionId=safeText(req.params.sectionId,128),row=database.prepare("SELECT id,capacity FROM institution_course_sections WHERE id=? AND institution_id=?").get(sectionId,institutionId);
+      if(!row)return fail(res,404,"Course section was not found.");
+      const status=safeText(req.body?.status,20),capacityRaw=req.body?.capacity;
+      const capacity=capacityRaw===""||capacityRaw===null||capacityRaw===undefined?null:Number(capacityRaw);
+      const enrolled=Number(database.prepare("SELECT COUNT(*) AS n FROM institution_course_enrollments WHERE section_id=? AND status='enrolled'").get(sectionId).n);
+      if(!["active","inactive"].includes(status)||capacity!==null&&(!Number.isSafeInteger(capacity)||capacity<1||capacity<enrolled||capacity>10000))return fail(res,409,"Choose a valid status and a capacity that is not below current enrollment.");
+      database.prepare("UPDATE institution_course_sections SET status=?,capacity=?,updated_at=? WHERE id=? AND institution_id=?").run(status,capacity,iso(),sectionId,institutionId);
+      audit(institutionId,req.user.id,"course_section_updated","course_section",sectionId,{status,capacity});
+      res.json({success:true,status,capacity,enrolledCount:enrolled});
+    }catch(error){next(error);}
+  });
+
   app.get("/api/institutions/:institutionId/enrollments", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
@@ -256,10 +340,12 @@ export function registerInstitutionModules({
       const studentOnly=member.role==="student";
       const rows=database.prepare(`
         SELECT e.id,e.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,
+          e.section_id AS sectionId,cs.section_code AS sectionCode,cs.section_name AS sectionName,
           e.student_user_id AS studentUserId,u.email AS studentEmail,e.status,e.enrolled_at AS enrolledAt
         FROM institution_course_enrollments e
         JOIN institution_courses c ON c.id=e.course_id
         JOIN users u ON u.id=e.student_user_id
+        LEFT JOIN institution_course_sections cs ON cs.id=e.section_id
         WHERE e.institution_id=? ${studentOnly?"AND e.student_user_id=?":""}
         ORDER BY c.title,u.email COLLATE NOCASE LIMIT 1000
       `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
@@ -269,21 +355,24 @@ export function registerInstitutionModules({
   app.post("/api/institutions/:institutionId/enrollments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
-      const courseId=safeText(req.body?.courseId,128),studentUserId=safeText(req.body?.studentUserId,128);
+      const courseId=safeText(req.body?.courseId,128),studentUserId=safeText(req.body?.studentUserId,128),sectionId=safeText(req.body?.sectionId,128);
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
       const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!course||!student)return fail(res,400,"Choose a course and an active student from this institution.");
+      const section=sectionId?database.prepare("SELECT id FROM institution_course_sections WHERE id=? AND institution_id=? AND course_id=? AND status='active'").get(sectionId,institutionId,courseId):null;
+      if(sectionId&&!section)return fail(res,400,"Choose an active section belonging to the selected course.");
       const existing=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE course_id=? AND student_user_id=?").get(courseId,studentUserId);
       if(existing?.status==="enrolled")return fail(res,409,"This student is already enrolled in the selected course.");
       const now=iso(),enrollmentId=existing?.id||id();
-      if(existing)database.prepare("UPDATE institution_course_enrollments SET status='enrolled',enrolled_at=?,created_by=?,updated_at=? WHERE id=? AND institution_id=?")
-        .run(now,req.user.id,now,enrollmentId,institutionId);
-      else database.prepare("INSERT INTO institution_course_enrollments(id,institution_id,course_id,student_user_id,status,enrolled_at,created_by,updated_at) VALUES(?,?,?,?,'enrolled',?,?,?)")
-        .run(enrollmentId,institutionId,courseId,studentUserId,now,req.user.id,now);
-      audit(institutionId,req.user.id,existing?"course_enrollment_reactivated":"course_student_enrolled","course_enrollment",enrollmentId,{courseId,studentUserId});
-      res.status(existing?200:201).json({success:true,enrollment:{id:enrollmentId,courseId,studentUserId,status:"enrolled"}});
+      if(existing)database.prepare("UPDATE institution_course_enrollments SET status='enrolled',section_id=?,enrolled_at=?,created_by=?,updated_at=? WHERE id=? AND institution_id=?")
+        .run(sectionId||null,now,req.user.id,now,enrollmentId,institutionId);
+      else database.prepare("INSERT INTO institution_course_enrollments(id,institution_id,course_id,student_user_id,section_id,status,enrolled_at,created_by,updated_at) VALUES(?,?,?,?,?,'enrolled',?,?,?)")
+        .run(enrollmentId,institutionId,courseId,studentUserId,sectionId||null,now,req.user.id,now);
+      audit(institutionId,req.user.id,existing?"course_enrollment_reactivated":"course_student_enrolled","course_enrollment",enrollmentId,{courseId,studentUserId,sectionId:sectionId||null});
+      res.status(existing?200:201).json({success:true,enrollment:{id:enrollmentId,courseId,studentUserId,sectionId:sectionId||null,status:"enrolled"}});
     }catch(error){
       if(String(error?.message||"").includes("INVALID_INSTITUTION_STUDENT_ENROLLMENT"))return fail(res,400,"Only an active student in this institution can be enrolled.");
+      if(String(error?.message||"").includes("INVALID_OR_FULL_INSTITUTION_SECTION"))return fail(res,409,"The selected section is inactive, full or does not belong to this course.");
       if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"This course enrollment conflicts with an existing record.");
       next(error);
     }
