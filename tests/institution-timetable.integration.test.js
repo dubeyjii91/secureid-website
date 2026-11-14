@@ -12,7 +12,7 @@ async function setup(t){
   CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE);
   CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT);
   CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,features_json TEXT,status TEXT,updated_at TEXT);
-  CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
+  CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
   INSERT INTO users VALUES('admin','admin@test'),('student','student@test'),('student2','student2@test'),('other','other@test');
   INSERT INTO institutions VALUES('college','College'),('other-college','Other College');
   INSERT INTO institution_subscriptions VALUES('college','["academics","student_management","staff_management","finance"]','active',CURRENT_TIMESTAMP),('other-college','["academics"]','active',CURRENT_TIMESTAMP);
