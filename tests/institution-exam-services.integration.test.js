@@ -12,7 +12,7 @@ async function setup(t) {
     CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT NOT NULL,institution_type TEXT NOT NULL DEFAULT 'college');
     CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,features_json TEXT,status TEXT);
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT);
-    CREATE TABLE institution_exams(id TEXT PRIMARY KEY,institution_id TEXT,title TEXT,academic_year TEXT,term TEXT,status TEXT);
+    CREATE TABLE institution_exams(id TEXT PRIMARY KEY,institution_id TEXT,title TEXT,academic_year TEXT,term TEXT,status TEXT,starts_at TEXT);
     CREATE TABLE institution_exam_subjects(id TEXT PRIMARY KEY,institution_id TEXT,exam_id TEXT,subject_code TEXT,title TEXT,total_marks_hundredths INTEGER,passing_marks_hundredths INTEGER);
     CREATE TABLE institution_exam_registrations(id TEXT PRIMARY KEY,institution_id TEXT,exam_id TEXT,student_user_id TEXT,roll_number TEXT,status TEXT);
     CREATE TABLE institution_exam_marks(id TEXT PRIMARY KEY,institution_id TEXT,exam_id TEXT,subject_id TEXT,student_user_id TEXT,marks_hundredths INTEGER,entered_by TEXT,updated_at TEXT);
@@ -20,7 +20,7 @@ async function setup(t) {
     INSERT INTO institutions VALUES('college','RVS College','college');
     INSERT INTO institution_subscriptions VALUES('college','["academics"]','active');
     INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('f','college','faculty','reviewer','active'),('s','college','student','student','active'),('o','college','other','student','active');
-    INSERT INTO institution_exams VALUES('exam','college','Semester 1','2026-27','Semester 1','published');
+    INSERT INTO institution_exams VALUES('exam','college','Semester 1','2026-27','Semester 1','published','2026-11-01T09:00:00.000Z');
     INSERT INTO institution_exam_subjects VALUES('subject','college','exam','CS101','Programming',10000,4000);
     INSERT INTO institution_exam_registrations VALUES('registration','college','exam','student','RVS-001','approved');
     INSERT INTO institution_exam_marks VALUES('mark','college','exam','subject','student',7800,'faculty','2026-11-14T10:00:00.000Z');
