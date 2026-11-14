@@ -5,6 +5,7 @@ import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
 import InstitutionModules from "./InstitutionModules.jsx";
 import StudentAdmissions from "./StudentAdmissions.jsx";
+import InstitutionPartnershipStatus from "./InstitutionPartnershipStatus.jsx";
 
 const initialForm = { institutionName: "", role: "Student", studentCount: "Under 500", workflows: ["Student onboarding", "Document submission tracking"], notes: "" };
 
@@ -169,6 +170,7 @@ export default function CollegeWorkspace() {
       <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "Bring SecureID to your college"}</h2><p>{isInstitutionAdminWorkspace ? "Manage your institution's student submissions, hostel operations and scholarship workflows. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
       <div className="collegeHeroIcon" aria-hidden="true">🏫</div>
     </div>
+    {isInstitutionAdminWorkspace && <InstitutionPartnershipStatus />}
     {isInstitutionAdminWorkspace && <section className="collegeValueGrid institutionAdminOverview" aria-label="Institution administration overview">
       <article className="panel"><span className="collegeStep">01</span><h3>Institution access</h3><p>{institutionNames.length ? institutionNames.join(" · ") : "Your assigned institution"}</p><small>{activeMembershipCount} active membership{activeMembershipCount === 1 ? "" : "s"} on this account</small></article>
       <article className="panel"><span className="collegeStep">02</span><h3>Student review queue</h3><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? "" : "s"} currently visible to your institution role.</p><small>Review decisions are audited</small></article>
