@@ -130,12 +130,16 @@ export function registerInstitutionExamServices({ app, database, requireAuth, re
       const timestamp = now();
       database.exec("BEGIN IMMEDIATE");
       try {
+        const claimed = database.prepare("UPDATE institution_exam_revaluation_requests SET status=?,reviewed_by=?,review_note=?,updated_at=? WHERE id=? AND institution_id=? AND status='pending'")
+          .run(decision === "complete" ? "completed" : "rejected", req.user.id, reviewNote, timestamp, requestId, institutionId);
+        if (!claimed.changes) {
+          database.exec("ROLLBACK");
+          return fail(res, 409, "This revaluation request has already been reviewed.");
+        }
         if (decision === "complete") {
           database.prepare("UPDATE institution_exam_marks SET marks_hundredths=?,entered_by=?,updated_at=? WHERE exam_id=? AND subject_id=? AND student_user_id=?")
             .run(revisedMarks, req.user.id, timestamp, examId, request.subjectId, request.studentUserId);
         }
-        database.prepare("UPDATE institution_exam_revaluation_requests SET status=?,reviewed_by=?,review_note=?,updated_at=? WHERE id=? AND institution_id=? AND status='pending'")
-          .run(decision === "complete" ? "completed" : "rejected", req.user.id, reviewNote, timestamp, requestId, institutionId);
         audit(institutionId, requestId, req.user.id, decision === "complete" ? "revaluation_completed" : "revaluation_rejected", {
           previousMarksHundredths: request.currentMarks,
           revisedMarksHundredths: revisedMarks,
