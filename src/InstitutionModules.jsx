@@ -33,6 +33,7 @@ const money = paise => "₹" + (Number(paise || 0) / 100).toLocaleString("en-IN"
 export default function InstitutionModules({ institutionId }) {
   const [tab,setTab]=useState("Overview");
   const [students,setStudents]=useState([]);
+  const [canManageStudents,setCanManageStudents]=useState(false);
   const [staff,setStaff]=useState([]);
   const [invoices,setInvoices]=useState([]);
   const [courses,setCourses]=useState([]);
@@ -70,7 +71,7 @@ export default function InstitutionModules({ institutionId }) {
         api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/sections`,{cache:"no-store"})
       ]);
-      setStudents(s.students||[]);setProfileDrafts(Object.fromEntries((s.students||[]).map(item=>[item.userId,{studentNumber:item.studentNumber||"",department:item.department||"",program:item.program||"",academicYear:item.academicYear||"",status:item.status||"active",statusReason:""}])));setStaff(st.staff||[]);setInvoices(f.invoices||[]);setCourses(c.courses||[]);setEnrollments(e.enrollments||[]);setSections(sec.sections||[]);setOverview(o.overview||null);setTimetable(t.entries||[]);
+      setStudents(s.students||[]);setCanManageStudents(!!s.canManage);setProfileDrafts(Object.fromEntries((s.students||[]).map(item=>[item.userId,{studentNumber:item.studentNumber||"",department:item.department||"",program:item.program||"",academicYear:item.academicYear||"",status:item.status||"active",statusReason:""}])));setStaff(st.staff||[]);setInvoices(f.invoices||[]);setCourses(c.courses||[]);setEnrollments(e.enrollments||[]);setSections(sec.sections||[]);setOverview(o.overview||null);setTimetable(t.entries||[]);
       const firstCourse=(c.courses||[])[0];
       if(firstCourse){setAssessmentForm(v=>({...v,courseId:v.courseId||firstCourse.id}));const a=await api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(firstCourse.id)}/assessments`,{cache:"no-store"});setAssessments(a.assessments||[]);}else setAssessments([]);
     } catch(err){setError(err.message||"Institution modules could not be loaded.");}
@@ -126,7 +127,7 @@ export default function InstitutionModules({ institutionId }) {
       <span>Separate workspace · Institution-scoped access</span>
     </div>}
     {busy&&<p>Loading / saving securely…</p>}
-    {tab==="Students"&&<InstitutionStudents institutionId={institutionId} students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} busy={busy}/>}
+    {tab==="Students"&&<InstitutionStudents institutionId={institutionId} canManageStudents={canManageStudents} students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} busy={busy}/>}
     {tab==="Staff"&&<InstitutionStaff institutionId={institutionId} staff={staff} staffForm={staffForm} setStaffForm={setStaffForm} saveStaff={saveStaff} busy={busy} run={run}/>}
     {tab==="Finance"&&<InstitutionFinance students={students} invoiceForm={invoiceForm} setInvoiceForm={setInvoiceForm} saveInvoice={saveInvoice} invoices={invoices} money={money} paymentForm={paymentForm} setPaymentForm={setPaymentForm} receivePayment={receivePayment} createOnlinePaymentLink={createOnlinePaymentLink} busy={busy}/>}
     {tab==="Academics"&&<InstitutionAcademics sections={sections} sectionForm={sectionForm} setSectionForm={setSectionForm} saveSection={saveSection} enrollments={enrollments} enrollmentForm={enrollmentForm} setEnrollmentForm={setEnrollmentForm} saveEnrollment={saveEnrollment} withdrawEnrollment={withdrawEnrollment} courses={courses} courseForm={courseForm} setCourseForm={setCourseForm} saveCourse={saveCourse} attendanceForm={attendanceForm} setAttendanceForm={setAttendanceForm} markAttendance={markAttendance} students={students} staff={staff} timetable={timetable} timetableForm={timetableForm} setTimetableForm={setTimetableForm} saveTimetableEntry={saveTimetableEntry} deleteTimetableEntry={deleteTimetableEntry} assessmentForm={assessmentForm} setAssessmentForm={setAssessmentForm} loadAssessments={loadAssessments} saveAssessment={saveAssessment} assessments={assessments} resultForm={resultForm} setResultForm={setResultForm} saveResult={saveResult} busy={busy}/>}
