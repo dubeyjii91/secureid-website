@@ -100,9 +100,9 @@ export default function InstitutionModules({ institutionId }) {
   async function withdrawEnrollment(enrollmentId){if(!window.confirm("Withdraw this student from the course?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/enrollments/${encodeURIComponent(enrollmentId)}`,{method:"DELETE"}),"Course enrollment withdrawn.");}
   async function deleteTimetableEntry(entryId){if(!window.confirm("Delete this timetable entry?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable/${encodeURIComponent(entryId)}`,{method:"DELETE"}),"Timetable entry deleted.");}
   async function receivePayment(e){e.preventDefault();const key=crypto.randomUUID();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(paymentForm.invoiceId)}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise:Math.round(Number(paymentForm.amount)*100),method:paymentForm.method,reference:paymentForm.reference,idempotencyKey:key})}),"Payment recorded.");setPaymentForm({invoiceId:"",amount:"",method:"upi",reference:""});}
-  async function requestRefund(paymentId,amountPaise,reason){
+  async function requestRefund(paymentId,studentUserId,amountPaise,reason){
     const key=crypto.randomUUID();
-    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/payments/${encodeURIComponent(paymentId)}/refunds`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise,reason})}),"Refund request submitted for institution review.");
+    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/payments/${encodeURIComponent(paymentId)}/refunds`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({studentUserId,amountPaise,reason})}),"Refund request submitted for independent institution review.");
   }
   async function reviewRefund(refund,decision){
     const reviewNote=window.prompt("Add the institution review note:");
