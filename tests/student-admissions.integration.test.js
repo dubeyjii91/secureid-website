@@ -24,6 +24,7 @@ test("student admission is encrypted, consented, institution-scoped and only app
     CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE);
     CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT NOT NULL,created_at TEXT NOT NULL);
     CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,plan_key TEXT,status TEXT,features_json TEXT,starts_at TEXT,ends_at TEXT,updated_at TEXT);
+    CREATE TABLE institution_partnership_profiles(institution_id TEXT PRIMARY KEY,payment_status TEXT NOT NULL DEFAULT 'not_required');
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(institution_id,user_id));
     CREATE TABLE institution_student_profiles(institution_id TEXT NOT NULL,user_id TEXT NOT NULL,student_number TEXT,department TEXT,program TEXT,academic_year TEXT,status TEXT,created_at TEXT,updated_at TEXT,PRIMARY KEY(institution_id,user_id));
     INSERT INTO users VALUES('student','student@example.test'),('admin','admin@example.test'),('other-admin','other@example.test'),('student-two','student2@example.test');
