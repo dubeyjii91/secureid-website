@@ -36,6 +36,10 @@ export default function InstitutionModules({ institutionId }) {
   const [canManageStudents,setCanManageStudents]=useState(false);
   const [staff,setStaff]=useState([]);
   const [invoices,setInvoices]=useState([]);
+  const [refundPayments,setRefundPayments]=useState([]);
+  const [refundRequests,setRefundRequests]=useState([]);
+  const [canRequestRefund,setCanRequestRefund]=useState(false);
+  const [canReviewRefunds,setCanReviewRefunds]=useState(false);
   const [courses,setCourses]=useState([]);
   const [enrollments,setEnrollments]=useState([]);
   const [sections,setSections]=useState([]);
@@ -61,7 +65,7 @@ export default function InstitutionModules({ institutionId }) {
     if(!institutionId)return;
     setBusy(true);setError("");
     try {
-      const [s,st,f,c,e,o,t,sec]=await Promise.all([
+      const [s,st,f,c,e,o,t,sec,refundData]=await Promise.all([
         api(`/api/institutions/${encodeURIComponent(institutionId)}/students`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/staff`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/finance`,{cache:"no-store"}),
@@ -69,9 +73,10 @@ export default function InstitutionModules({ institutionId }) {
         api(`/api/institutions/${encodeURIComponent(institutionId)}/enrollments`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/operations/overview`,{cache:"no-store"}),
         api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable`,{cache:"no-store"}),
-        api(`/api/institutions/${encodeURIComponent(institutionId)}/sections`,{cache:"no-store"})
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/sections`,{cache:"no-store"}),
+        api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/refunds`,{cache:"no-store"})
       ]);
-      setStudents(s.students||[]);setCanManageStudents(!!s.canManage);setProfileDrafts(Object.fromEntries((s.students||[]).map(item=>[item.userId,{studentNumber:item.studentNumber||"",department:item.department||"",program:item.program||"",academicYear:item.academicYear||"",status:item.status||"active",statusReason:""}])));setStaff(st.staff||[]);setInvoices(f.invoices||[]);setCourses(c.courses||[]);setEnrollments(e.enrollments||[]);setSections(sec.sections||[]);setOverview(o.overview||null);setTimetable(t.entries||[]);
+      setStudents(s.students||[]);setCanManageStudents(!!s.canManage);setProfileDrafts(Object.fromEntries((s.students||[]).map(item=>[item.userId,{studentNumber:item.studentNumber||"",department:item.department||"",program:item.program||"",academicYear:item.academicYear||"",status:item.status||"active",statusReason:""}])));setStaff(st.staff||[]);setInvoices(f.invoices||[]);setRefundPayments(refundData.payments||[]);setRefundRequests(refundData.refunds||[]);setCanRequestRefund(!!refundData.canRequest);setCanReviewRefunds(!!refundData.canReview);setCourses(c.courses||[]);setEnrollments(e.enrollments||[]);setSections(sec.sections||[]);setOverview(o.overview||null);setTimetable(t.entries||[]);
       const firstCourse=(c.courses||[])[0];
       if(firstCourse){setAssessmentForm(v=>({...v,courseId:v.courseId||firstCourse.id}));const a=await api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(firstCourse.id)}/assessments`,{cache:"no-store"});setAssessments(a.assessments||[]);}else setAssessments([]);
     } catch(err){setError(err.message||"Institution modules could not be loaded.");}
@@ -95,6 +100,17 @@ export default function InstitutionModules({ institutionId }) {
   async function withdrawEnrollment(enrollmentId){if(!window.confirm("Withdraw this student from the course?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/enrollments/${encodeURIComponent(enrollmentId)}`,{method:"DELETE"}),"Course enrollment withdrawn.");}
   async function deleteTimetableEntry(entryId){if(!window.confirm("Delete this timetable entry?"))return;await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/timetable/${encodeURIComponent(entryId)}`,{method:"DELETE"}),"Timetable entry deleted.");}
   async function receivePayment(e){e.preventDefault();const key=crypto.randomUUID();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(paymentForm.invoiceId)}/payments`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise:Math.round(Number(paymentForm.amount)*100),method:paymentForm.method,reference:paymentForm.reference,idempotencyKey:key})}),"Payment recorded.");setPaymentForm({invoiceId:"",amount:"",method:"upi",reference:""});}
+  async function requestRefund(paymentId,amountPaise,reason){
+    const key=crypto.randomUUID();
+    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/payments/${encodeURIComponent(paymentId)}/refunds`,{method:"POST",headers:{"Idempotency-Key":key},body:JSON.stringify({amountPaise,reason})}),"Refund request submitted for institution review.");
+  }
+  async function reviewRefund(refund,decision){
+    const reviewNote=window.prompt("Add the institution review note:");
+    if(reviewNote===null||reviewNote.trim().length<4)return;
+    const externalReference=decision==="record"?window.prompt("Enter the external bank/UPI reference for the refund already transferred:"):"";
+    if(decision==="record"&&(!externalReference||externalReference.trim().length<4))return;
+    await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/refunds/${encodeURIComponent(refund.id)}`,{method:"PATCH",body:JSON.stringify({decision,reviewNote,externalReference})}),decision==="record"?"External refund recorded in the fee ledger.":`Refund request ${decision}d.`);
+  }
   async function createOnlinePaymentLink(invoiceId){setBusy(true);setError("");setMessage("");try{const result=await api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(invoiceId)}/payment-link`,{method:"POST",body:JSON.stringify({})});setMessage("Secure payment link created. Payment will be recorded only after verified provider confirmation.");await load();return result.paymentLink||null;}catch(err){setError(err.message||"Online payment link could not be created.");return null;}finally{setBusy(false);}}
   async function saveStudentProfile(userId){const draft=profileDrafts[userId]||{};await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/students/${encodeURIComponent(userId)}`,{method:"PUT",body:JSON.stringify(draft)}),"Student profile updated.");}
   async function loadAssessments(courseId){setAssessmentForm(v=>({...v,courseId}));try{const a=await api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(courseId)}/assessments`,{cache:"no-store"});setAssessments(a.assessments||[]);}catch(err){setError(err.message||"Assessments could not be loaded.");}}
@@ -129,7 +145,7 @@ export default function InstitutionModules({ institutionId }) {
     {busy&&<p>Loading / saving securely…</p>}
     {tab==="Students"&&<InstitutionStudents institutionId={institutionId} canManageStudents={canManageStudents} students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} busy={busy}/>}
     {tab==="Staff"&&<InstitutionStaff institutionId={institutionId} staff={staff} staffForm={staffForm} setStaffForm={setStaffForm} saveStaff={saveStaff} busy={busy} run={run}/>}
-    {tab==="Finance"&&<InstitutionFinance students={students} invoiceForm={invoiceForm} setInvoiceForm={setInvoiceForm} saveInvoice={saveInvoice} invoices={invoices} money={money} paymentForm={paymentForm} setPaymentForm={setPaymentForm} receivePayment={receivePayment} createOnlinePaymentLink={createOnlinePaymentLink} busy={busy}/>}
+    {tab==="Finance"&&<InstitutionFinance students={students} invoiceForm={invoiceForm} setInvoiceForm={setInvoiceForm} saveInvoice={saveInvoice} invoices={invoices} money={money} paymentForm={paymentForm} setPaymentForm={setPaymentForm} receivePayment={receivePayment} createOnlinePaymentLink={createOnlinePaymentLink} refundPayments={refundPayments} refundRequests={refundRequests} canRequestRefund={canRequestRefund} canReviewRefunds={canReviewRefunds} requestRefund={requestRefund} reviewRefund={reviewRefund} busy={busy}/>}
     {tab==="Academics"&&<InstitutionAcademics sections={sections} sectionForm={sectionForm} setSectionForm={setSectionForm} saveSection={saveSection} enrollments={enrollments} enrollmentForm={enrollmentForm} setEnrollmentForm={setEnrollmentForm} saveEnrollment={saveEnrollment} withdrawEnrollment={withdrawEnrollment} courses={courses} courseForm={courseForm} setCourseForm={setCourseForm} saveCourse={saveCourse} attendanceForm={attendanceForm} setAttendanceForm={setAttendanceForm} markAttendance={markAttendance} students={students} staff={staff} timetable={timetable} timetableForm={timetableForm} setTimetableForm={setTimetableForm} saveTimetableEntry={saveTimetableEntry} deleteTimetableEntry={deleteTimetableEntry} assessmentForm={assessmentForm} setAssessmentForm={setAssessmentForm} loadAssessments={loadAssessments} saveAssessment={saveAssessment} assessments={assessments} resultForm={resultForm} setResultForm={setResultForm} saveResult={saveResult} busy={busy}/>}
     {tab==="Queue"&&<InstitutionQueue institutionId={institutionId}/>}
     {tab==="Library"&&<InstitutionLibrary institutionId={institutionId} students={students}/>}
