@@ -97,3 +97,16 @@ test("only owner with MFA can manage partnership checks; only active institution
   response=await fetch(base+"/api/institutions/college-b/partnership-status",{headers:{"x-user":"college-admin"}});
   assert.equal(response.status,403);
 });
+
+test("free pilot access cannot be recorded as a paid subscription",async t=>{
+  const {request}=await setup(t);
+  const saved=await request("/api/admin/institutions/college-b/partnership",{method:"PUT",body:JSON.stringify({
+    aisheCode:"U-5678",officialWebsite:"https://other.example",officialEmailDomain:"other.example",
+    address:"Other Road",paymentReference:"PILOT-NOT-PAID",paymentAmountPaise:100000
+  })});
+  assert.equal(saved.status,200);
+  const response=await request("/api/admin/institutions/college-b/partnership/checks",{method:"POST",body:JSON.stringify({
+    checkType:"subscription_payment",outcome:"verified",evidenceReference:"PILOT-TEST-REF"
+  })});
+  assert.equal(response.status,409);
+});
