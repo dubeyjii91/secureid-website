@@ -231,7 +231,8 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Course access is not allowed.");
       if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
-      const courses=database.prepare("SELECT id,course_code AS courseCode,title,department,academic_year AS academicYear FROM institution_courses WHERE institution_id=? ORDER BY title LIMIT 300").all(institutionId);
+      const studentOnly=member.role==="student";
+      const courses=database.prepare("SELECT c.id,c.course_code AS courseCode,c.title,c.department,c.academic_year AS academicYear FROM institution_courses c WHERE c.institution_id=? "+(studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.course_id=c.id AND e.student_user_id=? AND e.status='enrolled') ":"")+"ORDER BY c.title LIMIT 300").all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,courses});
     }catch(error){next(error);}
   });
@@ -304,9 +305,10 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Timetable access is not allowed.");
       if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
       const rows=database.prepare(`SELECT t.id,t.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,t.weekday,t.starts_at AS startsAt,t.ends_at AS endsAt,t.room,t.staff_id AS staffId,s.full_name AS staffName
         FROM institution_timetable_entries t JOIN institution_courses c ON c.id=t.course_id LEFT JOIN institution_staff s ON s.id=t.staff_id
-        WHERE t.institution_id=? ORDER BY t.weekday,t.starts_at LIMIT 500`).all(institutionId);
+        WHERE t.institution_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.course_id=t.course_id AND e.student_user_id=? AND e.status='enrolled') ":""}ORDER BY t.weekday,t.starts_at LIMIT 500`).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,entries:rows});
     }catch(error){next(error);}
   });
@@ -343,7 +345,7 @@ export function registerInstitutionModules({
       if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);if(!course)return fail(res,404,"Course was not found.");
       const isStudent=member.role==="student";
-      const rows=database.prepare("SELECT student_user_id AS studentUserId,attendance_date AS date,status FROM institution_attendance WHERE institution_id=? AND course_id=? "+(isStudent?"AND student_user_id=? ":"")+"ORDER BY attendance_date DESC LIMIT 500").all(...(isStudent?[institutionId,courseId,req.user.id]:[institutionId,courseId]));
+      const rows=database.prepare("SELECT student_user_id AS studentUserId,attendance_date AS date,status FROM institution_attendance WHERE institution_id=? AND course_id=? "+(isStudent?"AND student_user_id=? AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.institution_id=? AND e.course_id=? AND e.student_user_id=? AND e.status='enrolled') ":"")+"ORDER BY attendance_date DESC LIMIT 500").all(...(isStudent?[institutionId,courseId,req.user.id,institutionId,courseId,req.user.id]:[institutionId,courseId]));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,attendance:rows});
     }catch(error){next(error);}
   });
@@ -438,8 +440,8 @@ export function registerInstitutionModules({
           r.marks_hundredths AS marksHundredths
         FROM institution_assessments a
         LEFT JOIN institution_assessment_results r ON r.assessment_id=a.id ${studentOnly?"AND r.student_user_id=?":""}
-        WHERE a.institution_id=? AND a.course_id=? ORDER BY a.exam_date DESC,a.created_at DESC LIMIT 300
-      `).all(...(studentOnly?[req.user.id,institutionId,courseId]:[institutionId,courseId]));
+        WHERE a.institution_id=? AND a.course_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.institution_id=a.institution_id AND e.course_id=a.course_id AND e.student_user_id=? AND e.status='enrolled') ":""}ORDER BY a.exam_date DESC,a.created_at DESC LIMIT 300
+      `).all(...(studentOnly?[req.user.id,institutionId,courseId,req.user.id]:[institutionId,courseId]));
       res.setHeader("Cache-Control","private, no-store");
       res.json({success:true,assessments:assessments.map(a=>({...a,totalMarks:a.totalMarksHundredths/100,marksObtained:a.marksHundredths==null?null:a.marksHundredths/100}))});
     }catch(error){next(error);}
