@@ -254,11 +254,36 @@ export function registerInstitutionPartnership({ app, database, requireAuth, enf
       const paymentLink = req.body?.payload?.payment_link?.entity;
       if (eventType !== "payment_link.paid" || !paymentLink?.id) return res.status(200).json({success:true,ignored:true});
       const link = database.prepare("SELECT * FROM institution_payment_links WHERE provider_link_id=?").get(paymentLink.id);
-      if (!link) return res.status(200).json({success:true,ignored:true});
       const paidAmount = Number(paymentLink.amount_paid);
-      if (!Number.isSafeInteger(paidAmount) || paidAmount !== link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
       const timestamp = now();
       const webhookEventId = eventId || crypto.createHash("sha256").update(raw).digest("hex");
+      if (!link) {
+        const feeLink = database.prepare("SELECT * FROM institution_fee_payment_links WHERE provider_link_id=?").get(paymentLink.id);
+        if (!feeLink) return res.status(200).json({success:true,ignored:true});
+        if (!Number.isSafeInteger(paidAmount) || paidAmount !== feeLink.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the outstanding fee invoice.");
+        database.exec("BEGIN IMMEDIATE");
+        try {
+          const inserted = database.prepare("INSERT OR IGNORE INTO institution_payment_webhook_events(event_id,event_type,provider_link_id,received_at) VALUES(?,?,?,?)")
+            .run(webhookEventId,eventType,paymentLink.id,timestamp);
+          if (Number(inserted.changes) === 0) { database.exec("COMMIT"); return res.status(200).json({success:true,duplicate:true}); }
+          const invoice = database.prepare("SELECT amount_paise AS amountPaise,status FROM institution_fee_invoices WHERE id=? AND institution_id=?").get(feeLink.invoice_id,feeLink.institution_id);
+          if (!invoice || invoice.status === "cancelled") { database.exec("ROLLBACK"); return fail(res,409,"Fee invoice is no longer payable; manual reconciliation is required."); }
+          const alreadyPaid = Number(database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS n FROM institution_fee_payments WHERE invoice_id=?").get(feeLink.invoice_id).n);
+          const nextPaid = alreadyPaid + paidAmount;
+          if (nextPaid > Number(invoice.amountPaise)) { database.exec("ROLLBACK"); return fail(res,409,"Payment would exceed the outstanding fee balance; manual reconciliation is required."); }
+          const paymentReference = clean(req.body?.payload?.payment?.entity?.id,100) || paymentLink.id;
+          database.prepare("INSERT INTO institution_fee_payments(id,institution_id,invoice_id,student_user_id,amount_paise,method,reference,idempotency_key,received_by,created_at) VALUES(?,?,?,?,?,'other',?,?,?,?)")
+            .run(id(),feeLink.institution_id,feeLink.invoice_id,feeLink.student_user_id,paidAmount,paymentReference,webhookEventId,feeLink.created_by,timestamp);
+          const status = nextPaid === Number(invoice.amountPaise) ? "paid" : "partial";
+          database.prepare("UPDATE institution_fee_invoices SET status=?,updated_at=? WHERE id=? AND institution_id=?").run(status,timestamp,feeLink.invoice_id,feeLink.institution_id);
+          database.prepare("UPDATE institution_fee_payment_links SET status='paid',paid_at=? WHERE id=? AND status='created'").run(timestamp,feeLink.id);
+          database.prepare("INSERT INTO institution_operations_audit(id,institution_id,actor_user_id,action,entity_type,entity_id,details_json,created_at) VALUES(?,?,?,'fee_payment_confirmed','payment',?,?,?)")
+            .run(id(),feeLink.institution_id,feeLink.created_by,feeLink.id,JSON.stringify({provider:"razorpay",invoiceId:feeLink.invoice_id,amountPaise:paidAmount,paymentReference}),timestamp);
+          database.exec("COMMIT");
+        } catch(error) { try { database.exec("ROLLBACK"); } catch {} throw error; }
+        return res.status(200).json({success:true,recorded:true,kind:"fee_payment"});
+      }
+      if (!Number.isSafeInteger(paidAmount) || paidAmount !== link.amount_paise || paymentLink.currency !== "INR") return fail(res,409,"Payment amount does not match the institution invoice.");
       // Claim the event and apply every settlement write atomically. SQLite's node:sqlite
       // constraint error codes vary across Node releases, so INSERT OR IGNORE provides
       // deterministic duplicate detection without relying on driver-specific error text.
