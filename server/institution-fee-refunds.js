@@ -11,7 +11,7 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
    id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
    payment_id TEXT NOT NULL REFERENCES institution_fee_payments(id) ON DELETE CASCADE,
    invoice_id TEXT NOT NULL REFERENCES institution_fee_invoices(id) ON DELETE CASCADE,
-   student_user_id TEXT NOT NULL REFERENCES users(id),amount_paise INTEGER NOT NULL CHECK(amount_paise>0),
+   student_user_id TEXT NOT NULL REFERENCES users(id),requested_by TEXT NOT NULL REFERENCES users(id),amount_paise INTEGER NOT NULL CHECK(amount_paise>0),
    reason TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'requested' CHECK(status IN ('requested','approved','rejected','recorded')),
    idempotency_key TEXT NOT NULL,requested_at TEXT NOT NULL,updated_at TEXT NOT NULL,
    reviewed_by TEXT REFERENCES users(id),review_note TEXT,external_reference TEXT,recorded_at TEXT,
@@ -38,8 +38,8 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
 
  app.get("/api/institutions/:institutionId/finance/refunds",requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
-   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","student"]);if(!m)return;
-   const studentOnly=m.role==="student";
+   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","finance_manager","accounts"]);if(!m)return;
+   const studentOnly=false;
    const payments=database.prepare(`
     SELECT p.id,p.invoice_id AS invoiceId,p.amount_paise AS amountPaise,p.method,p.reference,p.created_at AS createdAt,
       i.fee_head AS feeHead,COALESCE(SUM(r.amount_paise),0) AS reservedRefundPaise,
@@ -53,7 +53,7 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
    const refunds=database.prepare(`
     SELECT r.id,r.payment_id AS paymentId,r.invoice_id AS invoiceId,r.student_user_id AS studentUserId,
       r.amount_paise AS amountPaise,r.reason,r.status,r.requested_at AS requestedAt,r.updated_at AS updatedAt,
-      r.review_note AS reviewNote,r.external_reference AS externalReference,r.recorded_at AS recordedAt,
+      r.review_note AS reviewNote,r.external_reference AS externalReference,r.recorded_at AS recordedAt,r.requested_by AS requestedBy,
       u.email AS studentEmail,i.fee_head AS feeHead,p.method,p.reference AS paymentReference
     FROM institution_fee_refund_requests r
     JOIN users u ON u.id=r.student_user_id
@@ -62,27 +62,28 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
     WHERE r.institution_id=? ${studentOnly?"AND r.student_user_id=?":""}
     ORDER BY CASE r.status WHEN 'requested' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.requested_at DESC LIMIT 500
    `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
-   res.setHeader("Cache-Control","private, no-store");return res.json({success:true,payments,refunds,canRequest:studentOnly,canReview:m.role==="institution_admin"});
+   res.setHeader("Cache-Control","private, no-store");return res.json({success:true,payments,refunds:refunds.map(item=>({...item,canReviewThis:item.requestedBy!==req.user.id})),canRequest:true,canReview:true});
   }catch(error){next(error);}
  });
 
  app.post("/api/institutions/:institutionId/finance/payments/:paymentId/refunds",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
    const institutionId=clean(req.params.institutionId,128),paymentId=clean(req.params.paymentId,128);
-   if(!member(req,res,institutionId,["student"]))return;
+   if(!member(req,res,institutionId,["institution_admin","finance_manager","accounts"]))return;
+   const studentUserId=clean(req.body?.studentUserId,128);
    const amountPaise=Number(req.body?.amountPaise),reason=clean(req.body?.reason,1000),idempotencyKey=clean(req.get("Idempotency-Key")||req.body?.idempotencyKey,100);
    if(!Number.isSafeInteger(amountPaise)||amountPaise<1||reason.length<10||idempotencyKey.length<12)return fail(res,400,"Enter a valid refund amount, reason (at least 10 characters) and unique request key.");
    database.exec("BEGIN IMMEDIATE");
    try{
     const duplicate=database.prepare("SELECT id,status FROM institution_fee_refund_requests WHERE institution_id=? AND idempotency_key=?").get(institutionId,idempotencyKey);
     if(duplicate){database.exec("COMMIT");return res.status(200).json({success:true,duplicate:true,refund:{id:duplicate.id,status:duplicate.status}});}
-    const payment=database.prepare("SELECT p.id,p.invoice_id AS invoiceId,p.amount_paise AS amountPaise FROM institution_fee_payments p JOIN institution_fee_invoices i ON i.id=p.invoice_id AND i.institution_id=p.institution_id WHERE p.id=? AND p.institution_id=? AND p.student_user_id=?").get(paymentId,institutionId,req.user.id);
+    const payment=database.prepare("SELECT p.id,p.invoice_id AS invoiceId,p.amount_paise AS amountPaise,p.student_user_id AS studentUserId FROM institution_fee_payments p JOIN institution_fee_invoices i ON i.id=p.invoice_id AND i.institution_id=p.institution_id WHERE p.id=? AND p.institution_id=? AND p.student_user_id=?").get(paymentId,institutionId,studentUserId);
     if(!payment){database.exec("ROLLBACK");return fail(res,404,"Your payment record was not found.");}
     const reserved=Number(database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS n FROM institution_fee_refund_requests WHERE payment_id=? AND status IN ('requested','approved','recorded')").get(paymentId).n);
     if(reserved+amountPaise>Number(payment.amountPaise)){database.exec("ROLLBACK");return fail(res,409,"Refund request exceeds the unrefunded amount of this payment.");}
     const refundId=id(),timestamp=now();
-    database.prepare("INSERT INTO institution_fee_refund_requests(id,institution_id,payment_id,invoice_id,student_user_id,amount_paise,reason,idempotency_key,requested_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
-     .run(refundId,institutionId,paymentId,payment.invoiceId,req.user.id,amountPaise,reason,idempotencyKey,timestamp,timestamp);
+    database.prepare("INSERT INTO institution_fee_refund_requests(id,institution_id,payment_id,invoice_id,student_user_id,requested_by,amount_paise,reason,idempotency_key,requested_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+     .run(refundId,institutionId,paymentId,payment.invoiceId,payment.studentUserId,req.user.id,amountPaise,reason,idempotencyKey,timestamp,timestamp);
     audit(institutionId,refundId,req.user.id,"refund_requested",{paymentId,invoiceId:payment.invoiceId,amountPaise});
     database.exec("COMMIT");
     return res.status(201).json({success:true,refund:{id:refundId,paymentId,amountPaise,status:"requested",requestedAt:timestamp}});
@@ -93,14 +94,15 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
  app.patch("/api/institutions/:institutionId/finance/refunds/:refundId",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
    const institutionId=clean(req.params.institutionId,128),refundId=clean(req.params.refundId,128);
-   if(!member(req,res,institutionId,["institution_admin"]))return;
+   if(!member(req,res,institutionId,["institution_admin","finance_manager","accounts"]))return;
    const decision=clean(req.body?.decision,20),reviewNote=clean(req.body?.reviewNote,500),externalReference=clean(req.body?.externalReference,120);
    if(!["approve","reject","record"].includes(decision)||reviewNote.length<4)return fail(res,400,"Choose approve, reject or record and provide a review note.");
    if(decision==="record"&&externalReference.length<4)return fail(res,400,"A completed external bank/UPI refund reference is required.");
    database.exec("BEGIN IMMEDIATE");
    try{
-    const refund=database.prepare("SELECT id,invoice_id AS invoiceId,payment_id AS paymentId,amount_paise AS amountPaise,status FROM institution_fee_refund_requests WHERE id=? AND institution_id=?").get(refundId,institutionId);
+    const refund=database.prepare("SELECT id,invoice_id AS invoiceId,payment_id AS paymentId,amount_paise AS amountPaise,status,requested_by AS requestedBy FROM institution_fee_refund_requests WHERE id=? AND institution_id=?").get(refundId,institutionId);
     if(!refund){database.exec("ROLLBACK");return fail(res,404,"Refund request was not found.");}
+    if(refund.requestedBy===req.user.id){database.exec("ROLLBACK");return fail(res,403,"A different finance administrator must review this refund request.");}
     const nextStatus=decision==="approve"?"approved":decision==="reject"?"rejected":"recorded";
     const allowed=decision==="approve"?["requested"]:decision==="reject"?["requested","approved"]:["approved"];
     if(!allowed.includes(refund.status)){database.exec("ROLLBACK");return fail(res,409,"This refund request cannot move to the selected state.");}
