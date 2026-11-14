@@ -38,8 +38,8 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
 
  app.get("/api/institutions/:institutionId/finance/refunds",requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
-   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","finance_manager","accounts"]);if(!m)return;
-   const studentOnly=false;
+   const institutionId=clean(req.params.institutionId,128),m=member(req,res,institutionId,["institution_admin","finance_manager","accounts","student"]);if(!m)return;
+   const studentOnly=m.role==="student";
    const payments=database.prepare(`
     SELECT p.id,p.invoice_id AS invoiceId,p.student_user_id AS studentUserId,u.email AS studentEmail,p.amount_paise AS amountPaise,p.method,p.reference,p.created_at AS createdAt,
       i.fee_head AS feeHead,COALESCE(SUM(r.amount_paise),0) AS reservedRefundPaise,
@@ -63,15 +63,15 @@ export function registerInstitutionFeeRefunds({app,database,requireAuth,requireM
     WHERE r.institution_id=? ${studentOnly?"AND r.student_user_id=?":""}
     ORDER BY CASE r.status WHEN 'requested' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,r.requested_at DESC LIMIT 500
    `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
-   res.setHeader("Cache-Control","private, no-store");return res.json({success:true,payments,refunds:refunds.map(item=>({...item,canReviewThis:item.requestedBy!==req.user.id})),canRequest:true,canReview:true});
+   res.setHeader("Cache-Control","private, no-store");return res.json({success:true,payments,refunds:refunds.map(item=>({...item,canReviewThis:item.requestedBy!==req.user.id})),canRequest:studentOnly,canReview:["institution_admin","finance_manager","accounts"].includes(m.role)});
   }catch(error){next(error);}
  });
 
  app.post("/api/institutions/:institutionId/finance/payments/:paymentId/refunds",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{
   try{
    const institutionId=clean(req.params.institutionId,128),paymentId=clean(req.params.paymentId,128);
-   if(!member(req,res,institutionId,["institution_admin","finance_manager","accounts"]))return;
-   const studentUserId=clean(req.body?.studentUserId,128);
+   if(!member(req,res,institutionId,["student"]))return;
+   const studentUserId=req.user.id;
    const amountPaise=Number(req.body?.amountPaise),reason=clean(req.body?.reason,1000),idempotencyKey=clean(req.get("Idempotency-Key")||req.body?.idempotencyKey,100);
    if(!Number.isSafeInteger(amountPaise)||amountPaise<1||reason.length<10||idempotencyKey.length<12)return fail(res,400,"Enter a valid refund amount, reason (at least 10 characters) and unique request key.");
    database.exec("BEGIN IMMEDIATE");
