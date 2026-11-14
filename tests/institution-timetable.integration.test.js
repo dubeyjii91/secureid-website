@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import {DatabaseSync} from "node:sqlite";
 import {registerInstitutionModules} from "../server/institution-modules.js";
+import {registerInstitutionFeeRefunds} from "../server/institution-fee-refunds.js";
 import {registerInstitutionStudentLifecycle} from "../server/institution-student-lifecycle.js";
 
 async function setup(t){
@@ -23,6 +24,7 @@ async function setup(t){
  const membership=(u,i)=>db.prepare("SELECT role,status FROM institution_memberships WHERE user_id=? AND institution_id=?").get(u,i)||null;
  const feature=(i,f)=>db.prepare("SELECT features_json FROM institution_subscriptions WHERE institution_id=? AND status IN ('pilot','active')").get(i)?.features_json?.includes('"'+f+'"')||false;
  registerInstitutionModules({app,database:db,requireAuth:auth,requireMfaProduction:pass,enforceSameOrigin:pass,getInstitutionMembership:membership,hasInstitutionFeature:feature});
+ registerInstitutionFeeRefunds({app,database:db,requireAuth:auth,requireMfaProduction:pass,enforceSameOrigin:pass,getInstitutionMembership:membership,hasInstitutionFeature:feature});
  registerInstitutionStudentLifecycle({app,database:db,requireAuth:auth,requireMfaProduction:pass,enforceSameOrigin:pass,getInstitutionMembership:membership,hasInstitutionFeature:feature});
  const server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));
  const request=(u,p,o={})=>fetch("http://127.0.0.1:"+server.address().port+p,{...o,headers:{"content-type":"application/json","x-user":u,...(o.headers||{})}});
