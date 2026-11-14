@@ -30,11 +30,11 @@ export function registerInstitutionHR({app,database,requireAuth,requireMfaProduc
  function audit(i,u,a,e,d={}){database.prepare("INSERT INTO institution_hr_audit(id,institution_id,actor_user_id,action,entity_id,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(id(),i,u,a,e||null,JSON.stringify(d),now());}
  app.post("/api/institutions/:institutionId/staff/:staffId/link-account",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
   const i=clean(req.params.institutionId,128),staffId=clean(req.params.staffId,128);if(!member(req,res,i,["institution_admin"]))return;
-  const userId=clean(req.body?.userId,128),staff=database.prepare("SELECT id,email,user_id AS userId FROM institution_staff WHERE id=? AND institution_id=?").get(staffId,i),user=database.prepare("SELECT email FROM users WHERE id=?").get(userId);
+  const requestedUserId=clean(req.body?.userId,128),email=clean(req.body?.email,180).toLowerCase(),staff=database.prepare("SELECT id,email,user_id AS userId FROM institution_staff WHERE id=? AND institution_id=?").get(staffId,i),user=requestedUserId?database.prepare("SELECT id,email FROM users WHERE id=?").get(requestedUserId):database.prepare("SELECT id,email FROM users WHERE lower(email)=?").get(email);
   if(!staff||!user)return fail(res,404,"Staff record or user account not found.");
   if(staff.userId)return fail(res,409,"This staff record is already linked to an account.");
   if(!staff.email||staff.email.toLowerCase()!==user.email.toLowerCase())return fail(res,409,"Staff email and account email must match exactly before linking.");
-  const m=getInstitutionMembership(userId,i);if(!m||m.status!=="active"||m.role==="student")return fail(res,409,"User must have an active non-student institution membership.");
+  const userId=user.id,m=getInstitutionMembership(userId,i);if(!m||m.status!=="active"||m.role==="student")return fail(res,409,"User must have an active non-student institution membership.");
   const result=database.prepare("UPDATE institution_staff SET user_id=?,updated_at=? WHERE id=? AND institution_id=? AND user_id IS NULL").run(userId,now(),staffId,i);if(!result.changes)return fail(res,409,"Staff account link changed concurrently.");
   audit(i,req.user.id,"staff_account_linked",staffId,{userId});return res.json({success:true,staffId,userId});
  }catch(e){if(String(e.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"This account is already linked to another staff record.");next(e);}});
