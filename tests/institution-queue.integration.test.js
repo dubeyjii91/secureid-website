@@ -83,3 +83,46 @@ test("queue rejects duplicate counters, paused counters and invalid status trans
   response=await request("student-a",`/api/institutions/college-a/queue/counters/${counter.id}/tokens`,{method:"POST",body:JSON.stringify({purpose:"Library book issue"})});
   assert.equal(response.status,409);
 });
+
+
+test("appointments are persisted, slot-exclusive, institution-scoped and student-private",async t=>{
+  const {database,request}=await setup(t);
+  let response=await request("admin","/api/institutions/college-a/queue/counters",{method:"POST",body:JSON.stringify({department:"Admissions",name:"Admissions Desk"})});
+  assert.equal(response.status,201);
+  const counter=(await response.json()).counter;
+  const scheduledFor=new Date(Date.now()+60*60*1000).toISOString();
+  response=await request("student-a","/api/institutions/college-a/appointments",{method:"POST",body:JSON.stringify({counterId:counter.id,scheduledFor,purpose:"Admission document review"})});
+  assert.equal(response.status,201);
+  const appointment=(await response.json()).appointment;
+  response=await request("student-b","/api/institutions/college-a/appointments",{method:"POST",body:JSON.stringify({counterId:counter.id,scheduledFor,purpose:"Admission counselling"})});
+  assert.equal(response.status,409,"An occupied counter slot must not be double-booked.");
+  response=await request("student-b","/api/institutions/college-a/appointments");
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).appointments,[]);
+  response=await request("other-admin","/api/institutions/college-a/appointments");
+  assert.equal(response.status,403);
+  response=await request("admin","/api/institutions/college-a/appointments");
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).appointments[0].id,appointment.id);
+  response=await request("admin",`/api/institutions/college-a/appointments/${appointment.id}`,{method:"PATCH",body:JSON.stringify({status:"confirmed"})});
+  assert.equal(response.status,200);
+  response=await request("student-a",`/api/institutions/college-a/appointments/${appointment.id}`,{method:"PATCH",body:JSON.stringify({status:"cancelled"})});
+  assert.equal(response.status,200);
+  assert.equal(database.prepare("SELECT status FROM institution_service_appointments WHERE id=?").get(appointment.id).status,"cancelled");
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_appointment_audit WHERE appointment_id=?").get(appointment.id).n,3);
+});
+
+test("appointments reject invalid times, paused counters and unauthorized review transitions",async t=>{
+  const {request}=await setup(t);
+  let response=await request("admin","/api/institutions/college-a/queue/counters",{method:"POST",body:JSON.stringify({department:"Accounts",name:"Fee Desk"})});
+  const counter=(await response.json()).counter;
+  response=await request("student-a","/api/institutions/college-a/appointments",{method:"POST",body:JSON.stringify({counterId:counter.id,scheduledFor:new Date(Date.now()+1000).toISOString(),purpose:"Fee query"})});
+  assert.equal(response.status,400);
+  const future=new Date(Date.now()+2*60*60*1000).toISOString();
+  response=await request("admin",`/api/institutions/college-a/queue/counters/${counter.id}`,{method:"PATCH",body:JSON.stringify({status:"paused"})});
+  assert.equal(response.status,200);
+  response=await request("student-a","/api/institutions/college-a/appointments",{method:"POST",body:JSON.stringify({counterId:counter.id,scheduledFor:future,purpose:"Fee query"})});
+  assert.equal(response.status,409);
+  response=await request("admin",`/api/institutions/college-a/appointments/missing`,{method:"PATCH",body:JSON.stringify({status:"confirmed"})});
+  assert.equal(response.status,404);
+});

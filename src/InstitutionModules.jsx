@@ -19,7 +19,7 @@ const moduleCards = [
   { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"users" },
   { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"book" },
   { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" },
-  { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters and live student service flow.", icon:"clock" },
+  { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters, service appointments and live student service flow.", icon:"clock" },
   { key:"Library", title:"Library", description:"Catalogue, book circulation, overdue returns and reservations.", icon:"book-open" },
   { key:"Calendar", title:"Academic Calendar", description:"Academic dates, holidays, admissions, deadlines and campus events.", icon:"calendar-days" },
   { key:"Examinations", title:"Examinations", description:"Exam schedules, registration, roll numbers, marks and results.", icon:"graduation-cap" },
