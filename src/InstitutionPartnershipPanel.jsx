@@ -35,7 +35,7 @@ export default function InstitutionPartnershipPanel() {
     const result = await api("/api/admin/institutions/"+encodeURIComponent(id)+"/partnership",{cache:"no-store"});
     setSnapshot(result);
     const p = result.profile || {};
-    setForm({aisheCode:p.aisheCode||"",institutionType:p.institutionType||"",affiliation:p.affiliation||"",officialWebsite:p.officialWebsite||"",officialEmailDomain:p.officialEmailDomain||"",address:p.address||"",representativeName:p.representativeName||"",representativeTitle:p.representativeTitle||"",representativeEmail:p.representativeEmail||"",agreementReference:p.agreementReference||"",paymentReference:p.paymentReference||"",paymentAmountPaise:p.paymentAmountPaise??"",connectionMode:p.connectionMode||"dashboard",notes:p.notes||""});
+    setForm({aisheCode:p.aisheCode||"",institutionType:p.institutionType||"",affiliation:p.affiliation||"",officialWebsite:p.officialWebsite||"",officialEmailDomain:p.officialEmailDomain||"",address:p.address||"",representativeName:p.representativeName||"",representativeTitle:p.representativeTitle||"",representativeEmail:p.representativeEmail||"",agreementReference:p.agreementReference||"",paymentReference:p.paymentReference||"",paymentAmountPaise:p.paymentAmountPaise==null?"":String(Number(p.paymentAmountPaise)/100),connectionMode:p.connectionMode||"dashboard",notes:p.notes||""});
   }
   useEffect(()=>{loadDirectory().catch(e=>setError(e.message||"Institution directory unavailable."));},[]);
   useEffect(()=>{if(institutionId)loadProfile(institutionId).catch(e=>setError(e.message||"Partnership profile unavailable."));},[institutionId]);
