@@ -1,0 +1,33 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import express from "express";
+import {DatabaseSync} from "node:sqlite";
+import {registerInstitutionReports} from "../server/institution-reports.js";
+test("institution reports are admin-only, tenant-scoped, auditable and CSV-formula safe",async t=>{
+ const db=new DatabaseSync(":memory:");db.exec(`
+ CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT);
+ CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT);
+ CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,features_json TEXT,status TEXT);
+ CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT);
+ CREATE TABLE institution_student_profiles(institution_id TEXT,user_id TEXT,student_number TEXT,department TEXT,program TEXT,academic_year TEXT,status TEXT);
+ CREATE TABLE institution_operations_audit(id TEXT PRIMARY KEY,institution_id TEXT,actor_user_id TEXT,action TEXT,entity_type TEXT,entity_id TEXT,details_json TEXT,created_at TEXT);
+ INSERT INTO users VALUES('admin','admin@test'),('student','student@test'),('other','other@test');
+ INSERT INTO institutions VALUES('college','College');
+ INSERT INTO institution_subscriptions VALUES('college','["student_management"]','active');
+ INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('s','college','student','student','active');
+ INSERT INTO institution_student_profiles VALUES('college','student','=2+2','Computer Science','B.Tech','2026-27','active');
+ `);
+ const app=express();app.use((req,res,next)=>{req.user={id:req.get("x-user")||""};next();});
+ const auth=(req,res,next)=>req.user.id?next():res.status(401).end(),mfa=(req,res,next)=>next();
+ const membership=(u,i)=>db.prepare("SELECT role,status FROM institution_memberships WHERE user_id=? AND institution_id=?").get(u,i)||null;
+ const feature=(i,f)=>db.prepare("SELECT features_json FROM institution_subscriptions WHERE institution_id=? AND status='active'").get(i)?.features_json?.includes('"'+f+'"')||false;
+ registerInstitutionReports({app,database:db,requireAuth:auth,requireMfaProduction:mfa,getInstitutionMembership:membership,hasInstitutionFeature:feature});
+ const server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));
+ const request=(u,p)=>fetch("http://127.0.0.1:"+server.address().port+p,{headers:{"x-user":u}});
+ t.after(async()=>{await new Promise(r=>server.close(r));db.close();});
+ let response=await request("student","/api/institutions/college/reports/students.csv");assert.equal(response.status,403);
+ response=await request("admin","/api/institutions/college/reports/students.csv");assert.equal(response.status,200);
+ const csv=await response.text();assert.match(csv,/student_email/);assert.match(csv,/'=2\+2/);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_operations_audit WHERE action='report_exported'").get().n,1);
+ response=await request("admin","/api/institutions/college/reports/unknown.csv");assert.equal(response.status,404);
+});

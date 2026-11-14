@@ -47,3 +47,18 @@ The private repository dubeyjii91/secureid-backup-vault owns the daily 09:25 Asi
 npm run lint
 npm run build
 ```
+
+
+## Institution partnership and subscription payments
+
+The owner-only Institution Partnership panel tracks institution identity evidence, representative authority, signed agreements, subscription payment, and technical connection as separate checks. An AISHE code or a college name is not proof of partnership. Operators must independently compare institution details against official records and retain a non-sensitive evidence reference.
+
+For paid institution plans, SecureID can create Razorpay Payment Links from the saved subscription amount. Configure the following server-side secrets in the deployment environment (never in Vite/browser variables):
+
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+
+In the Razorpay Dashboard, configure the HTTPS webhook endpoint `https://YOUR_SECUREID_DOMAIN/api/webhooks/razorpay` and subscribe to `payment_link.paid`. Use test-mode credentials and a test webhook secret for integration testing first. SecureID verifies the webhook HMAC over the exact raw request body, checks the INR amount against the stored payment link, processes duplicate events idempotently, and only then marks the payment verified and reactivates the institution subscription. A browser redirect or manually entered transaction reference does not activate paid access.
+
+Razorpay merchant onboarding/KYC and live credentials are external prerequisites. AISHE institution identity and representative legal authority still require independent verification; this repository does not claim access to a public AISHE verification API. API/ERP connection status must not be marked connected until a real institution endpoint has been configured and data exchange tested.

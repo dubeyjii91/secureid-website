@@ -24,6 +24,7 @@ export default function InstitutionPartnershipPanel() {
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
   const [notice,setNotice] = useState("");
+  const [paymentLink,setPaymentLink] = useState(null);
 
   async function loadDirectory() {
     const result = await api("/api/admin/institutions",{cache:"no-store"});
@@ -49,6 +50,16 @@ export default function InstitutionPartnershipPanel() {
     event.preventDefault();setBusy(true);setError("");setNotice("");
     try { const result=await api("/api/admin/institutions/"+encodeURIComponent(institutionId)+"/partnership/checks",{method:"POST",body:JSON.stringify({checkType,outcome,evidenceReference,notes:checkNotes})});setSnapshot(result);setEvidenceReference("");setCheckNotes("");setNotice("Verification evidence recorded and audit trail updated."); }
     catch(e){setError(e.message||"Verification check could not be recorded.");} finally{setBusy(false);}
+  }
+  async function createPaymentLink() {
+    setBusy(true);setError("");setNotice("");setPaymentLink(null);
+    try {
+      const result=await api("/api/admin/institutions/"+encodeURIComponent(institutionId)+"/partnership/payment-link",{method:"POST",body:JSON.stringify({})});
+      setPaymentLink(result.paymentLink);
+      setNotice("Payment link created. Subscription access will activate only after Razorpay confirms settlement.");
+      await loadProfile(institutionId);
+    } catch(e) { setError(e.message||"Payment link could not be created."); }
+    finally { setBusy(false); }
   }
   const field=(key,label,placeholder="",type="text")=><label style={{display:"grid",gap:5,fontSize:13}}>{label}<input type={type} value={form[key]} placeholder={placeholder} onChange={e=>setForm(current=>({...current,[key]:e.target.value}))} maxLength={key==="notes"?1000:500} /></label>;
 
@@ -84,6 +95,12 @@ export default function InstitutionPartnershipPanel() {
         <label style={{display:"grid",gap:5,fontSize:13,gridColumn:"1/-1"}}>Internal notes<textarea rows="2" value={form.notes} onChange={e=>setForm(current=>({...current,notes:e.target.value}))}/></label>
         <button className="primary" disabled={busy||!institutionId}>Save institution details</button>
       </form>
+      {snapshot?.subscription?.planKey && snapshot.subscription.planKey !== "pilot" && <div className="panel" style={{marginTop:14}}>
+        <h4>Verified subscription payment</h4>
+        <p>Create a Razorpay payment link for the saved subscription amount. The subscription stays restricted until a valid signed payment webhook confirms the full INR payment.</p>
+        <button type="button" className="primary" disabled={busy||!institutionId||!form.paymentAmountPaise||Number(form.paymentAmountPaise)<=0} onClick={createPaymentLink}>Create Razorpay payment link</button>
+        {paymentLink&&<p role="status">Payment link: <a href={paymentLink.shortUrl} target="_blank" rel="noreferrer">{paymentLink.shortUrl}</a> · ₹{(paymentLink.amountPaise/100).toFixed(2)} · {paymentLink.status}</p>}
+      </div>}
       <form onSubmit={recordCheck} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10,border:"1px solid var(--border,#ddd)",borderRadius:12,padding:14,marginTop:16}}>
         <strong style={{gridColumn:"1/-1"}}>Record independent verification evidence</strong>
         <label>Verification stage<select value={checkType} onChange={e=>setCheckType(e.target.value)}>{checks.map(([key,title])=><option key={key} value={key}>{title}</option>)}</select></label>
@@ -92,7 +109,7 @@ export default function InstitutionPartnershipPanel() {
         <label>Non-sensitive notes<input maxLength={500} value={checkNotes} onChange={e=>setCheckNotes(e.target.value)} placeholder="What was checked and how"/></label>
         <button className="primary" disabled={busy||!institutionId||evidenceReference.trim().length<4}>Save verification result</button>
       </form>
-      <p className="collegePrivacyNote">Important: SecureID does not automatically verify AISHE, college ownership, legal authority or bank settlement. The authorized SecureID operator must independently check the cited source and record evidence. A pilot is not a paid subscription. API/ERP is only a selected integration mode until its real endpoint and data-flow test are separately completed.</p>
+      <p className="collegePrivacyNote">Important: AISHE identity and representative authority still require independent official-source review; an email domain alone does not prove legal authority. For paid plans, use the Razorpay link and wait for a signed webhook before access is activated. A pilot is not a paid subscription. API/ERP is only a selected integration mode until its real endpoint and data-flow test are separately completed. Official checks: <a href="https://dashboard.aishe.gov.in/" target="_blank" rel="noreferrer">AISHE institution directory</a> · <a href="https://scholarships.gov.in/Institute" target="_blank" rel="noreferrer">National Scholarship Portal institute records</a>.</p>
       {snapshot?.evidence?.length>0&&<div style={{overflowX:"auto",marginTop:14}}><h4>Verification evidence history</h4><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:8}}>Time</th><th style={{padding:8}}>Check</th><th style={{padding:8}}>Outcome</th><th style={{padding:8}}>Evidence reference</th><th style={{padding:8}}>Notes</th></tr></thead><tbody>{snapshot.evidence.map(item=><tr key={item.id}><td style={{padding:8,borderTop:"1px solid var(--border,#ddd)"}}>{new Date(item.checkedAt).toLocaleString()}</td><td style={{padding:8,borderTop:"1px solid var(--border,#ddd)"}}>{item.checkType.replaceAll("_"," ")}</td><td style={{padding:8,borderTop:"1px solid var(--border,#ddd)"}}>{item.outcome}</td><td style={{padding:8,borderTop:"1px solid var(--border,#ddd)"}}>{item.evidenceReference}</td><td style={{padding:8,borderTop:"1px solid var(--border,#ddd)"}}>{item.notes||"—"}</td></tr>)}</tbody></table></div>}
     </>}
   </section>;

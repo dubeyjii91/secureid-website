@@ -1,0 +1,135 @@
+import crypto from "node:crypto";
+const id=()=>crypto.randomUUID(),now=()=>new Date().toISOString(),clean=(v,n=240)=>String(v??"").trim().slice(0,n),fail=(r,s,m)=>r.status(s).json({success:false,message:m});
+export function registerInstitutionHR({app,database,requireAuth,requireMfaProduction,enforceSameOrigin,getInstitutionMembership,hasInstitutionFeature}){
+ const columns=database.prepare("PRAGMA table_info(institution_staff)").all();
+ if(columns.length&&!columns.some(c=>c.name==="user_id"))database.exec("ALTER TABLE institution_staff ADD COLUMN user_id TEXT REFERENCES users(id)");
+ database.exec(`
+ CREATE UNIQUE INDEX IF NOT EXISTS idx_institution_staff_user ON institution_staff(institution_id,user_id) WHERE user_id IS NOT NULL;
+ CREATE TABLE IF NOT EXISTS institution_staff_leave(
+  id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  staff_id TEXT NOT NULL REFERENCES institution_staff(id),user_id TEXT NOT NULL REFERENCES users(id),
+  leave_type TEXT NOT NULL,starts_on TEXT NOT NULL,ends_on TEXT NOT NULL,reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','cancelled')),
+  reviewed_by TEXT REFERENCES users(id),review_note TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+  CHECK(ends_on>=starts_on)
+ );
+ CREATE INDEX IF NOT EXISTS idx_staff_leave_queue ON institution_staff_leave(institution_id,status,starts_on);
+ CREATE TABLE IF NOT EXISTS institution_staff_attendance(
+  id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  staff_id TEXT NOT NULL REFERENCES institution_staff(id),attendance_date TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('present','absent','late','leave','holiday')),
+  marked_by TEXT NOT NULL REFERENCES users(id),note TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+  UNIQUE(staff_id,attendance_date)
+ );
+ CREATE TABLE IF NOT EXISTS institution_staff_payroll(
+  id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  staff_id TEXT NOT NULL REFERENCES institution_staff(id),period_start TEXT NOT NULL,period_end TEXT NOT NULL,
+  gross_paise INTEGER NOT NULL CHECK(gross_paise>0),deductions_paise INTEGER NOT NULL CHECK(deductions_paise>=0 AND deductions_paise<=gross_paise),
+  net_paise INTEGER NOT NULL CHECK(net_paise>0),status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','approved','paid')),
+  payment_method TEXT,payment_reference TEXT,created_by TEXT NOT NULL REFERENCES users(id),approved_by TEXT REFERENCES users(id),paid_by TEXT REFERENCES users(id),
+  paid_at TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+  UNIQUE(staff_id,period_start,period_end),CHECK(period_end>=period_start)
+ );
+ CREATE INDEX IF NOT EXISTS idx_staff_payroll_period ON institution_staff_payroll(institution_id,period_start DESC,status);
+ CREATE TABLE IF NOT EXISTS institution_hr_audit(
+  id TEXT PRIMARY KEY,institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+  actor_user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,details_json TEXT NOT NULL,created_at TEXT NOT NULL
+ );
+ `);
+ function member(req,res,i,roles){const m=getInstitutionMembership(req.user.id,i);if(!m||m.status!=="active"||!roles.includes(m.role)){fail(res,403,"Your institution role does not allow this HR action.");return null;}if(!hasInstitutionFeature(i,"staff_management")){fail(res,403,"Staff management is not enabled.");return null;}return m;}
+ function audit(i,u,a,e,d={}){database.prepare("INSERT INTO institution_hr_audit(id,institution_id,actor_user_id,action,entity_id,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(id(),i,u,a,e||null,JSON.stringify(d),now());}
+ app.get("/api/institutions/:institutionId/hr/payroll",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),m=member(req,res,i,["institution_admin","reviewer"]);if(!m)return;
+  const staff=database.prepare("SELECT id FROM institution_staff WHERE institution_id=? AND user_id=? AND status='active'").get(i,req.user.id);
+  if(m.role!=="institution_admin"&&!staff)return fail(res,403,"Your account is not linked to an active staff record.");
+  const rows=database.prepare(`SELECT p.id,p.staff_id AS staffId,s.full_name AS staffName,s.employee_code AS employeeCode,p.period_start AS periodStart,p.period_end AS periodEnd,p.gross_paise AS grossPaise,p.deductions_paise AS deductionsPaise,p.net_paise AS netPaise,p.status,p.payment_method AS paymentMethod,p.payment_reference AS paymentReference,p.paid_at AS paidAt FROM institution_staff_payroll p JOIN institution_staff s ON s.id=p.staff_id WHERE p.institution_id=? ${m.role==="institution_admin"?"":"AND s.user_id=?"} ORDER BY p.period_start DESC LIMIT 500`).all(...(m.role==="institution_admin"?[i]:[i,req.user.id]));
+  res.setHeader("Cache-Control","private, no-store");return res.json({success:true,payroll:rows,canManage:m.role==="institution_admin"});
+ }catch(e){next(e);}});
+ app.post("/api/institutions/:institutionId/hr/payroll",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const staffId=clean(req.body?.staffId,128),start=clean(req.body?.periodStart,10),end=clean(req.body?.periodEnd,10),gross=Number(req.body?.grossPaise),deductions=Number(req.body?.deductionsPaise||0);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start||!Number.isSafeInteger(gross)||gross<=0||!Number.isSafeInteger(deductions)||deductions<0||deductions>gross)return fail(res,400,"Enter a valid pay period, gross amount and deductions in paise.");
+  const staff=database.prepare("SELECT id FROM institution_staff WHERE id=? AND institution_id=? AND status='active'").get(staffId,i);if(!staff)return fail(res,404,"Active staff record not found.");
+  const net=gross-deductions;if(net<=0)return fail(res,400,"Net pay must be greater than zero.");
+  const payrollId=id(),ts=now();database.prepare("INSERT INTO institution_staff_payroll(id,institution_id,staff_id,period_start,period_end,gross_paise,deductions_paise,net_paise,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(payrollId,i,staffId,start,end,gross,deductions,net,req.user.id,ts,ts);
+  audit(i,req.user.id,"payroll_created",payrollId,{staffId,start,end,grossPaise:gross,deductionsPaise:deductions,netPaise:net});return res.status(201).json({success:true,payroll:{id:payrollId,grossPaise:gross,deductionsPaise:deductions,netPaise:net,status:"draft"}});
+ }catch(e){if(String(e.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"Payroll already exists for this staff member and pay period.");next(e);}});
+ app.patch("/api/institutions/:institutionId/hr/payroll/:payrollId/approve",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),payrollId=clean(req.params.payrollId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const changed=database.prepare("UPDATE institution_staff_payroll SET status='approved',approved_by=?,updated_at=? WHERE id=? AND institution_id=? AND status='draft'").run(req.user.id,now(),payrollId,i);if(!changed.changes)return fail(res,409,"Only draft payroll records can be approved.");
+  audit(i,req.user.id,"payroll_approved",payrollId);return res.json({success:true,status:"approved"});
+ }catch(e){next(e);}});
+ app.patch("/api/institutions/:institutionId/hr/payroll/:payrollId/pay",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),payrollId=clean(req.params.payrollId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const method=clean(req.body?.paymentMethod,24),reference=clean(req.body?.paymentReference,100);
+  if(!["bank_transfer","upi","cheque","cash","other"].includes(method)||reference.length<3)return fail(res,400,"Select a payment method and enter its payment reference.");
+  const ts=now(),changed=database.prepare("UPDATE institution_staff_payroll SET status='paid',payment_method=?,payment_reference=?,paid_by=?,paid_at=?,updated_at=? WHERE id=? AND institution_id=? AND status='approved'").run(method,reference,req.user.id,ts,ts,payrollId,i);if(!changed.changes)return fail(res,409,"Only approved, unpaid payroll records can be marked paid.");
+  audit(i,req.user.id,"payroll_paid",payrollId,{method,reference});return res.json({success:true,status:"paid",paidAt:ts});
+ }catch(e){next(e);}});
+ app.get("/api/institutions/:institutionId/hr/payroll/:payrollId/payslip",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),payrollId=clean(req.params.payrollId,128),m=member(req,res,i,["institution_admin","reviewer"]);if(!m)return;
+  const row=database.prepare("SELECT p.id,p.period_start AS periodStart,p.period_end AS periodEnd,p.gross_paise AS grossPaise,p.deductions_paise AS deductionsPaise,p.net_paise AS netPaise,p.status,p.payment_method AS paymentMethod,p.payment_reference AS paymentReference,p.paid_at AS paidAt,s.full_name AS staffName,s.employee_code AS employeeCode,s.email FROM institution_staff_payroll p JOIN institution_staff s ON s.id=p.staff_id WHERE p.id=? AND p.institution_id=?").get(payrollId,i);
+  if(!row)return fail(res,404,"Payroll record not found.");
+  if(m.role!=="institution_admin"&&(!database.prepare("SELECT id FROM institution_staff WHERE institution_id=? AND user_id=? AND id=(SELECT staff_id FROM institution_staff_payroll WHERE id=?)").get(i,req.user.id,payrollId)))return fail(res,403,"You can only view your own payslip.");
+  if(row.status!=="paid")return fail(res,409,"A payslip is available only after payroll is recorded as paid.");
+  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const money=v=>(Number(v)/100).toLocaleString("en-IN",{style:"currency",currency:"INR"});
+  const html="<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>SecureID payslip</title><style>body{font:16px Arial,sans-serif;max-width:760px;margin:32px auto;padding:24px;color:#172033}h1{margin-bottom:4px}.muted{color:#596579}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:28px 0}.item{padding:12px;background:#f4f6fa;border-radius:8px}table{width:100%;border-collapse:collapse}td{padding:12px;border-bottom:1px solid #ddd}td:last-child{text-align:right;font-weight:600}.total{font-size:20px}button{padding:10px 18px}@media print{button{display:none}body{margin:0}}</style><body><h1>Salary payslip</h1><p class=\"muted\">SecureID · Institution payroll record</p><div class=\"grid\"><div class=\"item\"><b>Staff member</b><br>"+esc(row.staffName)+"</div><div class=\"item\"><b>Employee code</b><br>"+esc(row.employeeCode||"Not assigned")+"</div><div class=\"item\"><b>Pay period</b><br>"+esc(row.periodStart)+" to "+esc(row.periodEnd)+"</div><div class=\"item\"><b>Payment date</b><br>"+esc(row.paidAt||"")+"</div></div><table><tr><td>Gross pay</td><td>"+esc(money(row.grossPaise))+"</td></tr><tr><td>Deductions</td><td>"+esc(money(row.deductionsPaise))+"</td></tr><tr class=\"total\"><td>Net pay</td><td>"+esc(money(row.netPaise))+"</td></tr><tr><td>Payment method</td><td>"+esc(row.paymentMethod)+"</td></tr><tr><td>Payment reference</td><td>"+esc(row.paymentReference)+"</td></tr></table><p class=\"muted\">This document records payroll details entered and marked paid by the institution. It is not a bank-issued payment confirmation.</p><button onclick=\"window.print()\">Print / Save as PDF</button></body></html>";
+  res.setHeader("Cache-Control","private, no-store");res.setHeader("Content-Type","text/html; charset=utf-8");return res.send(html);
+ }catch(e){next(e);}});
+ app.get("/api/institutions/:institutionId/hr/payroll.csv",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const rows=database.prepare("SELECT s.employee_code,s.full_name,s.email,p.period_start,p.period_end,p.gross_paise,p.deductions_paise,p.net_paise,p.status,p.payment_method,p.payment_reference,p.paid_at FROM institution_staff_payroll p JOIN institution_staff s ON s.id=p.staff_id WHERE p.institution_id=? ORDER BY p.period_start DESC,s.full_name").all(i);
+  const quote=v=>{let value=String(v??"");if(/^[=+\-@\t\r]/.test(value))value="\'"+value;return '"' + value.replace(/"/g,'""') + '"' ;},csv=[["employee_code","staff_name","email","period_start","period_end","gross_paise","deductions_paise","net_paise","status","payment_method","payment_reference","paid_at"],...rows.map(r=>Object.values(r))].map(row=>row.map(quote).join(",")).join("\r\n");
+  res.setHeader("Cache-Control","private, no-store");res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition",'attachment; filename="secureid-payroll.csv"');return res.send(csv);
+ }catch(e){next(e);}});
+ app.post("/api/institutions/:institutionId/staff/:staffId/link-account",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),staffId=clean(req.params.staffId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const requestedUserId=clean(req.body?.userId,128),email=clean(req.body?.email,180).toLowerCase(),staff=database.prepare("SELECT id,email,user_id AS userId FROM institution_staff WHERE id=? AND institution_id=?").get(staffId,i),user=requestedUserId?database.prepare("SELECT id,email FROM users WHERE id=?").get(requestedUserId):database.prepare("SELECT id,email FROM users WHERE lower(email)=?").get(email);
+  if(!staff||!user)return fail(res,404,"Staff record or user account not found.");
+  if(staff.userId)return fail(res,409,"This staff record is already linked to an account.");
+  if(!staff.email||staff.email.toLowerCase()!==user.email.toLowerCase())return fail(res,409,"Staff email and account email must match exactly before linking.");
+  const userId=user.id,m=getInstitutionMembership(userId,i);if(!m||m.status!=="active"||m.role==="student")return fail(res,409,"User must have an active non-student institution membership.");
+  const result=database.prepare("UPDATE institution_staff SET user_id=?,updated_at=? WHERE id=? AND institution_id=? AND user_id IS NULL").run(userId,now(),staffId,i);if(!result.changes)return fail(res,409,"Staff account link changed concurrently.");
+  audit(i,req.user.id,"staff_account_linked",staffId,{userId});return res.json({success:true,staffId,userId});
+ }catch(e){if(String(e.message||"").includes("UNIQUE constraint failed"))return fail(res,409,"This account is already linked to another staff record.");next(e);}});
+ app.get("/api/institutions/:institutionId/hr/leave",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),m=member(req,res,i,["institution_admin","reviewer"]);if(!m)return;
+  const staff=database.prepare("SELECT id FROM institution_staff WHERE institution_id=? AND user_id=? AND status='active'").get(i,req.user.id);
+  if(m.role!=="institution_admin"&&!staff)return fail(res,403,"Your account is not linked to an active staff record.");
+  const rows=database.prepare(`SELECT l.id,l.staff_id AS staffId,s.full_name AS staffName,s.employee_code AS employeeCode,l.leave_type AS leaveType,l.starts_on AS startsOn,l.ends_on AS endsOn,l.reason,l.status,l.review_note AS reviewNote,l.created_at AS createdAt FROM institution_staff_leave l JOIN institution_staff s ON s.id=l.staff_id WHERE l.institution_id=? ${m.role==="institution_admin"?"":"AND l.user_id=?"} ORDER BY l.created_at DESC LIMIT 500`).all(...(m.role==="institution_admin"?[i]:[i,req.user.id]));
+  res.setHeader("Cache-Control","private, no-store");return res.json({success:true,requests:rows});
+ }catch(e){next(e);}});
+ app.post("/api/institutions/:institutionId/hr/leave",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),m=member(req,res,i,["institution_admin","reviewer"]);if(!m)return;
+  const requestedStaffId=clean(req.body?.staffId,128);
+  const staff=m.role==="institution_admin"&&requestedStaffId
+    ?database.prepare("SELECT id,user_id AS userId FROM institution_staff WHERE institution_id=? AND id=? AND status='active'").get(i,requestedStaffId)
+    :database.prepare("SELECT id,user_id AS userId FROM institution_staff WHERE institution_id=? AND user_id=? AND status='active'").get(i,req.user.id);
+  if(!staff||!staff.userId)return fail(res,403,"Link the active staff account before creating a leave request.");
+  const type=clean(req.body?.leaveType,40),start=clean(req.body?.startsOn,10),end=clean(req.body?.endsOn,10),reason=clean(req.body?.reason,1000);
+  if(!["casual","sick","earned","duty","unpaid","other"].includes(type)||!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start||reason.length<5)return fail(res,400,"Enter valid leave type, dates and reason.");
+  const overlap=database.prepare("SELECT 1 FROM institution_staff_leave WHERE staff_id=? AND status IN ('pending','approved') AND starts_on<=? AND ends_on>=?").get(staff.id,end,start);if(overlap)return fail(res,409,"A pending or approved leave request overlaps these dates.");
+  const leaveId=id(),ts=now();database.prepare("INSERT INTO institution_staff_leave(id,institution_id,staff_id,user_id,leave_type,starts_on,ends_on,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(leaveId,i,staff.id,staff.userId,type,start,end,reason,ts,ts);
+  audit(i,req.user.id,"leave_requested",leaveId,{type,start,end});return res.status(201).json({success:true,request:{id:leaveId,status:"pending"}});
+ }catch(e){next(e);}});
+ app.patch("/api/institutions/:institutionId/hr/leave/:leaveId",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),leaveId=clean(req.params.leaveId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const status=clean(req.body?.status,20),note=clean(req.body?.reviewNote,1000);if(!["approved","rejected"].includes(status)||status==="rejected"&&note.length<5)return fail(res,400,"Choose approve or reject and include a reason when rejecting.");
+  const changed=database.prepare("UPDATE institution_staff_leave SET status=?,reviewed_by=?,review_note=?,updated_at=? WHERE id=? AND institution_id=? AND status='pending'").run(status,req.user.id,note||null,now(),leaveId,i);if(!changed.changes)return fail(res,404,"Pending leave request not found.");
+  audit(i,req.user.id,"leave_"+status,leaveId,{note});return res.json({success:true,status});
+ }catch(e){next(e);}});
+ app.get("/api/institutions/:institutionId/hr/attendance",requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const date=clean(req.query?.date,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return fail(res,400,"Provide attendance date as YYYY-MM-DD.");
+  const rows=database.prepare("SELECT a.id,a.staff_id AS staffId,s.full_name AS fullName,s.employee_code AS employeeCode,a.attendance_date AS attendanceDate,a.status,a.note FROM institution_staff_attendance a JOIN institution_staff s ON s.id=a.staff_id WHERE a.institution_id=? AND a.attendance_date=? ORDER BY s.full_name").all(i,date);
+  return res.json({success:true,attendance:rows});
+ }catch(e){next(e);}});
+ app.put("/api/institutions/:institutionId/hr/attendance/:staffId",enforceSameOrigin,requireAuth,requireMfaProduction,(req,res,next)=>{try{
+  const i=clean(req.params.institutionId,128),staffId=clean(req.params.staffId,128);if(!member(req,res,i,["institution_admin"]))return;
+  const date=clean(req.body?.date,10),status=clean(req.body?.status,20),note=clean(req.body?.note,500);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!["present","absent","late","leave","holiday"].includes(status))return fail(res,400,"Enter a valid attendance date and status.");
+  if(!database.prepare("SELECT id FROM institution_staff WHERE id=? AND institution_id=?").get(staffId,i))return fail(res,404,"Staff record not found.");
+  const ts=now();database.prepare("INSERT INTO institution_staff_attendance(id,institution_id,staff_id,attendance_date,status,marked_by,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(staff_id,attendance_date) DO UPDATE SET status=excluded.status,marked_by=excluded.marked_by,note=excluded.note,updated_at=excluded.updated_at").run(id(),i,staffId,date,status,req.user.id,note||null,ts,ts);
+  audit(i,req.user.id,"staff_attendance_marked",staffId,{date,status});return res.json({success:true,status,date});
+ }catch(e){next(e);}});
+}

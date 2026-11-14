@@ -133,7 +133,7 @@ if (isProduction && !appOrigin.startsWith("https://")) throw new Error("APP_ORIG
 
 
 app.disable("x-powered-by");
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "32kb", verify(req, res, buffer) { req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: false, limit: "32kb" }));
 if (isProduction) app.set("trust proxy", Math.max(0, Number(process.env.TRUST_PROXY_HOPS || 0)));
 

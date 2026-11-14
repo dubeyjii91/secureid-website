@@ -32,6 +32,59 @@ export function registerInstitutionModules({
       created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       UNIQUE(institution_id,course_code,academic_year)
     );
+    CREATE TABLE IF NOT EXISTS institution_course_enrollments (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'enrolled' CHECK(status IN ('enrolled','completed','withdrawn')),
+      enrolled_at TEXT NOT NULL, created_by TEXT NOT NULL REFERENCES users(id), updated_at TEXT NOT NULL,
+      UNIQUE(course_id,student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_enrollments_student
+      ON institution_course_enrollments(institution_id,student_user_id,status);
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_validate_membership
+    BEFORE INSERT ON institution_course_enrollments
+    WHEN NOT EXISTS (
+      SELECT 1 FROM institution_courses c JOIN institution_memberships m
+        ON m.institution_id=c.institution_id AND m.user_id=NEW.student_user_id
+      LEFT JOIN institution_student_profiles p
+        ON p.institution_id=c.institution_id AND p.user_id=NEW.student_user_id
+      WHERE c.id=NEW.course_id AND c.institution_id=NEW.institution_id
+        AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_INSTITUTION_STUDENT_ENROLLMENT'); END;
+
+    CREATE TABLE IF NOT EXISTS institution_course_sections (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      section_code TEXT NOT NULL, section_name TEXT NOT NULL, capacity INTEGER,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(course_id,section_code)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_sections_course
+      ON institution_course_sections(institution_id,course_id,status);
+    CREATE TABLE IF NOT EXISTS institution_timetable_entries (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      weekday INTEGER NOT NULL CHECK(weekday BETWEEN 1 AND 7),
+      starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, room TEXT,
+      staff_id TEXT REFERENCES institution_staff(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      CHECK(starts_at < ends_at)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_timetable_day ON institution_timetable_entries(institution_id,weekday,starts_at);
+    CREATE TRIGGER IF NOT EXISTS institution_timetable_prevent_overlap
+    BEFORE INSERT ON institution_timetable_entries
+    WHEN EXISTS (
+      SELECT 1 FROM institution_timetable_entries t
+      WHERE t.institution_id=NEW.institution_id AND t.weekday=NEW.weekday
+        AND t.starts_at<NEW.ends_at AND t.ends_at>NEW.starts_at
+        AND ((NEW.room IS NOT NULL AND NEW.room<>'' AND lower(COALESCE(t.room,''))=lower(NEW.room))
+          OR (NEW.staff_id IS NOT NULL AND t.staff_id=NEW.staff_id))
+    )
+    BEGIN SELECT RAISE(ABORT,'TIMETABLE_RESOURCE_OVERLAP'); END;
+
     CREATE TABLE IF NOT EXISTS institution_attendance (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -77,9 +130,36 @@ export function registerInstitutionModules({
     );
   `);
 
+  const enrollmentColumns = database.prepare("PRAGMA table_info(institution_course_enrollments)").all();
+  if (!enrollmentColumns.some(column => column.name === "section_id")) {
+    database.exec("ALTER TABLE institution_course_enrollments ADD COLUMN section_id TEXT REFERENCES institution_course_sections(id) ON DELETE SET NULL");
+  }
+  database.exec(`
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_section_validate_insert
+    BEFORE INSERT ON institution_course_enrollments
+    WHEN NEW.section_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM institution_course_sections s
+      WHERE s.id=NEW.section_id AND s.institution_id=NEW.institution_id
+        AND s.course_id=NEW.course_id AND s.status='active'
+        AND (s.capacity IS NULL OR (SELECT COUNT(*) FROM institution_course_enrollments e
+          WHERE e.section_id=s.id AND e.status='enrolled') < s.capacity)
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_OR_FULL_INSTITUTION_SECTION'); END;
+    CREATE TRIGGER IF NOT EXISTS institution_enrollment_section_validate_update
+    BEFORE UPDATE OF section_id,status,course_id,institution_id ON institution_course_enrollments
+    WHEN NEW.section_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM institution_course_sections s
+      WHERE s.id=NEW.section_id AND s.institution_id=NEW.institution_id
+        AND s.course_id=NEW.course_id AND s.status='active'
+        AND (s.capacity IS NULL OR (SELECT COUNT(*) FROM institution_course_enrollments e
+          WHERE e.section_id=s.id AND e.status='enrolled' AND e.id<>NEW.id) < s.capacity)
+    )
+    BEGIN SELECT RAISE(ABORT,'INVALID_OR_FULL_INSTITUTION_SECTION'); END;
+  `);
+
   // New pilot modules are included for existing pilot institutions; this does not change paid plans or billing.
   const pilots = database.prepare("SELECT institution_id,features_json FROM institution_subscriptions WHERE status='pilot'").all();
-  const added = ["student_management","staff_management","finance","academics"];
+  const added = ["student_management","staff_management","finance","academics","library"];
   for (const row of pilots) {
     let features = [];
     try { features = JSON.parse(row.features_json || "[]"); } catch {}
@@ -156,7 +236,7 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only"].includes(member.role)) return fail(res,403,"Staff directory access is not allowed.");
       if(!hasInstitutionFeature(institutionId,"staff_management")) return fail(res,403,"Staff management is not enabled.","FEATURE_NOT_ENTITLED");
-      const staff=database.prepare("SELECT id,full_name AS fullName,email,employee_code AS employeeCode,department,designation,status,created_at AS createdAt FROM institution_staff WHERE institution_id=? ORDER BY full_name COLLATE NOCASE LIMIT 500").all(institutionId);
+      const staff=database.prepare("SELECT id,user_id AS userId,full_name AS fullName,email,employee_code AS employeeCode,department,designation,status,created_at AS createdAt FROM institution_staff WHERE institution_id=? ORDER BY full_name COLLATE NOCASE LIMIT 500").all(institutionId);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,staff});
     }catch(error){next(error);}
   });
@@ -188,7 +268,8 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Course access is not allowed.");
       if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
-      const courses=database.prepare("SELECT id,course_code AS courseCode,title,department,academic_year AS academicYear FROM institution_courses WHERE institution_id=? ORDER BY title LIMIT 300").all(institutionId);
+      const studentOnly=member.role==="student";
+      const courses=database.prepare("SELECT c.id,c.course_code AS courseCode,c.title,c.department,c.academic_year AS academicYear FROM institution_courses c WHERE c.institution_id=? "+(studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.course_id=c.id AND e.student_user_id=? AND e.status='enrolled') ":"")+"ORDER BY c.title LIMIT 300").all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,courses});
     }catch(error){next(error);}
   });
@@ -204,6 +285,148 @@ export function registerInstitutionModules({
       res.status(201).json({success:true,course:{id:courseId,courseCode,title,department,academicYear}});
     }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That course code already exists for this academic year.");next(error);}
   });
+  app.get("/api/institutions/:institutionId/sections", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Academic section access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
+      const sections=database.prepare(`
+        SELECT s.id,s.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,
+          s.section_code AS sectionCode,s.section_name AS sectionName,s.capacity,s.status,
+          (SELECT COUNT(*) FROM institution_course_enrollments e WHERE e.section_id=s.id AND e.status='enrolled') AS enrolledCount
+        FROM institution_course_sections s JOIN institution_courses c ON c.id=s.course_id
+        WHERE s.institution_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.section_id=s.id AND e.student_user_id=? AND e.status='enrolled') ":""}
+        ORDER BY c.title,s.section_code LIMIT 1000
+      `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,sections});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/sections", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),sectionCode=safeText(req.body?.sectionCode,24).toUpperCase();
+      const sectionName=safeText(req.body?.sectionName,80),capacityRaw=req.body?.capacity;
+      const capacity=capacityRaw===""||capacityRaw===null||capacityRaw===undefined?null:Number(capacityRaw);
+      if(!database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId))return fail(res,404,"Course was not found in this institution.");
+      if(!/^[A-Z0-9_-]{1,24}$/.test(sectionCode)||sectionName.length<1||capacity!==null&&(!Number.isSafeInteger(capacity)||capacity<1||capacity>10000))return fail(res,400,"Enter a valid section code, name and optional positive capacity.");
+      const sectionId=id(),now=iso();
+      database.prepare("INSERT INTO institution_course_sections(id,institution_id,course_id,section_code,section_name,capacity,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'active',?,?,?)")
+        .run(sectionId,institutionId,courseId,sectionCode,sectionName,capacity,req.user.id,now,now);
+      audit(institutionId,req.user.id,"course_section_created","course_section",sectionId,{courseId,sectionCode,capacity});
+      res.status(201).json({success:true,section:{id:sectionId,courseId,sectionCode,sectionName,capacity,status:"active",enrolledCount:0}});
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT")||error?.errcode===2067||/UNIQUE constraint failed/i.test(String(error?.message||"")))return fail(res,409,"That section code already exists for this course.");next(error);}
+  });
+  app.patch("/api/institutions/:institutionId/sections/:sectionId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const sectionId=safeText(req.params.sectionId,128),row=database.prepare("SELECT id,capacity FROM institution_course_sections WHERE id=? AND institution_id=?").get(sectionId,institutionId);
+      if(!row)return fail(res,404,"Course section was not found.");
+      const status=safeText(req.body?.status,20),capacityRaw=req.body?.capacity;
+      const capacity=capacityRaw===""||capacityRaw===null||capacityRaw===undefined?null:Number(capacityRaw);
+      const enrolled=Number(database.prepare("SELECT COUNT(*) AS n FROM institution_course_enrollments WHERE section_id=? AND status='enrolled'").get(sectionId).n);
+      if(!["active","inactive"].includes(status)||capacity!==null&&(!Number.isSafeInteger(capacity)||capacity<1||capacity<enrolled||capacity>10000))return fail(res,409,"Choose a valid status and a capacity that is not below current enrollment.");
+      database.prepare("UPDATE institution_course_sections SET status=?,capacity=?,updated_at=? WHERE id=? AND institution_id=?").run(status,capacity,iso(),sectionId,institutionId);
+      audit(institutionId,req.user.id,"course_section_updated","course_section",sectionId,{status,capacity});
+      res.json({success:true,status,capacity,enrolledCount:enrolled});
+    }catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/:institutionId/enrollments", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Course enrollment access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
+      const rows=database.prepare(`
+        SELECT e.id,e.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,
+          e.section_id AS sectionId,cs.section_code AS sectionCode,cs.section_name AS sectionName,
+          e.student_user_id AS studentUserId,u.email AS studentEmail,e.status,e.enrolled_at AS enrolledAt
+        FROM institution_course_enrollments e
+        JOIN institution_courses c ON c.id=e.course_id
+        JOIN users u ON u.id=e.student_user_id
+        LEFT JOIN institution_course_sections cs ON cs.id=e.section_id
+        WHERE e.institution_id=? ${studentOnly?"AND e.student_user_id=?":""}
+        ORDER BY c.title,u.email COLLATE NOCASE LIMIT 1000
+      `).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,enrollments:rows});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/enrollments", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),studentUserId=safeText(req.body?.studentUserId,128),sectionId=safeText(req.body?.sectionId,128);
+      const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
+      if(!course||!student)return fail(res,400,"Choose a course and an active student from this institution.");
+      const section=sectionId?database.prepare("SELECT id FROM institution_course_sections WHERE id=? AND institution_id=? AND course_id=? AND status='active'").get(sectionId,institutionId,courseId):null;
+      if(sectionId&&!section)return fail(res,400,"Choose an active section belonging to the selected course.");
+      const existing=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE course_id=? AND student_user_id=?").get(courseId,studentUserId);
+      if(existing?.status==="enrolled")return fail(res,409,"This student is already enrolled in the selected course.");
+      const now=iso(),enrollmentId=existing?.id||id();
+      if(existing)database.prepare("UPDATE institution_course_enrollments SET status='enrolled',section_id=?,enrolled_at=?,created_by=?,updated_at=? WHERE id=? AND institution_id=?")
+        .run(sectionId||null,now,req.user.id,now,enrollmentId,institutionId);
+      else database.prepare("INSERT INTO institution_course_enrollments(id,institution_id,course_id,student_user_id,section_id,status,enrolled_at,created_by,updated_at) VALUES(?,?,?,?,?,'enrolled',?,?,?)")
+        .run(enrollmentId,institutionId,courseId,studentUserId,sectionId||null,now,req.user.id,now);
+      audit(institutionId,req.user.id,existing?"course_enrollment_reactivated":"course_student_enrolled","course_enrollment",enrollmentId,{courseId,studentUserId,sectionId:sectionId||null});
+      res.status(existing?200:201).json({success:true,enrollment:{id:enrollmentId,courseId,studentUserId,sectionId:sectionId||null,status:"enrolled"}});
+    }catch(error){
+      if(String(error?.message||"").includes("INVALID_INSTITUTION_STUDENT_ENROLLMENT"))return fail(res,400,"Only an active student in this institution can be enrolled.");
+      if(String(error?.message||"").includes("INVALID_OR_FULL_INSTITUTION_SECTION"))return fail(res,409,"The selected section is inactive, full or does not belong to this course.");
+      if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"This course enrollment conflicts with an existing record.");
+      next(error);
+    }
+  });
+  app.delete("/api/institutions/:institutionId/enrollments/:enrollmentId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const enrollmentId=safeText(req.params.enrollmentId,128),row=database.prepare("SELECT id,status FROM institution_course_enrollments WHERE id=? AND institution_id=?").get(enrollmentId,institutionId);
+      if(!row)return fail(res,404,"Course enrollment was not found.");
+      if(row.status!=="enrolled")return fail(res,409,"Only an active enrollment can be withdrawn.");
+      database.prepare("UPDATE institution_course_enrollments SET status='withdrawn',updated_at=? WHERE id=? AND institution_id=?").run(iso(),enrollmentId,institutionId);
+      audit(institutionId,req.user.id,"course_student_withdrawn","course_enrollment",enrollmentId);
+      res.json({success:true,status:"withdrawn"});
+    }catch(error){next(error);}
+  });
+
+  app.get("/api/institutions/:institutionId/timetable", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Timetable access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const studentOnly=member.role==="student";
+      const rows=database.prepare(`SELECT t.id,t.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,t.weekday,t.starts_at AS startsAt,t.ends_at AS endsAt,t.room,t.staff_id AS staffId,s.full_name AS staffName
+        FROM institution_timetable_entries t JOIN institution_courses c ON c.id=t.course_id LEFT JOIN institution_staff s ON s.id=t.staff_id
+        WHERE t.institution_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.course_id=t.course_id AND e.student_user_id=? AND e.status='enrolled') ":""}ORDER BY t.weekday,t.starts_at LIMIT 500`).all(...(studentOnly?[institutionId,req.user.id]:[institutionId]));
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,entries:rows});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/timetable", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),weekday=Number(req.body?.weekday),startsAt=safeText(req.body?.startsAt,5),endsAt=safeText(req.body?.endsAt,5),room=safeText(req.body?.room,80),staffId=safeText(req.body?.staffId,128);
+      if(!Number.isInteger(weekday)||weekday<1||weekday>7||!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(endsAt)||startsAt>=endsAt)return fail(res,400,"Choose a weekday and a valid start/end time.");
+      if(!database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId))return fail(res,404,"Course was not found in this institution.");
+      if(staffId&&!database.prepare("SELECT id FROM institution_staff WHERE id=? AND institution_id=? AND status='active'").get(staffId,institutionId))return fail(res,404,"Active staff member was not found in this institution.");
+      const overlap=database.prepare("SELECT id FROM institution_timetable_entries WHERE institution_id=? AND weekday=? AND starts_at<? AND ends_at>? AND ((?<>'' AND COALESCE(room,'')=?) OR (?<>'' AND staff_id=?))").get(institutionId,weekday,endsAt,startsAt,room,room,staffId,staffId);
+      if(overlap)return fail(res,409,"This time overlaps another timetable entry. Choose a different time.");
+      const entryId=id(),now=iso();
+      database.prepare("INSERT INTO institution_timetable_entries(id,institution_id,course_id,weekday,starts_at,ends_at,room,staff_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(entryId,institutionId,courseId,weekday,startsAt,endsAt,room||null,staffId||null,req.user.id,now,now);
+      audit(institutionId,req.user.id,"timetable_entry_created","timetable",entryId,{courseId,weekday,startsAt,endsAt,room,staffId:staffId||null});
+      res.status(201).json({success:true,entry:{id:entryId,courseId,weekday,startsAt,endsAt,room,staffId:staffId||null}});
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT")||String(error?.message||"").includes("TIMETABLE_RESOURCE_OVERLAP"))return fail(res,409,"The selected room or faculty member already has a class during this time.");next(error);}
+  });
+  app.delete("/api/institutions/:institutionId/timetable/:entryId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const entryId=safeText(req.params.entryId,128),row=database.prepare("SELECT id FROM institution_timetable_entries WHERE id=? AND institution_id=?").get(entryId,institutionId);
+      if(!row)return fail(res,404,"Timetable entry was not found.");
+      database.prepare("DELETE FROM institution_timetable_entries WHERE id=? AND institution_id=?").run(entryId,institutionId);
+      audit(institutionId,req.user.id,"timetable_entry_deleted","timetable",entryId);
+      res.json({success:true});
+    }catch(error){next(error);}
+  });
+
   app.get("/api/institutions/:institutionId/courses/:courseId/attendance", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=safeText(req.params.institutionId,128),courseId=safeText(req.params.courseId,128),member=getInstitutionMembership(req.user.id,institutionId);
@@ -211,7 +434,7 @@ export function registerInstitutionModules({
       if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);if(!course)return fail(res,404,"Course was not found.");
       const isStudent=member.role==="student";
-      const rows=database.prepare("SELECT student_user_id AS studentUserId,attendance_date AS date,status FROM institution_attendance WHERE institution_id=? AND course_id=? "+(isStudent?"AND student_user_id=? ":"")+"ORDER BY attendance_date DESC LIMIT 500").all(...(isStudent?[institutionId,courseId,req.user.id]:[institutionId,courseId]));
+      const rows=database.prepare("SELECT student_user_id AS studentUserId,attendance_date AS date,status FROM institution_attendance WHERE institution_id=? AND course_id=? "+(isStudent?"AND student_user_id=? AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.institution_id=? AND e.course_id=? AND e.student_user_id=? AND e.status='enrolled') ":"")+"ORDER BY attendance_date DESC LIMIT 500").all(...(isStudent?[institutionId,courseId,req.user.id,institutionId,courseId,req.user.id]:[institutionId,courseId]));
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,attendance:rows});
     }catch(error){next(error);}
   });
@@ -221,8 +444,10 @@ export function registerInstitutionModules({
       const courseId=safeText(req.params.courseId,128),studentUserId=safeText(req.body?.studentUserId,128),date=safeText(req.body?.date,10),status=safeText(req.body?.status,20);
       if(!/^20\d{2}-\d{2}-\d{2}$/.test(date)||!["present","absent","late","excused"].includes(status))return fail(res,400,"Enter a valid date and attendance status.");
       const course=database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId);
-      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!course||!student)return fail(res,404,"Course or active student membership was not found.");
+      const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=? AND student_user_id=? AND status='enrolled'").get(institutionId,courseId,studentUserId);
+      if(!enrollment)return fail(res,409,"The student must be actively enrolled in this course before attendance can be marked.");
       const now=iso(),attendanceId=id();
       database.prepare(`INSERT INTO institution_attendance(id,institution_id,course_id,student_user_id,attendance_date,status,marked_by,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(course_id,student_user_id,attendance_date) DO UPDATE SET status=excluded.status,marked_by=excluded.marked_by,updated_at=excluded.updated_at`)
@@ -304,8 +529,8 @@ export function registerInstitutionModules({
           r.marks_hundredths AS marksHundredths
         FROM institution_assessments a
         LEFT JOIN institution_assessment_results r ON r.assessment_id=a.id ${studentOnly?"AND r.student_user_id=?":""}
-        WHERE a.institution_id=? AND a.course_id=? ORDER BY a.exam_date DESC,a.created_at DESC LIMIT 300
-      `).all(...(studentOnly?[req.user.id,institutionId,courseId]:[institutionId,courseId]));
+        WHERE a.institution_id=? AND a.course_id=? ${studentOnly?"AND EXISTS (SELECT 1 FROM institution_course_enrollments e WHERE e.institution_id=a.institution_id AND e.course_id=a.course_id AND e.student_user_id=? AND e.status='enrolled') ":""}ORDER BY a.exam_date DESC,a.created_at DESC LIMIT 300
+      `).all(...(studentOnly?[req.user.id,institutionId,courseId,req.user.id]:[institutionId,courseId]));
       res.setHeader("Cache-Control","private, no-store");
       res.json({success:true,assessments:assessments.map(a=>({...a,totalMarks:a.totalMarksHundredths/100,marksObtained:a.marksHundredths==null?null:a.marksHundredths/100}))});
     }catch(error){next(error);}
@@ -328,8 +553,10 @@ export function registerInstitutionModules({
       const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics",["institution_admin","reviewer"]))return;
       const assessmentId=safeText(req.params.assessmentId,128),studentUserId=safeText(req.params.studentUserId,128),marks=Number(req.body?.marksObtained);
       const assessment=database.prepare("SELECT id,total_marks_hundredths AS totalMarks FROM institution_assessments WHERE id=? AND institution_id=?").get(assessmentId,institutionId);
-      const student=database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=? AND role='student' AND status='active'").get(institutionId,studentUserId);
+      const student=database.prepare("SELECT m.id FROM institution_memberships m LEFT JOIN institution_student_profiles p ON p.institution_id=m.institution_id AND p.user_id=m.user_id WHERE m.institution_id=? AND m.user_id=? AND m.role='student' AND m.status='active' AND COALESCE(p.status,'active')='active'").get(institutionId,studentUserId);
       if(!assessment||!student||!Number.isFinite(marks)||marks<0||Math.round(marks*100)!==marks*100||Math.round(marks*100)>Number(assessment.totalMarks))return fail(res,400,"Choose an active student and enter marks within the assessment maximum.");
+      const enrollment=database.prepare("SELECT id FROM institution_course_enrollments WHERE institution_id=? AND course_id=(SELECT course_id FROM institution_assessments WHERE id=? AND institution_id=?) AND student_user_id=? AND status='enrolled'").get(institutionId,assessmentId,institutionId,studentUserId);
+      if(!enrollment)return fail(res,409,"The student must be actively enrolled in the assessment course before marks can be recorded.");
       const now=iso(),resultId=id(),marksHundredths=Math.round(marks*100);
       database.prepare(`INSERT INTO institution_assessment_results(id,institution_id,assessment_id,student_user_id,marks_hundredths,recorded_by,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(assessment_id,student_user_id) DO UPDATE SET marks_hundredths=excluded.marks_hundredths,recorded_by=excluded.recorded_by,updated_at=excluded.updated_at`)
