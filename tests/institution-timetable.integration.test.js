@@ -16,7 +16,7 @@ async function setup(t){
   INSERT INTO users VALUES('admin','admin@test'),('student','student@test'),('student2','student2@test'),('other','other@test');
   INSERT INTO institutions VALUES('college','College'),('other-college','Other College');
   INSERT INTO institution_subscriptions VALUES('college','["academics","student_management","staff_management","finance"]','active',CURRENT_TIMESTAMP),('other-college','["academics"]','active',CURRENT_TIMESTAMP);
-  INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('s','college','student','student','active'),('s2','college','student2','student','active'),('o','other-college','other','institution_admin','active');
+  INSERT INTO institution_memberships(id,institution_id,user_id,role,status) VALUES('a','college','admin','institution_admin','active'),('s','college','student','student','active'),('s2','college','student2','student','active'),('o','other-college','other','institution_admin','active');
  `);
  const app=express();app.use(express.json());app.use((req,res,next)=>{req.user={id:req.get("x-user")||"",mfaVerified:true};next();});
  const auth=(req,res,next)=>req.user.id?next():res.status(401).end(),pass=(req,res,next)=>next();
