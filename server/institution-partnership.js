@@ -15,7 +15,7 @@ function subscriptionEligible(subscription, paymentStatus) {
   return subscription.status === "pilot" || paymentStatus === "verified";
 }
 
-export function registerInstitutionPartnership({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin }) {
+export function registerInstitutionPartnership({ app, database, requireAuth, enforceSameOrigin }) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_partnership_profiles (
       institution_id TEXT PRIMARY KEY REFERENCES institutions(id) ON DELETE CASCADE,
@@ -42,9 +42,13 @@ export function registerInstitutionPartnership({ app, database, requireAuth, req
     CREATE INDEX IF NOT EXISTS idx_institution_evidence_institution ON institution_verification_evidence(institution_id, checked_at DESC);
   `);
 
+  function requireMfa(req, res, next) {
+    if (!req.user?.mfaVerified) return fail(res,403,"MFA verification is required.","MFA_REQUIRED");
+    return next();
+  }
   function owner(req, res, next) {
     if (req.user?.role !== "owner") return fail(res, 403, "SecureID Owner access is required.", "OWNER_REQUIRED");
-    return requireMfaProduction(req, res, next);
+    return requireMfa(req, res, next);
   }
   function getProfile(institutionId) {
     database.prepare(`INSERT OR IGNORE INTO institution_partnership_profiles(institution_id,created_at,updated_at) VALUES(?,?,?)`).run(institutionId, now(), now());
