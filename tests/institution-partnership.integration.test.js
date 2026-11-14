@@ -192,3 +192,18 @@ test("verified Razorpay fee webhook settles the exact invoice balance idempotent
   assert.equal(response.status,200);assert.equal((await response.json()).duplicate,true);
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM institution_fee_payments WHERE invoice_id='invoice-fee-1'").get().n,1);
 });
+
+
+test("student can request a Razorpay payment link only for their own exact outstanding invoice balance",async t=>{
+  const {database,request}=await setup(t);
+  const previousId=process.env.RAZORPAY_KEY_ID,previousSecret=process.env.RAZORPAY_KEY_SECRET,originalFetch=globalThis.fetch;
+  process.env.RAZORPAY_KEY_ID="rzp_test_key";process.env.RAZORPAY_KEY_SECRET="test-secret";
+  globalThis.fetch=async(url,options)=>String(url).includes("api.razorpay.com")?new Response(JSON.stringify({id:"plink_fee_create_001",short_url:"https://rzp.io/i/fee001"}),{status:200,headers:{"content-type":"application/json"}}):originalFetch(url,options);
+  t.after(()=>{globalThis.fetch=originalFetch;if(previousId===undefined)delete process.env.RAZORPAY_KEY_ID;else process.env.RAZORPAY_KEY_ID=previousId;if(previousSecret===undefined)delete process.env.RAZORPAY_KEY_SECRET;else process.env.RAZORPAY_KEY_SECRET=previousSecret;});
+  const ts=new Date().toISOString();
+  database.prepare("INSERT INTO institution_fee_invoices(id,institution_id,student_user_id,fee_head,amount_paise,status,created_by,created_at,updated_at) VALUES('invoice-owned','college-a','student','Tuition',90000,'unpaid','college-admin',?,?,?)").run(ts,ts,ts);
+  let response=await request("/api/institutions/college-a/finance/invoices/invoice-owned/payment-link",{method:"POST",headers:{"x-user":"student"},body:"{}"});
+  assert.equal(response.status,201);const body=await response.json();assert.equal(body.paymentLink.shortUrl,"https://rzp.io/i/fee001");assert.equal(body.paymentLink.amountPaise,90000);
+  response=await request("/api/institutions/college-a/finance/invoices/invoice-owned/payment-link",{method:"POST",headers:{"x-user":"owner"},body:"{}"});
+  assert.equal(response.status,403);
+});
