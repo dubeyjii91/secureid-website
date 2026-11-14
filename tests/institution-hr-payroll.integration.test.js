@@ -57,5 +57,5 @@ test("payslip is printable only after payment and remains private to the linked 
  r=await request("admin",`/api/institutions/college/hr/payroll/${payroll.id}/approve`,{method:"PATCH",body:"{}"});assert.equal(r.status,200);
  r=await request("admin",`/api/institutions/college/hr/payroll/${payroll.id}/pay`,{method:"PATCH",body:JSON.stringify({paymentMethod:"bank_transfer",paymentReference:"UTR-PAID-001"})});assert.equal(r.status,200);
  r=await request("other",path);assert.equal(r.status,403);
- r=await request("staff-user",path);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\\/html/);const html=await r.text();assert.match(html,/Salary payslip/);assert.match(html,/EMP-001/);assert.match(html,/UTR-PAID-001/);assert.match(html,/Print \/ Save as PDF/);
+ r=await request("staff-user",path);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\/html/);const html=await r.text();assert.match(html,/Salary payslip/);assert.match(html,/EMP-001/);assert.match(html,/UTR-PAID-001/);assert.match(html,/Print \/ Save as PDF/);
 });
