@@ -1,8 +1,9 @@
+import crypto from "node:crypto";
+
 const clean=(value,max=240)=>String(value??"").trim().slice(0,max);
 const fail=(res,status,message)=>res.status(status).json({success:false,message});
 const now=()=>new Date().toISOString();
 const id=()=>crypto.randomUUID();
-import crypto from "node:crypto";
 
 export function registerInstitutionStudentLifecycle({app,database,requireAuth,requireMfaProduction,enforceSameOrigin,getInstitutionMembership,hasInstitutionFeature}){
  database.exec(`
