@@ -141,6 +141,8 @@ export function registerInstitutionQueue({ app, database, requireAuth, requireMf
       if(counter.status!=="active") return fail(res,409,"Resume the counter before calling the next token.");
       database.exec("BEGIN IMMEDIATE");
       try {
+        const inService=database.prepare("SELECT id FROM institution_queue_tokens WHERE counter_id=? AND status IN ('called','serving') LIMIT 1").get(counterId);
+        if(inService) { database.exec("COMMIT"); return fail(res,409,"Complete or close the current service before calling another token."); }
         const next=database.prepare("SELECT id,token_number AS tokenNumber,student_user_id AS studentUserId,purpose FROM institution_queue_tokens WHERE counter_id=? AND status='waiting' ORDER BY created_at,id LIMIT 1").get(counterId);
         if(!next) { database.exec("COMMIT"); return res.status(200).json({success:true,token:null,message:"No students are waiting."}); }
         const timestamp=now();
@@ -160,7 +162,7 @@ export function registerInstitutionQueue({ app, database, requireAuth, requireMf
       const token=database.prepare("SELECT id,counter_id AS counterId,student_user_id AS studentUserId,status,token_number AS tokenNumber FROM institution_queue_tokens WHERE id=? AND institution_id=?").get(tokenId,institutionId);
       if(!token) return fail(res,404,"Queue token was not found.");
       const nextStatus=textValue(req.body?.status,20);
-      if(member.role==="student" && (token.studentUserId!==req.user.id || nextStatus!=="cancelled")) return fail(res,403,"Students can only cancel their own waiting token.");
+      if(member.role==="student" && (token.studentUserId!==req.user.id || token.status!=="waiting" || nextStatus!=="cancelled")) return fail(res,403,"Students can only cancel their own waiting token.");
       const allowed={waiting:["cancelled"],called:["serving","cancelled","no_show"],serving:["completed","no_show"]};
       if(!(allowed[token.status]||[]).includes(nextStatus)) return fail(res,409,"This queue status transition is not allowed.");
       const timestamp=now();
