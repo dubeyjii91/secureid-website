@@ -32,12 +32,16 @@ test("weekly timetable persists, rejects overlaps, enforces tenant roles and rec
  const {db,request}=await setup(t);
  let r=await request("admin","/api/institutions/college/courses",{method:"POST",body:JSON.stringify({courseCode:"CS101",title:"Computer Science",academicYear:"2026-2027"})});
  assert.equal(r.status,201);const course=(await r.json()).course;
+ r=await request("admin","/api/institutions/college/enrollments",{method:"POST",body:JSON.stringify({courseId:course.id,studentUserId:"student"})});assert.equal(r.status,201);
  r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:00",endsAt:"10:00",room:"A-101"})});
  assert.equal(r.status,201);const entry=(await r.json()).entry;
  r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:30",endsAt:"10:30",room:"A-101"})});
  assert.equal(r.status,409);
  r=await request("admin","/api/institutions/college/timetable",{method:"POST",body:JSON.stringify({courseId:course.id,weekday:1,startsAt:"09:30",endsAt:"10:30",room:"B-202"})});assert.equal(r.status,201);
  r=await request("student","/api/institutions/college/timetable");assert.equal(r.status,200);const rows=(await r.json()).entries;assert.equal(rows.length,2);assert.equal(rows[0].room,"A-101");
+ r=await request("student2","/api/institutions/college/timetable");assert.equal(r.status,200);assert.equal((await r.json()).entries.length,0);
+ r=await request("student","/api/institutions/college/courses");assert.equal(r.status,200);assert.equal((await r.json()).courses.length,1);
+ r=await request("student2","/api/institutions/college/courses");assert.equal(r.status,200);assert.equal((await r.json()).courses.length,0);
  r=await request("other","/api/institutions/college/timetable");assert.equal(r.status,403);
  r=await request("student",`/api/institutions/college/timetable/${entry.id}`,{method:"DELETE"});assert.equal(r.status,403);
  r=await request("admin",`/api/institutions/college/timetable/${entry.id}`,{method:"DELETE"});assert.equal(r.status,200);
