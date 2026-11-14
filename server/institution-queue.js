@@ -82,8 +82,9 @@ export function registerInstitutionQueue({ app, database, requireAuth, requireMf
       const department=textValue(req.body?.department,100),name=textValue(req.body?.name,100);
       if(department.length<2||name.length<2) return fail(res,400,"Enter a department and counter name.");
       const counterId=id(),timestamp=now();
-      database.prepare("INSERT INTO institution_service_counters(id,institution_id,department,name,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
+      const inserted = database.prepare("INSERT OR IGNORE INTO institution_service_counters(id,institution_id,department,name,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
         .run(counterId,institutionId,department,name,req.user.id,timestamp,timestamp);
+      if (Number(inserted.changes) === 0) return fail(res,409,"A counter with this name already exists in the department.");
       audit(institutionId,req.user.id,"counter_created",counterId,null,{department,name});
       return res.status(201).json({success:true,counter:{id:counterId,department,name,status:"active",waiting_count:0}});
     } catch(error) {
