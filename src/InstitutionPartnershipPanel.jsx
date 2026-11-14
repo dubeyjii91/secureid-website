@@ -28,7 +28,7 @@ export default function InstitutionPartnershipPanel() {
   async function loadDirectory() {
     const result = await api("/api/admin/institutions",{cache:"no-store"});
     setInstitutions(result.institutions || []);
-    setInstitutionId(current => current || result.institutions?.[0]?.id || "");
+    setInstitutionId(current => (result.institutions || []).some(item => item.id === current) ? current : result.institutions?.[0]?.id || "");
   }
   async function loadProfile(id) {
     if(!id){setSnapshot(null);setForm(initial);return;}
@@ -57,7 +57,10 @@ export default function InstitutionPartnershipPanel() {
     <h3 id="institution-partnership-heading">Institution partnership verification</h3>
     <p>College name, identity, representative authority, signed agreement, payment and technical connection are tracked separately. A name or membership alone never means a paid or connected partner.</p>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
-    <label style={{display:"grid",gap:6,maxWidth:520}}>Select institution<select value={institutionId} onChange={e=>setInstitutionId(e.target.value)}><option value="">Choose institution</option>{institutions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    <div style={{display:"flex",gap:10,alignItems:"end",flexWrap:"wrap"}}>
+      <label style={{display:"grid",gap:6,maxWidth:520,flex:"1 1 280px"}}>Select institution<select value={institutionId} onFocus={()=>loadDirectory().catch(e=>setError(e.message||"Institution directory unavailable."))} onChange={e=>setInstitutionId(e.target.value)}><option value="">Choose institution</option>{institutions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <button type="button" className="secondary" disabled={busy} onClick={()=>loadDirectory().catch(e=>setError(e.message||"Institution directory unavailable."))}>Refresh institutions</button>
+    </div>
     {institutionId&&<>
       {snapshot&&<div className="dashboardGrid" style={{marginTop:14}}>
         {checks.map(([key,title])=>{const p=snapshot.profile||{};const value=key==="institution_identity"?p.identityStatus:key==="representative_authority"?p.representativeStatus:key==="partnership_agreement"?p.agreementStatus:key==="subscription_payment"?p.paymentStatus:p.connectionStatus;return <article className="panel" key={key}><small>{title}</small><h4 style={{color:statusColor(value)}}>{labels[value]||value}</h4></article>;})}
