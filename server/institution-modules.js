@@ -32,6 +32,16 @@ export function registerInstitutionModules({
       created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       UNIQUE(institution_id,course_code,academic_year)
     );
+    CREATE TABLE IF NOT EXISTS institution_timetable_entries (
+      id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
+      weekday INTEGER NOT NULL CHECK(weekday BETWEEN 1 AND 7),
+      starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, room TEXT,
+      staff_id TEXT REFERENCES institution_staff(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      CHECK(starts_at < ends_at)
+    );
+    CREATE INDEX IF NOT EXISTS idx_institution_timetable_day ON institution_timetable_entries(institution_id,weekday,starts_at);
     CREATE TABLE IF NOT EXISTS institution_attendance (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -204,6 +214,43 @@ export function registerInstitutionModules({
       res.status(201).json({success:true,course:{id:courseId,courseCode,title,department,academicYear}});
     }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"That course code already exists for this academic year.");next(error);}
   });
+  app.get("/api/institutions/:institutionId/timetable", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||!["institution_admin","reviewer","read_only","student"].includes(member.role))return fail(res,403,"Timetable access is not allowed.");
+      if(!hasInstitutionFeature(institutionId,"academics"))return fail(res,403,"Academics is not enabled.","FEATURE_NOT_ENTITLED");
+      const rows=database.prepare(`SELECT t.id,t.course_id AS courseId,c.course_code AS courseCode,c.title AS courseTitle,t.weekday,t.starts_at AS startsAt,t.ends_at AS endsAt,t.room,t.staff_id AS staffId,s.full_name AS staffName
+        FROM institution_timetable_entries t JOIN institution_courses c ON c.id=t.course_id LEFT JOIN institution_staff s ON s.id=t.staff_id
+        WHERE t.institution_id=? ORDER BY t.weekday,t.starts_at LIMIT 500`).all(institutionId);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,entries:rows});
+    }catch(error){next(error);}
+  });
+  app.post("/api/institutions/:institutionId/timetable", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const courseId=safeText(req.body?.courseId,128),weekday=Number(req.body?.weekday),startsAt=safeText(req.body?.startsAt,5),endsAt=safeText(req.body?.endsAt,5),room=safeText(req.body?.room,80),staffId=safeText(req.body?.staffId,128);
+      if(!Number.isInteger(weekday)||weekday<1||weekday>7||!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(endsAt)||startsAt>=endsAt)return fail(res,400,"Choose a weekday and a valid start/end time.");
+      if(!database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId))return fail(res,404,"Course was not found in this institution.");
+      if(staffId&&!database.prepare("SELECT id FROM institution_staff WHERE id=? AND institution_id=? AND status='active'").get(staffId,institutionId))return fail(res,404,"Active staff member was not found in this institution.");
+      const overlap=database.prepare("SELECT id FROM institution_timetable_entries WHERE institution_id=? AND weekday=? AND starts_at<? AND ends_at>?").get(institutionId,weekday,endsAt,startsAt);
+      if(overlap)return fail(res,409,"This time overlaps another timetable entry. Choose a different time.");
+      const entryId=id(),now=iso();
+      database.prepare("INSERT INTO institution_timetable_entries(id,institution_id,course_id,weekday,starts_at,ends_at,room,staff_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(entryId,institutionId,courseId,weekday,startsAt,endsAt,room||null,staffId||null,req.user.id,now,now);
+      audit(institutionId,req.user.id,"timetable_entry_created","timetable",entryId,{courseId,weekday,startsAt,endsAt,room,staffId:staffId||null});
+      res.status(201).json({success:true,entry:{id:entryId,courseId,weekday,startsAt,endsAt,room,staffId:staffId||null}});
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"Timetable entry conflicts with an existing record.");next(error);}
+  });
+  app.delete("/api/institutions/:institutionId/timetable/:entryId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=safeText(req.params.institutionId,128);if(!access(req,res,institutionId,"academics"))return;
+      const entryId=safeText(req.params.entryId,128),row=database.prepare("SELECT id FROM institution_timetable_entries WHERE id=? AND institution_id=?").get(entryId,institutionId);
+      if(!row)return fail(res,404,"Timetable entry was not found.");
+      database.prepare("DELETE FROM institution_timetable_entries WHERE id=? AND institution_id=?").run(entryId,institutionId);
+      audit(institutionId,req.user.id,"timetable_entry_deleted","timetable",entryId);
+      res.json({success:true});
+    }catch(error){next(error);}
+  });
+
   app.get("/api/institutions/:institutionId/courses/:courseId/attendance", requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=safeText(req.params.institutionId,128),courseId=safeText(req.params.courseId,128),member=getInstitutionMembership(req.user.id,institutionId);
