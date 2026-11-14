@@ -478,7 +478,8 @@ export function registerInstitutionModules({
       const invoices=database.prepare(`
         SELECT i.id,i.student_user_id AS studentUserId,u.email AS studentEmail,i.fee_head AS feeHead,
           i.description,i.amount_paise AS amountPaise,i.due_date AS dueDate,i.status,i.created_at AS createdAt,
-          COALESCE((SELECT SUM(p.amount_paise) FROM institution_fee_payments p WHERE p.invoice_id=i.id),0) AS paidPaise
+          COALESCE((SELECT SUM(p.amount_paise) FROM institution_fee_payments p WHERE p.invoice_id=i.id),0)-COALESCE((SELECT SUM(r.amount_paise) FROM institution_fee_refund_requests r WHERE r.invoice_id=i.id AND r.status='recorded'),0) AS paidPaise,
+          COALESCE((SELECT SUM(r.amount_paise) FROM institution_fee_refund_requests r WHERE r.invoice_id=i.id AND r.status='recorded'),0) AS refundedPaise
         FROM institution_fee_invoices i JOIN users u ON u.id=i.student_user_id
         WHERE i.institution_id=? ${studentOnly?"AND i.student_user_id=?":""}
         ORDER BY i.created_at DESC LIMIT 500
@@ -510,7 +511,9 @@ export function registerInstitutionModules({
         if(!invoice||invoice.status==="cancelled")throw Object.assign(new Error("Invoice was not found or is cancelled."),{status:404});
         const duplicate=database.prepare("SELECT id FROM institution_fee_payments WHERE institution_id=? AND idempotency_key=?").get(institutionId,idempotencyKey);
         if(duplicate)return {paymentId:duplicate.id,duplicate:true};
-        const paid=Number(database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS n FROM institution_fee_payments WHERE invoice_id=?").get(invoiceId).n);
+        const grossPaid=Number(database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS n FROM institution_fee_payments WHERE invoice_id=?").get(invoiceId).n);
+        const refunded=Number(database.prepare("SELECT COALESCE(SUM(amount_paise),0) AS n FROM institution_fee_refund_requests WHERE invoice_id=? AND status='recorded'").get(invoiceId).n);
+        const paid=Math.max(0,grossPaid-refunded);
         if(paid+amountPaise>Number(invoice.amount_paise))throw Object.assign(new Error("Payment exceeds the outstanding invoice balance."),{status:409});
         const paymentId=id(),now=iso();
         database.prepare("INSERT INTO institution_fee_payments(id,institution_id,invoice_id,student_user_id,amount_paise,method,reference,idempotency_key,received_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
