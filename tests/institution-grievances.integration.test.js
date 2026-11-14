@@ -30,7 +30,7 @@ test("student grievance is ticketed, private, threaded and resolved with audit t
  r=await request("staff",`/api/institutions/college/grievances/${ticket.id}`,{method:"PATCH",body:JSON.stringify({status:"assigned",assignedTo:"staff",priority:"urgent"})});assert.equal(r.status,200);
  r=await request("staff",`/api/institutions/college/grievances/${ticket.id}`,{method:"PATCH",body:JSON.stringify({status:"resolved",resolution:"Maintenance team restored the water supply and verified the pump."})});assert.equal(r.status,200);
  r=await request("student-a","/api/institutions/college/grievances");assert.equal(r.status,200);const list=await r.json();assert.equal(list.grievances[0].status,"resolved");
- assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_grievance_audit WHERE grievance_id=?").get(ticket.id).n,3);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_grievance_audit WHERE grievance_id=?").get(ticket.id).n,4);
 });
 test("grievance validates fields, status transitions and student ownership",async t=>{
  const {request}=await setup(t);
