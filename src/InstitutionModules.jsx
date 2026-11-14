@@ -12,6 +12,7 @@ import InstitutionGrievances from "./institution-modules/InstitutionGrievances.j
 import InstitutionCertificates from "./institution-modules/InstitutionCertificates.jsx";
 import InstitutionReports from "./institution-modules/InstitutionReports.jsx";
 import InstitutionHR from "./institution-modules/InstitutionHR.jsx";
+import InstitutionCalendar from "./institution-modules/InstitutionCalendar.jsx";
 
 const moduleCards = [
   { key:"Students", title:"Student Management", description:"Student directory, academic profiles and enrollment status.", icon:"graduation" },
@@ -20,6 +21,7 @@ const moduleCards = [
   { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" },
   { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters and live student service flow.", icon:"clock" },
   { key:"Library", title:"Library", description:"Catalogue, book circulation, overdue returns and reservations.", icon:"book-open" },
+  { key:"Calendar", title:"Academic Calendar", description:"Academic dates, holidays, admissions, deadlines and campus events.", icon:"calendar-days" },
   { key:"Examinations", title:"Examinations", description:"Exam schedules, registration, roll numbers, marks and results.", icon:"graduation-cap" },
   { key:"Grievances", title:"Grievances & Helpdesk", description:"Student tickets, service deadlines, staff replies and resolution.", icon:"message-square" },
   { key:"Certificates", title:"Certificates", description:"Bonafide, character, transfer and fee-clearance certificate workflow.", icon:"file-check" },
@@ -116,6 +118,7 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Academics"&&<InstitutionAcademics courses={courses} courseForm={courseForm} setCourseForm={setCourseForm} saveCourse={saveCourse} attendanceForm={attendanceForm} setAttendanceForm={setAttendanceForm} markAttendance={markAttendance} students={students} assessmentForm={assessmentForm} setAssessmentForm={setAssessmentForm} loadAssessments={loadAssessments} saveAssessment={saveAssessment} assessments={assessments} resultForm={resultForm} setResultForm={setResultForm} saveResult={saveResult} busy={busy}/>}
     {tab==="Queue"&&<InstitutionQueue institutionId={institutionId}/>}
     {tab==="Library"&&<InstitutionLibrary institutionId={institutionId} students={students}/>}
+    {tab==="Calendar"&&<InstitutionCalendar institutionId={institutionId}/>}
     {tab==="Examinations"&&<InstitutionExaminations institutionId={institutionId} students={students}/>}
     {tab==="Grievances"&&<InstitutionGrievances institutionId={institutionId}/>}
     {tab==="Certificates"&&<InstitutionCertificates institutionId={institutionId}/>}
