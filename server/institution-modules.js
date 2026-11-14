@@ -42,6 +42,17 @@ export function registerInstitutionModules({
       CHECK(starts_at < ends_at)
     );
     CREATE INDEX IF NOT EXISTS idx_institution_timetable_day ON institution_timetable_entries(institution_id,weekday,starts_at);
+    CREATE TRIGGER IF NOT EXISTS institution_timetable_prevent_overlap
+    BEFORE INSERT ON institution_timetable_entries
+    WHEN EXISTS (
+      SELECT 1 FROM institution_timetable_entries t
+      WHERE t.institution_id=NEW.institution_id AND t.weekday=NEW.weekday
+        AND t.starts_at<NEW.ends_at AND t.ends_at>NEW.starts_at
+        AND ((NEW.room IS NOT NULL AND NEW.room<>'' AND lower(COALESCE(t.room,''))=lower(NEW.room))
+          OR (NEW.staff_id IS NOT NULL AND t.staff_id=NEW.staff_id))
+    )
+    BEGIN SELECT RAISE(ABORT,'TIMETABLE_RESOURCE_OVERLAP'); END;
+
     CREATE TABLE IF NOT EXISTS institution_attendance (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -232,13 +243,13 @@ export function registerInstitutionModules({
       if(!Number.isInteger(weekday)||weekday<1||weekday>7||!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(endsAt)||startsAt>=endsAt)return fail(res,400,"Choose a weekday and a valid start/end time.");
       if(!database.prepare("SELECT id FROM institution_courses WHERE id=? AND institution_id=?").get(courseId,institutionId))return fail(res,404,"Course was not found in this institution.");
       if(staffId&&!database.prepare("SELECT id FROM institution_staff WHERE id=? AND institution_id=? AND status='active'").get(staffId,institutionId))return fail(res,404,"Active staff member was not found in this institution.");
-      const overlap=database.prepare("SELECT id FROM institution_timetable_entries WHERE institution_id=? AND weekday=? AND starts_at<? AND ends_at>?").get(institutionId,weekday,endsAt,startsAt);
+      const overlap=database.prepare("SELECT id FROM institution_timetable_entries WHERE institution_id=? AND weekday=? AND starts_at<? AND ends_at>? AND ((?<>'' AND COALESCE(room,'')=?) OR (?<>'' AND staff_id=?))").get(institutionId,weekday,endsAt,startsAt,room,room,staffId,staffId);
       if(overlap)return fail(res,409,"This time overlaps another timetable entry. Choose a different time.");
       const entryId=id(),now=iso();
       database.prepare("INSERT INTO institution_timetable_entries(id,institution_id,course_id,weekday,starts_at,ends_at,room,staff_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(entryId,institutionId,courseId,weekday,startsAt,endsAt,room||null,staffId||null,req.user.id,now,now);
       audit(institutionId,req.user.id,"timetable_entry_created","timetable",entryId,{courseId,weekday,startsAt,endsAt,room,staffId:staffId||null});
       res.status(201).json({success:true,entry:{id:entryId,courseId,weekday,startsAt,endsAt,room,staffId:staffId||null}});
-    }catch(error){if(String(error?.code||"").includes("CONSTRAINT"))return fail(res,409,"Timetable entry conflicts with an existing record.");next(error);}
+    }catch(error){if(String(error?.code||"").includes("CONSTRAINT")||String(error?.message||"").includes("TIMETABLE_RESOURCE_OVERLAP"))return fail(res,409,"The selected room or faculty member already has a class during this time.");next(error);}
   });
   app.delete("/api/institutions/:institutionId/timetable/:entryId", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
