@@ -47,6 +47,8 @@ test("institution service queue issues sequential persisted tokens and completes
   assert.equal(first.tokenNumber,1);assert.equal(second.tokenNumber,2);
   response=await request("admin",`/api/institutions/college-a/queue/counters/${counter.id}/call-next`,{method:"POST",body:"{}"});
   assert.equal(response.status,200);assert.equal((await response.json()).token.id,first.id);
+  response=await request("admin","/api/institutions/college-a/queue/counters/"+counter.id+"/call-next",{method:"POST",body:"{}"});
+  assert.equal(response.status,409,"A second token must not be called while the first is active.");
   response=await request("admin",`/api/institutions/college-a/queue/tokens/${first.id}`,{method:"PATCH",body:JSON.stringify({status:"serving"})});
   assert.equal(response.status,200);
   response=await request("admin",`/api/institutions/college-a/queue/tokens/${first.id}`,{method:"PATCH",body:JSON.stringify({status:"completed"})});
