@@ -1663,6 +1663,10 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   function hasInstitutionFeature(institutionId, feature) {
     const row=database.prepare("SELECT status,features_json,starts_at,ends_at FROM institution_subscriptions WHERE institution_id=?").get(institutionId);
     if(!row||!["pilot","active"].includes(row.status)) return false;
+    if(row.status==="active"){
+      const payment=database.prepare("SELECT payment_status FROM institution_partnership_profiles WHERE institution_id=?").get(institutionId);
+      if(payment?.payment_status!=="verified") return false;
+    }
     const now=Date.now(),starts=row.starts_at?Date.parse(row.starts_at):0,ends=row.ends_at?Date.parse(row.ends_at):Infinity;
     if((starts&&now<starts)||(ends&&now>=ends)) return false;
     let features=[];try{features=JSON.parse(row.features_json||"[]");}catch{}
