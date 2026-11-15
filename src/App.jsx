@@ -968,3 +968,5 @@ export default function SecureIDApp() {
 
 
 
+
+import "./secureid-global-product-ui.css";
