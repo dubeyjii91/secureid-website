@@ -1,0 +1,76 @@
+/* Owner dashboard: College / Institution Management workspace */
+#root .collegeInstitutionManagement {
+  width:100%; max-width:none; padding:clamp(22px,2.2vw,34px) !important;
+  margin-top:26px !important; overflow:hidden;
+}
+#root .collegeInstitutionManagement > h3 {font-size:22px!important;line-height:1.35;margin:10px 0!important}
+#root .collegeInstitutionManagement > p {font-size:14px!important;line-height:1.65;max-width:1180px}
+#root .collegeInstitutionManagement .collegeCreateInstitutionForm {
+  display:grid!important;grid-template-columns:minmax(280px,1fr) auto auto!important;
+  align-items:end;gap:14px!important;margin:22px 0 18px!important;padding:20px;
+  border:1px solid #e6e8f0;border-radius:14px;background:#fafbff;
+}
+#root .collegeInstitutionManagement .collegeCreateInstitutionForm input {min-height:50px!important}
+#root .collegeInstitutionManagement .collegeProvisionForm {
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  align-items:end;gap:20px 22px!important;margin:22px 0!important;padding:22px;
+  border:1px solid #e6e8f0;border-radius:14px;background:#fff;
+}
+#root .collegeInstitutionManagement .collegeProvisionForm label,
+#root .collegeInstitutionManagement .collegeSubscriptionFields label {
+  display:flex!important;flex-direction:column!important;align-items:stretch!important;
+  min-width:0;gap:9px!important;font-size:14px!important;font-weight:650!important;line-height:1.45;
+}
+#root .collegeInstitutionManagement .collegeProvisionForm select,
+#root .collegeInstitutionManagement .collegeSubscriptionFields input,
+#root .collegeInstitutionManagement .collegeSubscriptionFields select {
+  min-height:49px!important;width:100%!important;font-size:14px!important;
+}
+#root .collegeInstitutionManagement .collegeProvisionForm .secondary {
+  align-self:flex-start;min-height:36px;margin-top:1px;padding:7px 12px!important;
+}
+#root .collegeInstitutionManagement .collegeProvisionForm > button {min-height:48px;align-self:end}
+#root .collegeInstitutionManagement .collegeSubscriptionForm {
+  display:block!important;margin:24px 0!important;padding:24px!important;
+  border:1px solid #e3e6ef!important;border-radius:15px!important;background:#fafbff;
+}
+#root .collegeInstitutionManagement .collegeSubscriptionForm > strong {display:block;font-size:17px;margin-bottom:8px}
+#root .collegeInstitutionManagement .collegeSubscriptionFields {
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:18px 20px!important;margin:20px 0!important;
+}
+#root .collegeInstitutionManagement .collegeSubscriptionFeatures {
+  display:flex!important;align-items:center;flex-wrap:wrap;gap:14px 26px!important;
+  margin:18px 0!important;padding:16px;background:#fff;border:1px solid #e8eaf1;border-radius:12px;
+}
+#root .collegeInstitutionManagement .collegeSubscriptionFeatures label {
+  display:flex!important;flex-direction:row!important;align-items:center!important;
+  gap:9px!important;font-size:14px!important;font-weight:600!important;
+}
+#root .collegeInstitutionManagement .collegeSubscriptionActions,
+#root .collegeInstitutionManagement .collegeInstitutionAuditActions {
+  display:flex!important;align-items:center;flex-wrap:wrap;gap:10px 14px!important;margin:16px 0!important;
+}
+#root .collegeInstitutionManagement .collegeSubscriptionActions button,
+#root .collegeInstitutionManagement .collegeInstitutionAuditActions button {min-height:44px;padding:10px 16px!important}
+#root .collegeInstitutionManagement .collegeInstitutionTableWrap {width:100%;overflow-x:auto;margin:18px 0 4px}
+#root .collegeInstitutionManagement .collegeInstitutionTable {width:100%;min-width:780px;border-collapse:separate;border-spacing:0}
+#root .collegeInstitutionManagement .collegeInstitutionTable th,
+#root .collegeInstitutionManagement .collegeInstitutionTable td {padding:14px 16px!important;font-size:13px;line-height:1.5;vertical-align:middle}
+#root .collegeInstitutionManagement .collegeInstitutionTable th {white-space:nowrap}
+@media(max-width:1050px) {
+ #root .collegeInstitutionManagement .collegeProvisionForm {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ #root .collegeInstitutionManagement .collegeSubscriptionFields {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:680px) {
+ #root .collegeInstitutionManagement {padding:18px!important}
+ #root .collegeInstitutionManagement .collegeCreateInstitutionForm,
+ #root .collegeInstitutionManagement .collegeProvisionForm,
+ #root .collegeInstitutionManagement .collegeSubscriptionFields {grid-template-columns:minmax(0,1fr)!important}
+ #root .collegeInstitutionManagement .collegeCreateInstitutionForm > *,
+ #root .collegeInstitutionManagement .collegeProvisionForm > * {min-width:0;width:100%}
+ #root .collegeInstitutionManagement .collegeSubscriptionActions,
+ #root .collegeInstitutionManagement .collegeInstitutionAuditActions {align-items:stretch;flex-direction:column}
+ #root .collegeInstitutionManagement .collegeSubscriptionActions button,
+ #root .collegeInstitutionManagement .collegeInstitutionAuditActions button {width:100%}
+}
