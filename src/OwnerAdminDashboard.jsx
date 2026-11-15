@@ -1,3 +1,4 @@
+import "./owner-college-institution-layout.css";
 import { useEffect, useState } from "react";
 import api from "./api.js";
 import SecureCloudPanel from "./SecureCloudPanel.jsx";
