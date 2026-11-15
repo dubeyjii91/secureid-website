@@ -170,3 +170,153 @@ body { color: var(--sid-ui-text) !important; }
 @media (prefers-reduced-motion: reduce) {
   #root *, #root *::before, #root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+
+/* Page-specific corrections after first visual review: preserve real controls and balanced layouts. */
+/* Never let the global text-input sizing rule turn checkboxes into oversized blocks. */
+#root input[type="checkbox"], #root input[type="radio"] {
+  appearance: auto !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  max-width: 18px !important;
+  padding: 0 !important;
+  margin: 0 8px 0 0 !important;
+  flex: 0 0 18px !important;
+  accent-color: var(--sid-ui-accent) !important;
+  box-shadow: none !important;
+}
+#root label:has(> input[type="checkbox"]),
+#root label:has(> input[type="radio"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.55;
+}
+/* College / institution management: evenly sized overview cards and readable form labels. */
+#root .collegeWorkspace .collegeValueGrid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  align-items: stretch;
+  gap: 18px !important;
+  margin: 22px 0 28px !important;
+}
+#root .collegeWorkspace .collegeValueGrid > .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 176px;
+  padding: 22px !important;
+  margin: 0 !important;
+}
+#root .collegeWorkspace .collegeValueGrid h3 { font-size: 16px !important; line-height: 1.35; margin: 14px 0 8px !important; }
+#root .collegeWorkspace .collegeValueGrid p { font-size: 14px !important; line-height: 1.6; }
+#root .collegeWorkspace .collegeValueGrid small { margin-top: auto; font-size: 12px !important; line-height: 1.5; }
+#root .collegeWorkspace .collegeSubmissionForm,
+#root .studentAdmissions .collegeSubmissionForm {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: start !important;
+  gap: 20px 24px !important;
+}
+#root .collegeWorkspace .collegeSubmissionForm > label,
+#root .studentAdmissions .collegeSubmissionForm > label,
+#root .collegeWorkspace .collegePilotForm > label {
+  min-width: 0;
+  font-size: 14px !important;
+  font-weight: 650;
+  line-height: 1.45;
+  gap: 9px !important;
+}
+#root .collegeWorkspace .collegeSubmissionForm input:not([type="checkbox"]),
+#root .collegeWorkspace .collegeSubmissionForm select,
+#root .studentAdmissions .collegeSubmissionForm input:not([type="checkbox"]),
+#root .studentAdmissions .collegeSubmissionForm select,
+#root .studentAdmissions .collegeSubmissionForm textarea {
+  min-height: 48px !important;
+  font-size: 14px !important;
+}
+#root .collegeWorkspace .collegeSubmissionForm .collegePrivacyNote,
+#root .studentAdmissions .collegeSubmissionForm .collegePrivacyNote,
+#root .studentAdmissions .collegeSubmissionForm .collegeConsent {
+  grid-column: 1 / -1;
+}
+#root .collegeWorkspace .collegeSubmissionForm .collegeConsent,
+#root .studentAdmissions .collegeSubmissionForm .collegeConsent {
+  align-items: flex-start;
+  font-size: 14px !important;
+  line-height: 1.6;
+}
+#root .collegeWorkspace .collegeValueGrid + .collegeMembershipPanel { margin-top: 28px !important; }
+#root .institutionModuleLauncherGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 18px !important; }
+#root .institutionModuleLauncher { min-height: 112px; padding: 20px !important; }
+/* My Identity: use the full content canvas; avoid a narrow left card and unused blank space. */
+#root .content:has(> .profileGrid) { max-width: none !important; }
+#root .profileGrid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) !important;
+  align-items: stretch;
+  gap: 22px !important;
+}
+#root .profileGrid > .panel { height: 100%; min-height: 250px; }
+#root .profileGrid .details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 14px !important; }
+#root .profileGrid .details > div { min-width: 0; padding: 14px; border: 1px solid var(--sid-ui-line); border-radius: 11px; background: #fafbff; }
+#root .identityProfileEditor { width: 100%; margin-top: 24px !important; }
+#root .identityProfileEditor form { display: block !important; }
+#root .identityProfileFields { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 18px 22px !important; }
+#root .identityProfileFields label { min-width: 0; font-size: 14px !important; gap: 8px !important; }
+#root .identityProfileFields input { width: 100% !important; min-height: 46px !important; font-size: 14px !important; }
+#root .identityProfileFields .clearFieldButton { display: block; width: 100% !important; min-height: 38px !important; padding: 8px 12px !important; font-size: 13px !important; }
+/* Document Vault: balanced sections, full-width fields and properly sized document rows. */
+#root .documentVault { width: 100%; max-width: none !important; }
+#root .documentVault .identityForm { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 18px 22px !important; }
+#root .documentVault .identityForm label,
+#root .documentVault .vaultDocumentFilters label,
+#root .documentVault .documentExpiryEditor label { font-size: 14px !important; line-height: 1.45; gap: 8px !important; }
+#root .documentVault .identityForm input,
+#root .documentVault .identityForm select,
+#root .documentVault .vaultDocumentFilters input,
+#root .documentVault .vaultDocumentFilters select { min-height: 46px !important; font-size: 14px !important; }
+#root .documentVault .vaultBlock { width: 100%; gap: 18px !important; }
+#root .documentVault .documentItem { min-height: 82px; padding: 18px !important; gap: 18px !important; }
+#root .documentVault .documentItem strong { font-size: 15px !important; }
+#root .documentVault .documentItem small { font-size: 12px !important; line-height: 1.5; }
+#root .documentVault .proofUpload { padding: 18px !important; gap: 12px !important; }
+#root .documentVault .proofUpload input[type="file"] { width: 100% !important; min-height: 46px !important; }
+/* Share ID selective disclosure: readable claim names and normal-sized checkboxes. */
+#root .claimGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  margin: 22px 0 !important;
+}
+#root .claim {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 58px !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  font-size: 14px !important;
+  line-height: 1.45;
+}
+#root .claim > span { font-size: 14px !important; font-weight: 650; line-height: 1.45; }
+#root .claim input[type="checkbox"] { margin: 0 !important; }
+#root .shareContextField { display: flex !important; flex-direction: column; gap: 9px !important; width: 100%; margin: 18px 0 !important; font-size: 14px !important; }
+#root .shareContextField > span { font-size: 14px !important; font-weight: 700; }
+#root .shareContextField input { width: 100% !important; min-height: 48px !important; font-size: 14px !important; }
+#root .shareContextField small { font-size: 12px !important; line-height: 1.5; }
+@media (max-width: 1000px) {
+  #root .collegeWorkspace .collegeValueGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #root .profileGrid { grid-template-columns: minmax(0, 1fr) !important; }
+  #root .profileGrid .details { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  #root .claimGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 680px) {
+  #root .collegeWorkspace .collegeValueGrid,
+  #root .collegeWorkspace .collegeSubmissionForm,
+  #root .studentAdmissions .collegeSubmissionForm,
+  #root .identityProfileFields,
+  #root .documentVault .identityForm,
+  #root .claimGrid,
+  #root .profileGrid .details { grid-template-columns: minmax(0, 1fr) !important; }
+  #root .collegeWorkspace .collegeSubmissionForm .collegePrivacyNote,
+  #root .studentAdmissions .collegeSubmissionForm .collegePrivacyNote,
+  #root .studentAdmissions .collegeSubmissionForm .collegeConsent { grid-column: auto; }
+}
