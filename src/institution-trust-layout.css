@@ -1,0 +1,111 @@
+/* Institution workspace + Trust & Connection: deliberate wide desktop layouts. */
+.collegeWorkspace { width:100%; max-width:none; }
+.collegeWorkspace .collegeValueGrid,
+.collegeWorkspace .collegeValueGrid.institutionAdminOverview,
+.collegeWorkspace .collegeValueGrid.collegeIntroGrid {
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(230px,1fr)) !important;
+  gap:22px !important;
+  margin:26px 0 32px !important;
+  align-items:stretch;
+}
+.collegeWorkspace .collegeValueGrid > .panel {
+  min-width:0; min-height:190px; margin:0 !important;
+  padding:24px !important; border-radius:16px !important;
+  display:flex; flex-direction:column; justify-content:flex-start;
+}
+.collegeWorkspace .collegeValueGrid .collegeStep {
+  width:34px;height:34px;font-size:13px;border-radius:10px;
+}
+.collegeWorkspace .collegeValueGrid h3 {
+  font-size:17px !important; line-height:1.4 !important;
+  margin:17px 0 9px !important; letter-spacing:-.01em;
+}
+.collegeWorkspace .collegeValueGrid p {
+  font-size:14px !important; line-height:1.65 !important;
+  margin:0 0 14px !important; overflow-wrap:anywhere;
+}
+.collegeWorkspace .collegeValueGrid small {
+  font-size:12px !important; line-height:1.55 !important; margin-top:auto;
+}
+.collegeWorkspace .collegeColumns,
+.collegeWorkspace .collegeWorkspaceColumns {
+  display:grid !important; grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr) !important;
+  gap:24px !important; align-items:start;
+}
+.collegeWorkspace .institutionModuleLauncherGrid {
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:18px !important;
+}
+.collegeWorkspace .institutionModuleLauncher {
+  min-height:116px !important; padding:20px !important;
+}
+.institutionTrustPanel {
+  width:100%; max-width:none; margin:28px 0 0 !important;
+  padding:clamp(22px,2.4vw,36px) !important; border-radius:18px !important;
+}
+.institutionTrustPanel > h3 { font-size:21px !important; line-height:1.35; margin:10px 0 8px; }
+.institutionTrustPanel > p { max-width:1100px; font-size:14px; line-height:1.65; }
+.institutionTrustPanel > div:has(> label) { margin:22px 0 !important; }
+.institutionTrustPanel label {
+  min-width:0; display:flex !important; flex-direction:column;
+  align-items:stretch; gap:8px !important; color:#333b4d;
+  font-size:14px !important; font-weight:650; line-height:1.45;
+}
+.institutionTrustPanel input:not([type=checkbox]),
+.institutionTrustPanel select,
+.institutionTrustPanel textarea {
+  box-sizing:border-box; width:100%; min-width:0; min-height:48px;
+  padding:12px 14px; border:1px solid #d9deea; border-radius:10px;
+  background:#fff; color:#242b3a; font:inherit; font-size:14px;
+}
+.institutionTrustPanel textarea { min-height:92px; resize:vertical; }
+.institutionTrustPanel .institutionTrustStatusGrid {
+  display:grid !important; grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:14px !important; margin:22px 0 !important;
+}
+.institutionTrustPanel .institutionTrustStatusGrid > .panel {
+  min-width:0; min-height:112px; padding:18px !important;
+  border:1px solid #e5e8f0; border-radius:13px;
+}
+.institutionTrustPanel .institutionTrustStatusGrid small { font-size:12px !important; line-height:1.5; }
+.institutionTrustPanel .institutionTrustStatusGrid h4 { font-size:16px !important; margin:12px 0 0; overflow-wrap:anywhere; }
+.institutionTrustPanel .institutionTrustProfileForm {
+  display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  align-items:end; gap:20px 22px !important; margin:22px 0 26px !important;
+}
+.institutionTrustPanel .institutionTrustProfileForm label:has(textarea) { grid-column:span 3; }
+.institutionTrustPanel .institutionTrustProfileForm button { justify-self:start; min-height:46px; padding:11px 20px; }
+.institutionTrustPanel .institutionTrustEvidenceForm {
+  display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:18px 20px !important; margin:26px 0 18px !important;
+  padding:22px !important; border:1px solid #e4e7ef !important;
+  border-radius:15px !important; background:#fafbfe;
+}
+.institutionTrustPanel .institutionTrustEvidenceForm > strong { grid-column:1/-1; font-size:16px; }
+.institutionTrustPanel .institutionTrustEvidenceForm button { justify-self:start; min-height:46px; padding:11px 20px; }
+.institutionTrustPanel .institutionTrustEvidenceForm input,
+.institutionTrustPanel .institutionTrustEvidenceForm select { min-height:48px; }
+.institutionTrustPanel table { min-width:760px; }
+.institutionTrustPanel th,.institutionTrustPanel td { padding:12px 14px !important; font-size:13px; line-height:1.5; }
+@media(max-width:1150px) {
+ .collegeWorkspace .collegeValueGrid,
+ .collegeWorkspace .collegeValueGrid.institutionAdminOverview,
+ .collegeWorkspace .collegeValueGrid.collegeIntroGrid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+ .institutionTrustPanel .institutionTrustStatusGrid { grid-template-columns:repeat(3,minmax(0,1fr)) !important; }
+ .institutionTrustPanel .institutionTrustProfileForm { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+ .institutionTrustPanel .institutionTrustProfileForm label:has(textarea) { grid-column:span 2; }
+}
+@media(max-width:760px) {
+ .collegeWorkspace .collegeValueGrid,
+ .collegeWorkspace .collegeValueGrid.institutionAdminOverview,
+ .collegeWorkspace .collegeValueGrid.collegeIntroGrid,
+ .collegeWorkspace .collegeColumns,
+ .collegeWorkspace .collegeWorkspaceColumns,
+ .collegeWorkspace .institutionModuleLauncherGrid,
+ .institutionTrustPanel .institutionTrustStatusGrid,
+ .institutionTrustPanel .institutionTrustProfileForm,
+ .institutionTrustPanel .institutionTrustEvidenceForm { grid-template-columns:minmax(0,1fr) !important; }
+ .institutionTrustPanel .institutionTrustProfileForm label:has(textarea),
+ .institutionTrustPanel .institutionTrustEvidenceForm > strong { grid-column:auto; }
+ .collegeWorkspace .collegeValueGrid > .panel { min-height:0; }
+}
