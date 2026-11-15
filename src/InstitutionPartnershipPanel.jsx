@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "./api.js";
+import "./institution-trust-layout.css";
 
 const initial = { aisheCode:"", institutionType:"", affiliation:"", officialWebsite:"", officialEmailDomain:"", address:"", representativeName:"", representativeTitle:"", representativeEmail:"", agreementReference:"", paymentReference:"", paymentAmountPaise:"", connectionMode:"dashboard", notes:"" };
 const checks = [
@@ -63,7 +64,7 @@ export default function InstitutionPartnershipPanel() {
   }
   const field=(key,label,placeholder="",type="text")=><label style={{display:"grid",gap:5,fontSize:13}}>{label}<input type={type} value={form[key]} placeholder={placeholder} onChange={e=>setForm(current=>({...current,[key]:e.target.value}))} maxLength={key==="notes"?1000:500} /></label>;
 
-  return <section className="panel" style={{marginTop:18}} aria-labelledby="institution-partnership-heading">
+  return <section className="panel institutionTrustPanel" aria-labelledby="institution-partnership-heading">
     <div className="eyebrow dark">INSTITUTION TRUST & CONNECTION</div>
     <h3 id="institution-partnership-heading">Institution partnership verification</h3>
     <p>College name, identity, representative authority, signed agreement, payment and technical connection are tracked separately. A name or membership alone never means a paid or connected partner.</p>
@@ -73,12 +74,12 @@ export default function InstitutionPartnershipPanel() {
       <button type="button" className="secondary" disabled={busy} onClick={()=>loadDirectory().catch(e=>setError(e.message||"Institution directory unavailable."))}>Refresh institutions</button>
     </div>
     {institutionId&&<>
-      {snapshot&&<div className="dashboardGrid" style={{marginTop:14}}>
+      {snapshot&&<div className="dashboardGrid institutionTrustStatusGrid">
         {checks.map(([key,title])=>{const p=snapshot.profile||{};const value=key==="institution_identity"?p.identityStatus:key==="representative_authority"?p.representativeStatus:key==="partnership_agreement"?p.agreementStatus:key==="subscription_payment"?p.paymentStatus:p.connectionStatus;return <article className="panel" key={key}><small>{title}</small><h4 style={{color:statusColor(value)}}>{labels[value]||value}</h4></article>;})}
       </div>}
       {snapshot&&<p><strong>Subscription:</strong> {snapshot.subscription?.planKey||"Not configured"} · {snapshot.subscription?.status||"none"} &nbsp; <strong>Workspace members:</strong> {snapshot.members?.active||0}/{snapshot.members?.total||0} active</p>}
       {snapshot&&<p><strong>Connection readiness:</strong> {snapshot.readiness?.canConnect?"All prerequisite checks passed":"Prerequisites incomplete"} · <strong>Actual connection:</strong> {snapshot.readiness?.connected?"Connected":"Not connected"}</p>}
-      <form onSubmit={saveProfile} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12,marginTop:12}}>
+      <form className="institutionTrustProfileForm" onSubmit={saveProfile}>
         {field("aisheCode","AISHE code","Enter official AISHE code")}
         {field("institutionType","Institution type","University / College / Institute")}
         {field("affiliation","Affiliating university / regulator","Affiliation")}
@@ -101,7 +102,7 @@ export default function InstitutionPartnershipPanel() {
         <button type="button" className="primary" disabled={busy||!institutionId||!form.paymentAmountPaise||Number(form.paymentAmountPaise)<=0} onClick={createPaymentLink}>Create Razorpay payment link</button>
         {paymentLink&&<p role="status">Payment link: <a href={paymentLink.shortUrl} target="_blank" rel="noreferrer">{paymentLink.shortUrl}</a> · ₹{(paymentLink.amountPaise/100).toFixed(2)} · {paymentLink.status}</p>}
       </div>}
-      <form onSubmit={recordCheck} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10,border:"1px solid var(--border,#ddd)",borderRadius:12,padding:14,marginTop:16}}>
+      <form className="institutionTrustEvidenceForm" onSubmit={recordCheck}>
         <strong style={{gridColumn:"1/-1"}}>Record independent verification evidence</strong>
         <label>Verification stage<select value={checkType} onChange={e=>setCheckType(e.target.value)}>{checks.map(([key,title])=><option key={key} value={key}>{title}</option>)}</select></label>
         <label>Result<select value={outcome} onChange={e=>setOutcome(e.target.value)}><option value="verified">Verified</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select></label>
