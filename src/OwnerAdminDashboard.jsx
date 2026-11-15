@@ -4,6 +4,7 @@ import SecureCloudPanel from "./SecureCloudPanel.jsx";
 import MonetizationPanel from "./MonetizationPanel.jsx";
 import InstitutionPartnershipPanel from "./InstitutionPartnershipPanel.jsx";
 import OwnerTestInstitutionCleanup from "./OwnerTestInstitutionCleanup.jsx";
+import "./owner-admin-workspace.css";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -398,7 +399,7 @@ export default function OwnerAdminDashboard() {
 
   useEffect(() => { load(); }, []);
 
-  return <section className="content narrow">
+  return <section className="content narrow ownerAdminWorkspace">
     <div className="functionHero compact"><div><div className="eyebrow dark">RESTRICTED · OWNER ONLY</div><h2>SecureID owner console</h2><p>Operational health, registered accounts and security activity. Owner authorization and verified MFA are enforced by the server.</p></div><div className="dashboardScore"><strong>🔐</strong><small>Restricted access</small></div></div>
     {notice && <div className="panel" role="status"><p>{notice}</p></div>}
     {loading && <div className="panel">Checking owner permissions, service health, users and activity…</div>}
@@ -494,24 +495,24 @@ export default function OwnerAdminDashboard() {
       {events.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"10px 8px"}}>Time</th><th style={{padding:"10px 8px"}}>Event</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Actor</th></tr></thead><tbody>{events.map((event)=><tr key={event.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{new Date(event.createdAt).toLocaleString()}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{eventLabel(event.action)}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail || event.targetUserId || "—"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.actorEmail || "System"}</td></tr>)}</tbody></table></div>}
     </div>
 
-    <div className="panel">
+    <div className="panel institutionDirectoryPanel">
       <div className="eyebrow dark">COLLEGE / INSTITUTION MANAGEMENT</div>
       <h3>Institution directory · {institutions.length}</h3>
       <p>Provision institution access only after verifying the institution and the user's account. Every membership creation or status change is recorded in the institution audit trail. All actions require owner authorization and MFA on the server.</p>
       {institutionError && <p role="alert">{institutionError}</p>}
-      <form onSubmit={createInstitution} style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
+      <form onSubmit={createInstitution} className="institutionCreateForm">
         <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New college / institution name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} /><button type="button" className="secondary" onClick={() => setInstitutionName("")} disabled={!institutionName}>Clear value</button>
         <button className="primary" disabled={institutionBusy}>{institutionBusy ? "Saving…" : "Create institution"}</button>
       </form>
       {institutions.length > 0 && <>
         <p className="collegePrivacyNote">Provision a specific account for this institution. You may also assign the platform owner account an explicit institution role when needed; this creates an audited, institution-scoped membership and does not grant access to other colleges.</p>
-        <form onSubmit={provisionMembership} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,margin:"14px 0"}}>
+        <form onSubmit={provisionMembership} className="membershipProvisionForm">
           <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}><option value="">Choose institution…</option>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" className="secondary" disabled={institutionBusy || !selectedInstitutionId} onClick={() => { setSelectedInstitutionId(""); setInstitutionAudit({}); }}>Clear selection</button></label>
           <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}><option value="">Choose account…</option>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select><button type="button" className="secondary clearFieldButton" onClick={() => setSelectedMemberUserId("")} disabled={!selectedMemberUserId}>Clear selection</button></label>
           <label>Institution role<select value={selectedMemberRole} onChange={event => setSelectedMemberRole(event.target.value)}><option value="student">Student</option><option value="reviewer">Reviewer</option><option value="institution_admin">Institution admin</option><option value="warden">Warden (hostel operations)</option><option value="read_only">Read only</option></select><button type="button" className="secondary clearFieldButton" onClick={() => setSelectedMemberRole("")} disabled={!selectedMemberRole}>Clear selection</button></label>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision membership</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSelectedMemberUserId(""); setSelectedMemberRole("student"); }}>Clear selection</button>
         </form>
-        <form onSubmit={saveInstitutionSubscription} style={{border:"1px solid var(--border,#ddd)",borderRadius:12,padding:14,margin:"16px 0",display:"grid",gap:10}}>
+        <form onSubmit={saveInstitutionSubscription} className="subscriptionEntitlementsForm">
           <strong>Institution subscription & feature access</strong>
           <p className="collegePrivacyNote">Subscription controls enabled modules only. It never grants Student, Warden, Reviewer or Institution Admin permissions.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
