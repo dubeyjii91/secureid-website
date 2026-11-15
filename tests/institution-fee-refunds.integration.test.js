@@ -14,15 +14,15 @@ async function setup(t){
   CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,role TEXT,status TEXT);
   CREATE TABLE institution_fee_invoices(id TEXT PRIMARY KEY,institution_id TEXT,student_user_id TEXT,fee_head TEXT,amount_paise INTEGER,status TEXT,updated_at TEXT);
   CREATE TABLE institution_fee_payments(id TEXT PRIMARY KEY,institution_id TEXT,invoice_id TEXT,student_user_id TEXT,amount_paise INTEGER,method TEXT,reference TEXT,created_at TEXT);
-  INSERT INTO users VALUES('admin','admin@college.test'),('finance','finance@college.test'),('student','student@college.test'),('other','other@college.test');
+  INSERT INTO users VALUES('admin','admin@college.test'),('finance','finance@college.test'),('student','student@college.test'),('other','other@college.test'),('manager','manager@college.test'),('accounts','accounts@college.test');
   INSERT INTO institutions VALUES('college','RVS College'),('other-college','Other College');
   INSERT INTO institution_subscriptions VALUES('college','["finance"]','active'),('other-college','["finance"]','active');
-  INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('f','college','finance','institution_admin','active'),('s','college','student','student','active'),('o','other-college','other','institution_admin','active');
+  INSERT INTO institution_memberships VALUES('a','college','admin','institution_admin','active'),('f','college','finance','institution_admin','active'),('s','college','student','student','active'),('o','other-college','other','institution_admin','active'),('m','college','manager','finance_manager','active'),('ac','college','accounts','accounts','active');
   INSERT INTO institution_fee_invoices VALUES('invoice','college','student','Tuition Fee',100000,'paid','2026-11-14T10:00:00.000Z');
   INSERT INTO institution_fee_payments VALUES('payment','college','invoice','student',100000,'upi','UPI-001','2026-11-14T10:00:00.000Z');
  `);
  const app=express();app.use(express.json());
- app.use((req,res,next)=>{req.user={id:req.get("x-user")||"",email:({admin:"admin@college.test",finance:"finance@college.test",student:"student@college.test",other:"other@college.test"})[req.get("x-user")]||""};next();});
+ app.use((req,res,next)=>{req.user={id:req.get("x-user")||"",email:({admin:"admin@college.test",finance:"finance@college.test",student:"student@college.test",other:"other@college.test",manager:"manager@college.test",accounts:"accounts@college.test"})[req.get("x-user")]||""};next();});
  const auth=(req,res,next)=>req.user.id?next():res.status(401).end(),pass=(req,res,next)=>next();
  const membership=(userId,institutionId)=>db.prepare("SELECT role,status FROM institution_memberships WHERE user_id=? AND institution_id=?").get(userId,institutionId)||null;
  const feature=(institutionId,name)=>db.prepare("SELECT features_json FROM institution_subscriptions WHERE institution_id=? AND status='active'").get(institutionId)?.features_json?.includes('"'+name+'"')||false;
@@ -45,6 +45,8 @@ test("refund requests reserve payment balance, require independent review and re
  response=await request("admin","/api/institutions/college/finance/payments/payment/refunds",{method:"POST",headers:{"Idempotency-Key":"refund-request-0002"},body:JSON.stringify({studentUserId:"student",amountPaise:80000,reason:"Second refund request would exceed the remaining payment balance."})});
  assert.equal(response.status,409);
  response=await request("student","/api/institutions/college/finance/refunds");assert.equal(response.status,403);
+ response=await request("manager","/api/institutions/college/finance/refunds");assert.equal(response.status,200,"Finance managers must be able to load their finance refund workspace.");
+ response=await request("accounts","/api/institutions/college/finance/refunds");assert.equal(response.status,200,"Accounts staff must be able to load their finance refund workspace.");
  response=await request("other","/api/institutions/college/finance/refunds");assert.equal(response.status,403);
  response=await request("admin",`/api/institutions/college/finance/refunds/${refund.id}`,{method:"PATCH",body:JSON.stringify({decision:"approve",reviewNote:"Reviewed and eligible."})});
  assert.equal(response.status,403,"The initiator cannot approve their own refund.");
