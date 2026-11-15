@@ -176,7 +176,7 @@ export default function CollegeWorkspace() {
       <article className="panel"><span className="collegeStep">02</span><h3>Student review queue</h3><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? "" : "s"} currently visible to your institution role.</p><small>Review decisions are audited</small></article>
       <article className="panel"><span className="collegeStep">03</span><h3>Institution modules</h3><p>Hostel Management and Scholarship Management</p><small>Access is role- and subscription-controlled</small></article>
     </section>}
-    {!isInstitutionAdminWorkspace && !hasActiveWarden && <div className="collegeValueGrid">
+    {!isInstitutionAdminWorkspace && !hasActiveWarden && <div className="collegeValueGrid collegeIntroGrid">
       <article className="panel"><span className="collegeStep">01</span><h3>Student onboarding</h3><p>Students manage their own SecureID profile and documents, then choose what to submit.</p><small>Explicit consent · Student-controlled</small></article>
       <article className="panel"><span className="collegeStep">02</span><h3>Submission review</h3><p>Assigned reviewers can track submissions and record administrative review outcomes.</p><small>Institution-scoped · Audited</small></article>
       <article className="panel"><span className="collegeStep">03</span><h3>Institution controls</h3><p>Memberships are provisioned by a trusted SecureID operator and protected by MFA.</p><small>No public self-assigned roles</small></article>
@@ -221,7 +221,7 @@ export default function CollegeWorkspace() {
     {canSeeScholarship && <ScholarshipManagement />}
     {!canSeeHostel && !canSeeScholarship && <div className="panel"><h3>Institution access</h3><p>Your account is currently a normal SecureID user. Ask the institution administrator or SecureID Owner to verify and provision the appropriate institution role before hostel or scholarship tools appear.</p></div>}
 
-    {!hasActiveInstitutionMembership && <div className="collegeColumns">
+    {!hasActiveInstitutionMembership && <div className="collegeColumns collegeWorkspaceColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
         <div className="eyebrow dark">PILOT INTEREST</div><h2>Register institutional interest</h2>
         <p className="lead">Use a college name and general workflow needs only. Do not enter student names, identity numbers, documents, OTPs or other sensitive data here.</p>
