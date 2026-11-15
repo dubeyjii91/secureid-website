@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./college-workspace.css";
+import "./institution-trust-layout.css";
 import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
