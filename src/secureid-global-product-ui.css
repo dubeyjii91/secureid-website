@@ -1,0 +1,172 @@
+/* SecureID global product UI: light, spacious, landscape-first across every route. */
+:root {
+  --sid-ui-bg: #f6f7fb;
+  --sid-ui-surface: #ffffff;
+  --sid-ui-surface-soft: #fafaff;
+  --sid-ui-text: #202434;
+  --sid-ui-muted: #697386;
+  --sid-ui-line: #e7e9f0;
+  --sid-ui-accent: #6558f5;
+  --sid-ui-accent-soft: #f1efff;
+  --sid-ui-shadow: 0 8px 24px rgba(27, 34, 66, .055);
+  color-scheme: light;
+}
+html, body, #root { min-height: 100%; background: var(--sid-ui-bg) !important; }
+body { color: var(--sid-ui-text) !important; }
+#root { width: 100%; }
+#root .shell { min-height: 100vh; background: var(--sid-ui-bg) !important; }
+#root .sidebar {
+  width: 252px !important;
+  background: #fff !important;
+  color: #31384a !important;
+  border-right: 1px solid var(--sid-ui-line) !important;
+  box-shadow: 3px 0 18px rgba(35, 40, 70, .025) !important;
+  padding: 22px 15px !important;
+}
+#root .sidebar *, #root .sidebar .navItem, #root .sidebar .navItem span {
+  color: #626b7e !important;
+}
+#root .sidebar .brand strong { color: #202434 !important; }
+#root .sidebar .brand small, #root .sidebar .navLabel { color: #9299a8 !important; }
+#root .sidebar .navItem {
+  min-height: 44px !important;
+  border: 1px solid transparent !important;
+  border-radius: 11px !important;
+  background: transparent !important;
+  padding: 10px 12px !important;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+#root .sidebar .navItem:hover {
+  background: #f7f6ff !important;
+  color: var(--sid-ui-accent) !important;
+}
+#root .sidebar .navItem.active {
+  color: var(--sid-ui-accent) !important;
+  background: var(--sid-ui-accent-soft) !important;
+  border-color: #e4e0ff !important;
+  box-shadow: inset 3px 0 0 var(--sid-ui-accent) !important;
+  font-weight: 750 !important;
+}
+#root .sidebar .navItem.active *, #root .sidebar .navItem:hover * { color: var(--sid-ui-accent) !important; }
+#root .sidebar .privacy { background: #fafaff !important; border-color: #ebe9ff !important; }
+#root .sidebar .privacy > span { color: var(--sid-ui-accent) !important; }
+#root .main { min-width: 0 !important; background: var(--sid-ui-bg) !important; }
+#root .topbar {
+  min-height: 82px !important;
+  height: auto !important;
+  background: rgba(255,255,255,.96) !important;
+  border-bottom: 1px solid var(--sid-ui-line) !important;
+  padding: 16px clamp(22px, 3vw, 52px) !important;
+  gap: 14px 24px !important;
+}
+#root .topbar h1, #root .topbar h2 { color: var(--sid-ui-text) !important; }
+#root .content {
+  width: 100% !important;
+  max-width: 1760px !important;
+  margin-inline: auto !important;
+  padding: clamp(22px, 2.5vw, 42px) clamp(20px, 3vw, 52px) !important;
+}
+#root .content.narrow { max-width: none !important; margin-inline: 0 !important; }
+#root .content > * { min-width: 0; }
+#root .content > * + * { margin-top: clamp(20px, 2vw, 30px); }
+#root .panel, #root .card, #root .sectionCard, #root .workspaceCard, #root .moduleCard,
+#root .profilePanel, #root .statusPanel, #root .systemHealthPanel, #root .securityCard,
+#root .identityCard, #root .shareCard, #root .documentVault, #root .hostelApplications,
+#root .institutionModuleLauncher, #root .quickAccessCard, #root .tableWrap {
+  min-width: 0;
+  color: var(--sid-ui-text) !important;
+  background: var(--sid-ui-surface) !important;
+  border: 1px solid var(--sid-ui-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--sid-ui-shadow) !important;
+}
+#root .panel, #root .profilePanel, #root .statusPanel, #root .systemHealthPanel,
+#root .securityCard, #root .identityCard, #root .shareCard {
+  padding: clamp(18px, 2vw, 30px) !important;
+}
+#root h1, #root h2, #root h3, #root h4, #root h5, #root label, #root legend,
+#root .panelHead, #root .sectionTitle { color: var(--sid-ui-text) !important; }
+#root p, #root small, #root .lead, #root .muted, #root .description,
+#root .subtitle, #root .helperText, #root .fieldHint { color: var(--sid-ui-muted) !important; }
+#root .eyebrow { color: var(--sid-ui-accent) !important; }
+#root .panelHead { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 18px; }
+#root .sectionTitle { margin: clamp(24px, 2.4vw, 38px) 0 18px !important; }
+#root .profileGrid { grid-template-columns: minmax(0, 1.55fr) minmax(280px, .9fr) !important; gap: clamp(16px, 1.8vw, 28px) !important; }
+#root .actionGrid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)) !important; gap: clamp(14px, 1.6vw, 24px) !important; }
+#root .actionCard, #root .quickAccessCard, #root .institutionModuleLauncher {
+  min-width: 0; min-height: 150px; padding: clamp(18px, 1.8vw, 26px) !important;
+  border-radius: 14px !important; text-align: left;
+}
+#root .actionCard:hover, #root .quickAccessCard:hover, #root .institutionModuleLauncher:hover {
+  transform: translateY(-2px); border-color: #d7d2ff !important;
+  box-shadow: 0 12px 28px rgba(55, 48, 130, .09) !important;
+}
+#root .actionIcon, #root .quickAccessIcon, #root .institutionModuleLauncherIcon,
+#root .functionVisual, #root .avatar, #root .shield {
+  color: var(--sid-ui-accent) !important; background: var(--sid-ui-accent-soft) !important;
+  border: 1px solid #e7e3ff !important; border-radius: 11px !important;
+}
+#root form:not(.urlForm):not(.studentProofForm) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr));
+  align-items: end;
+  gap: 18px 20px;
+}
+#root form > label, #root .formGroup, #root .field, #root .formField,
+#root .form-row, #root .fieldGroup {
+  min-width: 0; display: flex; flex-direction: column; gap: 7px;
+}
+#root form > label:has(textarea), #root form > label:has(input[type="file"]),
+#root form > .fullWidth, #root form > .formFullWidth, #root form > .formMessage,
+#root form > [role="alert"] { grid-column: 1 / -1; }
+#root input, #root select, #root textarea, #root .authCard input {
+  width: 100%; min-width: 0; max-width: 100%; min-height: 43px;
+  color: #252a35 !important; -webkit-text-fill-color: #252a35 !important;
+  background: #fff !important; border: 1px solid #d8dce6 !important;
+  border-radius: 10px !important; padding: 10px 12px !important;
+  box-shadow: none !important;
+}
+#root textarea { min-height: 104px; resize: vertical; }
+#root input::placeholder, #root textarea::placeholder { color: #9aa1af !important; -webkit-text-fill-color: #9aa1af !important; }
+#root input:focus, #root select:focus, #root textarea:focus {
+  border-color: #9288ff !important; box-shadow: 0 0 0 3px rgba(101,88,245,.12) !important; outline: 0 !important;
+}
+#root button, #root .navItem { min-height: 40px; }
+#root button.primary, #root .primaryButton, #root button[type="submit"], #root .btn-primary,
+#root .actionButton, #root .generateButton {
+  color: #fff !important; -webkit-text-fill-color: #fff !important;
+  background: var(--sid-ui-accent) !important; border: 1px solid var(--sid-ui-accent) !important;
+  border-radius: 10px !important; box-shadow: 0 4px 10px rgba(101,88,245,.16) !important;
+  font-weight: 700 !important; padding: 10px 16px !important;
+}
+#root button.primary:hover:not(:disabled), #root .primaryButton:hover:not(:disabled),
+#root button[type="submit"]:hover:not(:disabled), #root .btn-primary:hover:not(:disabled) {
+  background: #5145d8 !important; border-color: #5145d8 !important;
+}
+#root button.secondary, #root .secondary, #root .textButton, #root a,
+#root .textLink, #root .linkButton, #root .footerLink { color: #5145d8 !important; }
+#root .tableWrap { max-width: 100%; overflow-x: auto; }
+#root table { width: 100%; border-collapse: separate; border-spacing: 0; }
+#root table th { color: #4d5668 !important; background: #f7f7fb !important; font-weight: 700; }
+#root table td { color: #434b5b !important; border-color: #eceef3 !important; }
+#root .documentPagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 16px; }
+#root .statusBadge, #root .verifiedBadge { border-radius: 999px !important; }
+#root footer { max-width: 1760px; margin-inline: auto; padding-inline: clamp(20px, 3vw, 52px); color: #858d9d !important; }
+@media (min-width: 1500px) {
+  #root .sidebar { width: 264px !important; }
+  #root .main { margin-left: 264px !important; width: calc(100% - 264px) !important; }
+}
+@media (max-width: 1100px) {
+  #root .profileGrid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 760px) {
+  #root .sidebar { position: relative !important; inset: auto !important; width: 100% !important; height: auto !important; padding: 12px !important; }
+  #root .main { margin: 0 !important; width: 100% !important; }
+  #root .topbar { flex-wrap: wrap; padding: 16px !important; }
+  #root .content { padding: 18px 14px !important; }
+  #root form:not(.urlForm):not(.studentProofForm) { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  #root .profileGrid, #root .actionGrid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root *, #root *::before, #root *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
