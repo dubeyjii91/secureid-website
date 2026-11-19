@@ -1,0 +1,102 @@
+# SecureID founder pilot-readiness checklist
+
+Last evidence review: 2026-11-19
+
+This checklist separates verified engineering evidence from operator decisions and external proof. A checked item means the specific evidence exists; it does not imply that the whole product is certified or ready for a public launch.
+
+## 1. Production reliability
+
+Status: **Partially verified — release fix pending**
+
+- [x] Production homepage and health/readiness endpoints returned HTTP 200 in the 2026-11-19 production smoke.
+- [x] Unauthenticated smoke requests to protected API endpoints were rejected.
+- [x] Duplicate hostel-room conflict fix and regression assertion are prepared in draft PR #208; all three PR workflows passed.
+- [ ] Merge and deploy PR #208 only after the project owner explicitly approves the production release.
+- [ ] Re-test duplicate room creation on the deployed version.
+- [ ] Investigate Railway wake-up retries/connection-refused events and measure cold-start behavior.
+- [ ] Establish external uptime and error alerts with a verified recipient.
+
+## 2. Backup and document recovery
+
+Status: **Off-site encrypted upload verified; restore not verified**
+
+- [x] Private backup-vault repository is configured.
+- [x] Seven scheduled exports (13–19 November) completed successfully.
+- [x] Latest encrypted artifact and SHA-256 evidence are recorded in the production operations runbook.
+- [ ] Resolve the configured-vs-observed schedule timing discrepancy.
+- [ ] Restore the actual GitHub artifact in a disposable isolated environment using the approved key-recovery process.
+- [ ] Test decryption and reading of a synthetic document after restore.
+- [ ] Investigate why the 2026-11-19 production restore drill contained zero document records and zero document blobs; do not infer that user data was lost or recovered without evidence.
+- [ ] Record recovery-point and recovery-time objectives, key custodian, retention and expiry process.
+
+Never run a restore drill over the live production database and never place the backup encryption key in GitHub or this repository.
+
+## 3. Security and operational reliability
+
+Status: **Automated evidence good; operational and independent checks remain**
+
+- [x] SecureID CI on PR #208 passed 178 security/unit tests, build/lint, dependency audit, Trivy, CodeQL and isolated backup/document round-trip smoke.
+- [x] Owner-console browser smoke and visual appearance smoke passed on PR #208.
+- [ ] Perform authenticated manual acceptance tests with synthetic accounts for registration, email verification, MFA, logout/session revocation, document ownership, share expiry/revocation and account deletion.
+- [ ] Verify alert delivery end-to-end and missed-backup alerting.
+- [ ] Review privacy-minimized production logs and monitor 5xx/cold-start rates.
+- [ ] Commission an independent security/penetration test before broad public onboarding.
+- [ ] Keep one API replica while SQLite and process-local rate limits remain in use.
+
+## 4. Privacy and legal readiness
+
+Status: **Blocked on operator facts and qualified review**
+
+- [x] A privacy notice engineering draft exists and is explicitly marked not for publication.
+- [x] Draft now describes the known private encrypted artifact workflow and clearly discloses that off-site restore has not yet been proven.
+- [ ] Supply the legal operator/controller name and jurisdiction.
+- [ ] Supply a monitored privacy/support contact and the canonical public domain.
+- [ ] Confirm data categories, purposes, lawful basis/consent flow, retention, deletion, backup expiry and provider contracts/processing locations.
+- [ ] Decide target audience/minimum age and any applicable parental-consent process.
+- [ ] Define data access/correction/export/deletion request handling and incident/breach response.
+- [ ] Obtain qualified legal review and operator sign-off before publishing the notice or onboarding real users.
+
+Do not fill legal placeholders with guessed names, addresses, dates, retention periods or compliance claims.
+
+## 5. Institution verification
+
+Status: **Manual evidence required**
+
+- [ ] Verify each institution against authoritative records.
+- [ ] Verify the representative's authority to act for that institution.
+- [ ] Obtain and retain a signed pilot/partnership agreement.
+- [ ] Confirm institution administrator identity and least-privilege access.
+- [ ] Test institution onboarding and student-review workflows using synthetic data.
+- [ ] Do not label a college as a partner or verified until evidence and approval are recorded.
+- [ ] Do not label a student or document as government-verified without an authorised provider and real verification evidence.
+
+## 6. Native mobile integration
+
+Status: **Backend integration exists in code; full device acceptance remains unverified**
+
+- [x] Mobile API client targets the current SecureID Railway API.
+- [x] Native sign-in obtains a native session token and stores it in Android secure storage.
+- [x] Mobile client includes session, MFA, identity profile, document upload/download/delete, sharing and security/session API calls.
+- [x] Mobile screens use the API client for the Vault and Secure Sharing flows.
+- [ ] Run a full physical-device acceptance test with a synthetic account: sign in, receive/verify MFA, upload, list, download, share, revoke, logout and re-login.
+- [ ] Verify plaintext temporary-file cleanup and behavior after interrupted downloads.
+- [ ] Complete a fresh internal Android build and test the exact build against production without using real identity documents.
+- [ ] Do not publish an APK/AAB or claim store readiness until the owner explicitly approves release preparation.
+
+## 7. Controlled college pilot
+
+Status: **Preparation stage — external commitment and operator details required**
+
+- [ ] Choose one pilot institution and obtain written permission.
+- [ ] Define the pilot scope, duration, support contact, participating roles and success criteria.
+- [ ] Prepare a demo using synthetic students and synthetic documents.
+- [ ] Prepare onboarding instructions, support/escalation process and incident contact.
+- [ ] Agree on data ownership, retention, deletion and exit/offboarding with the institution.
+- [ ] Run a limited acceptance pilot before broad public promotion.
+- [ ] Review feedback, reliability, support burden and costs before expanding.
+
+## Current release decision
+
+**No broad public launch recommendation yet.** The immediate technical blockers are the undeployed duplicate-room fix, the unproven restore from the actual off-site artifact (including a synthetic document), and Railway wake-up reliability. Privacy/legal sign-off and verified institution permission are separate operator gates.
+
+Production merges, deployments, secrets, Railway variables, production data, paid services and public app-store releases require the project owner's explicit approval.
