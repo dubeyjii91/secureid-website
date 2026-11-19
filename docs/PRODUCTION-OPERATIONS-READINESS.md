@@ -9,35 +9,31 @@ This runbook records operational controls that must be evidenced before SecureID
 - The API uses a persistent Railway volume for the SQLite database and document storage.
 - Encrypted backups use AES-256-GCM and include the SQLite snapshot plus UUID-named encrypted document blobs.
 - Restore validates the authenticated payload, checks SQLite integrity, stages restored files, and keeps a pre-restore database recovery copy.
-- The backup manager runs its scheduler inside the API process. It schedules a startup backup and an in-process interval; the restore drill is also scheduled in-process when enabled.
+- The API retains an in-process startup/interval backup mechanism, but its timers do not run while the service is stopped or sleeping. The private `secureid-backup-vault` GitHub Actions workflow is now the separate daily trigger for off-site encrypted artifact creation and upload.
 - The API process is configured as a single Railway replica. Do not scale it horizontally while using local SQLite and process-local scheduling/rate limits.
 - The privacy notice in `docs/PRIVACY-POLICY-RELEASE-DRAFT.md` is explicitly a draft and must not be published as final legal copy.
 
-## Blocking operational gaps
+## Remaining operational gaps
 
 ### 1. Backup scheduling independent of API uptime
 
-The existing backup scheduler still uses `setTimeout` and `setInterval` in the web/API process. Those timers do not run while the process is stopped or sleeping. This change adds an optional GitHub Actions schedule that calls a token-protected endpoint to run the existing encrypted backup independently of the API timer. It is not active until the same random `BACKUP_TRIGGER_TOKEN` is configured in Railway and the GitHub Actions secret `SECUREID_BACKUP_TRIGGER_TOKEN` is configured, the new application version is deployed, and a manual workflow run succeeds. The workflow retries requests while Railway wakes from sleep.
+The private `dubeyjii91/secureid-backup-vault` workflow is active and has completed seven scheduled encrypted exports from 13–19 November 2026. It triggers the protected Railway backup endpoint, downloads the encrypted artifact, verifies its SHA-256, and uploads it to a private GitHub Actions artifact with 30-day retention. The workflow is configured for 09:25 Asia/Kolkata (03:55 UTC), but observed run creation times were approximately 11:05–12:39 UTC. Investigate the delay; do not promise a precise completion time. The in-process API timers remain supplementary and do not run while the service is sleeping or stopped.
 
-The workflow implementation downloads the newest AES-256-GCM encrypted backup through a separate token-protected HTTPS endpoint, verifies the exact file-byte SHA-256, and uploads it to a GitHub Actions artifact with 30-day retention. It fails closed unless the destination repository is private. **The current `dubeyjii91/secureid-website` repository is public, so off-site transfer remains blocked until a private destination repository is configured.** The transfer is capped at 400 MiB; the encryption key remains only in Railway. After activation, this is still temporary recovery storage: artifact quota is shared, artifacts expire, and workflow-run deletion can remove them. A successful workflow run and isolated restore from the artifact are required before recording this control as passed.
+The private artifact workflow is a temporary off-site copy, not permanent archival storage. It is subject to GitHub Actions retention, quota, and workflow-run deletion. The backup encryption key remains in Railway and must never be copied to GitHub or the artifact. The transfer is capped at 400 MiB. A successful upload does not prove recoverability; a successful isolated restore from the actual artifact is still required.
 
 Before relying on a defined recovery-point objective:
-- Configure an external scheduler or a dedicated Railway cron/worker service that invokes the backup command against the same protected persistent data, or use a managed database backup facility.
-- Ensure only one backup job can run at a time (lock/lease), use a bounded timeout, and alert on missed runs.
-- Verify the chosen Railway plan and any scheduler/storage service cost before enabling it.
-- Record the expected schedule, maximum backup age, and alert recipient.
+- Ensure only one backup job can run at a time, use bounded timeouts, and alert on missed/failed runs.
+- Verify artifact retention, quota, workflow-run deletion behavior, and actual retrieval.
+- Record the expected maximum backup age, alert recipient, and recovery owner.
 
 ### 2. Off-platform encrypted copy
 
-Backups currently default to a directory on the Railway persistent volume. This protects against some application-level failures but not loss or corruption of the volume/account/region.
-
-Before claiming disaster recovery:
-- Select an approved off-site object-storage provider and region.
-- Upload only authenticated encrypted backup artifacts over TLS; never upload plaintext SQLite snapshots.
-- Use a dedicated least-privilege write credential, bucket versioning/retention where available, and a separate read credential for restore.
+An encrypted off-platform copy now exists as a private GitHub Actions artifact. It has 30-day retention and is not a durable object-storage archive. No object-storage bucket is provisioned. Before claiming disaster recovery:
+- Restore the actual downloaded artifact in a disposable isolated environment using the approved key-recovery process.
+- Verify SQLite integrity and decrypt/read a synthetic document.
 - Keep the backup encryption key separately, with restricted access and a documented recovery owner. Never store the key beside the backup artifact.
-- Verify upload, object checksum, retention, retrieval, and isolated restore from the off-site copy.
 - Document provider, region, retention, expected cost, RPO, and RTO.
+- Consider durable object storage only after an explicit budget and provider approval.
 
 ### 3. Restore-drill evidence
 
