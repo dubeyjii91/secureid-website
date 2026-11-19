@@ -36,7 +36,9 @@ Never run a restore drill over the live production database and never place the 
 Status: **Automated evidence good; operational and independent checks remain**
 
 - [x] SecureID CI on PR #208 passed 178 security/unit tests, build/lint, dependency audit, Trivy, CodeQL and isolated backup/document round-trip smoke.
-- [x] Owner-console browser smoke and visual appearance smoke passed on PR #208.
+- [x] Documentation PR #209 CI also passed on 19 November: build, lint, dependency audit, Trivy, 178 tests, mobile TypeScript, CodeQL, owner-console browser smoke, and visual appearance smoke.
+- [x] Owner-console browser smoke and visual appearance smoke passed on PR #208 and PR #209.
+- [ ] Reduce the current 88 non-blocking lint warnings (0 lint errors) and review deprecated transitive npm dependencies; avoid broad refactors without targeted tests.
 - [ ] Perform authenticated manual acceptance tests with synthetic accounts for registration, email verification, MFA, logout/session revocation, document ownership, share expiry/revocation and account deletion.
 - [ ] Verify alert delivery end-to-end and missed-backup alerting.
 - [ ] Review privacy-minimized production logs and monitor 5xx/cold-start rates.
@@ -75,12 +77,13 @@ Status: **Manual evidence required**
 Status: **Backend integration exists in code; full device acceptance remains unverified**
 
 - [x] Mobile API client targets the current SecureID Railway API.
+- [x] Mobile TypeScript check passed in PR #209 CI.
 - [x] Native sign-in obtains a native session token and stores it in Android secure storage.
 - [x] Mobile client includes session, MFA, identity profile, document upload/download/delete, sharing and security/session API calls.
 - [x] Mobile screens use the API client for the Vault and Secure Sharing flows.
 - [ ] Run a full physical-device acceptance test with a synthetic account: sign in, receive/verify MFA, upload, list, download, share, revoke, logout and re-login.
 - [ ] Verify plaintext temporary-file cleanup and behavior after interrupted downloads.
-- [ ] Complete a fresh internal Android build and test the exact build against production without using real identity documents.
+- [ ] Complete a fresh internal Android build and test the exact build against production without using real identity documents. EAS preview APK, OTA, and production AAB steps were skipped in the documentation PR CI; no new mobile artifact was created.
 - [ ] Do not publish an APK/AAB or claim store readiness until the owner explicitly approves release preparation.
 
 ## 7. Controlled college pilot
