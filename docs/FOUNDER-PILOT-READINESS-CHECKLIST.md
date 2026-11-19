@@ -86,9 +86,20 @@ Status: **Backend integration exists in code; full device acceptance remains unv
 - [ ] Complete a fresh internal Android build and test the exact build against production without using real identity documents. EAS preview APK, OTA, and production AAB steps were skipped in the documentation PR CI; no new mobile artifact was created.
 - [ ] Do not publish an APK/AAB or claim store readiness until the owner explicitly approves release preparation.
 
-## 7. Controlled college pilot
+## 7. Scale preparation and controlled college pilot
 
-Status: **Preparation stage — external commitment and operator details required**
+Status: **Scale plan and pilot preparation; no expansion approval**
+
+### Scale preparation
+
+- [ ] Keep one API replica while production uses SQLite and process-local rate limits.
+- [ ] Prepare a managed PostgreSQL migration plan with data validation, rollback, backup and downtime procedures before considering multiple replicas.
+- [ ] Plan shared/distributed rate limiting and independently managed background jobs.
+- [ ] Evaluate durable encrypted object storage and retention controls only after the provider, region and cost are approved.
+- [ ] Define capacity/load-test targets and monitor database size, document volume, CPU, memory, HTTP 5xx, wake-up latency and backup age.
+- [ ] Produce a realistic zero-budget pilot capacity estimate and a paid-growth cost estimate; do not activate paid services without explicit approval.
+
+### Controlled college pilot
 
 - [ ] Choose one pilot institution and obtain written permission.
 - [ ] Define the pilot scope, duration, support contact, participating roles and success criteria.
