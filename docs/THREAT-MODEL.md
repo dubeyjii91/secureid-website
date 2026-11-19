@@ -1,6 +1,6 @@
 # SecureID Threat Model
 
-Last updated: 2026-10-20
+Last updated: 2026-11-19
 
 ## Assets
 - Account credentials, email-verification and MFA challenges, sessions and recovery tokens.
@@ -35,6 +35,9 @@ Last updated: 2026-10-20
 - Email delivery depends on correct provider configuration, sender-domain verification, deliverability, and provider availability.
 - Government verification is an external integration and authorization dependency, not something that can be simulated honestly.
 - Backups containing encrypted payloads remain sensitive and depend on safe key custody and retention controls.
+- The private GitHub Actions off-site artifact has 30-day retention and has not yet been restored in isolation; the latest production restore drill reported zero document records and zero document blobs, so document recovery is not proven.
+- Scheduled backup runs have been observed later than the configured cron time; backup freshness monitoring and missed-run alerting still need evidence.
+- The native mobile client now contains backend API integration and secure token storage, but full physical-device acceptance of login, MFA, document and sharing flows remains pending.
 
 ## Review cadence
 Review this model after any change to authentication, MFA, document storage, share links, institution roles, providers, database topology, or deployment configuration, and at least quarterly while the product is active.
