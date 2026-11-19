@@ -6,7 +6,7 @@ SecureID keeps its primary encrypted backup on the Railway volume. A separate **
 
 The private vault repository is the **single daily backup scheduler**:
 
-1. The SecureID off-site encrypted backup vault workflow runs daily at 09:25 Asia/Kolkata (03:55 UTC) and verifies that its destination repository is private before handling backup data.
+1. The SecureID off-site encrypted backup vault workflow is configured to schedule daily at 09:25 Asia/Kolkata (03:55 UTC) and verifies that its destination repository is private before handling backup data. Observed scheduled run creation times on 13–19 November were approximately 11:05–12:39 UTC; investigate this delay and do not promise completion at 09:25.
 2. It calls the token-protected Railway backup endpoint (/api/internal/backup/run) to create a fresh AES-256-GCM encrypted on-volume backup. The step retries while Railway wakes or the API becomes ready.
 3. It downloads the encrypted backup from /api/internal/backup/download, verifies the SHA-256 against both the backup-trigger response and the download response, validates the filename and size, and requires the creation timestamp to be no older than 30 minutes.
 4. It uploads the encrypted backup and a non-secret manifest as a GitHub Actions artifact with 30-day retention.
@@ -26,10 +26,22 @@ The updated private-vault workflow completed a full fresh-create → exact-file 
 - The trigger response SHA-256, download response SHA-256, manifest SHA-256, and locally recomputed SHA-256 of the extracted encrypted file all matched. The ZIP integrity test passed.
 - All five operative workflow steps succeeded: private-repository check, fresh encrypted backup creation, exact filename-pinned download, digest/size/freshness validation, and artifact upload.
 
-This was a push-triggered verification run after the workflow change, not the daily scheduled run. Because the private scheduler was merged after the 2026-11-13 09:25 Asia/Kolkata schedule time, the first scheduled execution is due 2026-11-14 at 09:25 Asia/Kolkata. The daily monitor should verify it separately.
+This was a push-triggered verification run after the workflow change, not a daily scheduled run. Subsequent scheduled executions are recorded separately below.
 
-The Railway on-volume isolated restore drill also passed after the latest production deployment: SQLite integrity `ok`, 67 tables, and 2 restored document blobs. This remains an **on-volume** restore drill. A restore from the GitHub off-site artifact has **not** yet been performed and must not be represented as complete.
+The Railway on-volume isolated restore drill associated with this 13 November evidence passed SQLite integrity, with 67 tables and 2 restored document blobs. This was an **on-volume** restore drill, not a restore from the GitHub off-site artifact.
 
+
+
+
+### Latest scheduled backup evidence — 2026-11-19
+
+- The last seven scheduled workflow runs (13–19 November) completed successfully.
+- Latest run: [44522980025](https://github.com/dubeyjii91/secureid-backup-vault/actions/runs/44522980025), completed at `2026-11-19T12:20:44Z`.
+- Encrypted backup: `secureid-2026-11-19T12-20-39-248Z.backup.json`; 3,080,487 bytes; SHA-256 `89325117f76faa27353ffae77ffbf448cc72df8a1383d176628a634e13485452`.
+- Private GitHub Actions artifact: `secureid-encrypted-backup-44522980025`, artifact ID `14528981106`; ZIP size 3,081,097 bytes; ZIP SHA-256 `3bbc62a065449f01c2822fc101da03f32b3ff90c40007f3b7ba686cfadb31a85`; expires `2026-12-19T12:20:40Z`.
+- Production on-volume restore drill at `2026-11-19T12:21:09Z` passed SQLite integrity and restored 109 tables, but both source and restored backup contained zero active document records and zero document blobs; `documentRestoreVerified=false`.
+- **Not yet verified:** restoring the actual off-site GitHub artifact into a disposable isolated environment and decrypting/reading a synthetic document. The latest drill does not prove recovery of a real student document.
+- Keep the artifact as a temporary additional copy only. Its 30-day retention, shared Actions quota and workflow-run deletion risk remain.
 
 ## Security and retention
 
