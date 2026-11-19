@@ -15,6 +15,24 @@ The following automated checks completed successfully against production commit 
 
 The CI run reports successful dependency installation/audit, Trivy filesystem scan, CodeQL analysis, frontend build, lint, security unit tests, native Android TypeScript checks, deployed native-auth bootstrap smoke test, and isolated encrypted backup/restore test. The EAS preview APK, OTA update, signed production AAB, and artifact-upload steps were **skipped**, not passed. These results do not complete the manual checks below, prove a full penetration test, or establish legal/operational launch readiness. Do not infer a manual pass from a successful deployment.
 
+
+
+## Latest production smoke evidence — 2026-11-19
+
+A production smoke sequence against `https://secureid-production-b732.up.railway.app` completed at approximately `2026-11-19T11:46Z`:
+
+- Homepage: HTTP 200 after Railway initially returned connection-refused upstream attempts; total observed request time was about 1.4 seconds. This is a cold-start/retry reliability issue, not a clean first-attempt pass.
+- `/api/health` and `/api/health/ready`: HTTP 200.
+- Unknown API route: HTTP 404.
+- Unauthenticated session, privacy, and government-verification readiness requests: HTTP 401 as expected.
+- Malformed share token: HTTP 404 as expected.
+- Login without a valid CSRF token: HTTP 403 as expected; a valid CSRF token with deliberately invalid credentials returned HTTP 401 as expected.
+- Unauthenticated account deletion request: HTTP 401 as expected.
+
+These checks verify selected public health and negative authorization paths only. They do not replace authenticated end-to-end student acceptance tests, physical-device mobile testing, a penetration test, or a restore from the actual off-site backup artifact. Railway wake-up retries remain a reliability issue to investigate.
+
+PR #208's duplicate-hostel-room fix has passed its build/lint/security CI, owner-console browser smoke, and visual appearance smoke workflows, but remains an unmerged draft and is not deployed to production.
+
 ## 1. Automated checks
 Run on the exact release commit in CI:
 - [x] Dependency installation completed in CI (`npm ci`).
@@ -63,10 +81,11 @@ Run on the exact release commit in CI:
 - [ ] Backup logs never contain identity values, OTPs, session tokens, keys, or document contents.
 - [ ] A backup is created on schedule and alert delivery is tested end-to-end.
 - [ ] If the external GitHub Actions trigger is enabled, verify missing/incorrect bearer tokens are rejected, a valid token returns only a SHA-256 digest and completion time, and the scheduled/manual workflow completes successfully.
-- [ ] Confirm the external workflow's encrypted backup is still only on the Railway volume; do not count it as off-platform disaster recovery.
+- [x] Confirm that the private GitHub Actions workflow stores a temporary encrypted off-platform artifact with 30-day retention.
+- [ ] Restore the actual off-platform artifact in an isolated disposable environment; artifact upload alone is not proof of disaster recovery.
 - [ ] Restore is tested on an isolated disposable instance, never over the live production database.
 - [ ] Restored records and encrypted documents can be read with the correct key; corruption/wrong-key cases fail safely.
-- [ ] Retention, deletion, recovery-point objective, recovery-time objective, and off-platform copy are documented.
+- [ ] Verify artifact expiry/quota and document retention, deletion, recovery-point objective, recovery-time objective, and restore evidence.
 - [ ] Encryption keys are backed up separately under restricted access; a database backup alone may be unusable without the matching key.
 
 ## 6. Production and privacy
