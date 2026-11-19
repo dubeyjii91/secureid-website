@@ -1,6 +1,6 @@
 # SecureID production operations readiness
 
-Last reviewed: 2026-11-10
+Last reviewed: 2026-11-19
 
 This runbook records operational controls that must be evidenced before SecureID is described as production-resilient. It is not a claim that blocked items are complete.
 
@@ -114,5 +114,19 @@ This verifies a restore from the current Railway-volume backup after the snapsho
 - Startup backup after deployment: `secureid-2026-11-12T15-18-25-719Z.backup.json`.
 - Isolated restore drill after deployment: success; SQLite integrity `ok`; 67 tables; 2 document blobs; isolated restore only.
 - CI: build/lint and security unit tests passed; CodeQL passed; visual smoke and owner-console browser checks passed.
-- **Off-site artifact upload remains blocked:** the current source repository `dubeyjii91/secureid-website` is public. The workflow deliberately stops before downloading/exporting the encrypted artifact. A separate private GitHub repository is still required; do not change the source repository's visibility without the owner's explicit decision.
+- **Off-site artifact upload is now active:** the private destination `dubeyjii91/secureid-backup-vault` is verified private, and its scheduled workflow successfully created, downloaded, SHA-256-verified, and uploaded the encrypted backup as a private GitHub Actions artifact on 2026-11-19. The latest run and evidence are recorded below. Artifacts expire after 30 days and are not permanent archival storage.
 - No paid hosting or storage resources were provisioned. The GitHub Actions artifact retention and shared-quota limitations remain applicable once the private destination is configured.
+
+
+### Production verification record — 2026-11-19
+
+- Production source commit: `0890eb75fb7d5731bd4f043378ef921341fc11b9`; Railway deployment `65a1731b-a4a9-4408-a486-0443e7df181c` is currently `SLEEPING`, with the 500 MiB persistent volume still attached at `/data`.
+- Private off-site vault: `dubeyjii91/secureid-backup-vault` (repository visibility verified `private`).
+- Latest scheduled export: [workflow run 12](https://github.com/dubeyjii91/secureid-backup-vault/actions/runs/44522980025), completed successfully at `2026-11-19T12:20:44Z`.
+- Fresh encrypted backup: `secureid-2026-11-19T12-20-39-248Z.backup.json`; raw encrypted-file size 3,080,487 bytes; SHA-256 `89325117f76faa27353ffae77ffbf448cc72df8a1383d176628a634e13485452`.
+- Private Actions artifact: `secureid-encrypted-backup-44522980025`, artifact ID `14528981106`, ZIP size 3,081,097 bytes, ZIP SHA-256 `3bbc62a065449f01c2822fc101da03f32b3ff90c40007f3b7ba686cfadb31a85`, expires `2026-12-19T12:20:40Z`.
+- The private vault workflow's last seven scheduled runs (14–19 November) all completed successfully. The workflow is configured for `03:55 UTC / 09:25 Asia/Kolkata`, but the observed run creation times were approximately 11:05–12:39 UTC. Investigate schedule delay; do not claim the actual run occurs at 09:25 until timing is confirmed.
+- Production's isolated on-volume restore drill at `2026-11-19T12:21:09Z` passed SQLite integrity (`ok`) and restored 109 tables. It reported zero active document records and zero document blobs in both source and restored backup; `documentStorageReconciled=true`, but `documentRestoreVerified=false`. This does not prove recovery of a real user document and does not verify a restore from the off-site artifact.
+- The SecureID CI run for the duplicate-hostel-room fix (PR #208) passed build, lint, dependency audit, Trivy, 178 security/unit tests, mobile TypeScript checks, isolated encrypted backup/document round-trip smoke, CodeQL, owner-console browser smoke, and visual appearance smoke. Production native smoke and all APK/AAB/OTA release steps were skipped; no production release artifact was created.
+- A production duplicate hostel room request on 2026-11-18 returned HTTP 500 because SQLite surfaced the unique-room constraint as `ERR_SQLITE_ERROR`. The corrected HTTP 409 handling and regression assertion are in draft PR #208; they are not merged or deployed.
+- Production HTTP metrics showed zero requests in the one-hour sample ending at this review, so zero 5xx in that window is not evidence of successful user traffic. External browser access could not be independently verified in this environment.
