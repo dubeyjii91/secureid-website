@@ -2124,7 +2124,14 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       database.prepare("INSERT INTO hostel_rooms(id,institution_id,building_id,room_number,room_type,capacity,manual_occupied_beds,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)")
         .run(id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,now,now);
       res.setHeader("Cache-Control","private, no-store");res.status(201).json({success:true,room:{id,institutionId,buildingId,roomNumber,roomType,capacity,manualOccupiedBeds,status:"active"}});
-    } catch(error){if(String(error?.code||"").includes("CONSTRAINT")) return res.status(409).json({success:false,message:"That room number already exists in this building."});next(error);}
+    } catch(error){
+      const code=String(error?.code||"");
+      const message=String(error?.message||"");
+      if(code.includes("CONSTRAINT") || /UNIQUE constraint failed:\s*hostel_rooms\.building_id,\s*hostel_rooms\.room_number/i.test(message)) {
+        return res.status(409).json({success:false,message:"That room number already exists in this building."});
+      }
+      next(error);
+    }
   });
 
   app.delete("/api/institutions/hostel-buildings/:id", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
