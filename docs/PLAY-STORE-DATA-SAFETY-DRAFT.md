@@ -56,7 +56,7 @@ Official provider notices:
 - Account deletion removes active account records and attempts to remove active encrypted document files.
 - Historical encrypted backups may retain prior copies until those backups expire or are securely destroyed.
 - The backup implementation defaults to one encrypted backup every 24 hours and seven retained backup files. Production variables `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_COUNT`, and `BACKUP_DIR` are configured but their values are redacted in the connected Railway view; the operator must verify the actual values before declaring a precise retention period.
-- Backups currently reside on the same Railway persistent volume as the live service. They are not an independent off-site disaster-recovery copy.
+- In addition to the primary Railway-volume backups, an encrypted off-platform copy is uploaded to a private GitHub Actions artifact with 30-day retention. The artifact upload is verified, but an isolated restore from the actual off-platform artifact has not yet been completed. Do not describe this as proven disaster recovery; the latest production restore drill also reported zero document records and zero document blobs. GitHub artifact expiry, quota, and workflow-run deletion are residual risks.
 - Verify Railway log retention and Brevo message/delivery metadata retention from the actual account settings and provider terms.
 
 ## Questions that must be answered before submission
@@ -72,4 +72,4 @@ Official provider notices:
 
 ## Important
 
-Do not claim that SecureID verifies government identity documents, provides certified identity assurance, or has an independent off-site backup. Do not claim that data is never shared: infrastructure providers and user-selected share recipients receive/process data as described above.
+Do not claim that SecureID verifies government identity documents, provides certified identity assurance, or has proven disaster recovery from an off-site backup. A temporary encrypted off-platform artifact exists, but restore has not yet been verified. Do not claim that data is never shared: infrastructure providers and user-selected share recipients receive/process data as described above.
