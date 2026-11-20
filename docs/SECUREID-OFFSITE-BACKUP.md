@@ -43,6 +43,13 @@ The Railway on-volume isolated restore drill associated with this 13 November ev
 - **Not yet verified:** restoring the actual off-site GitHub artifact into a disposable isolated environment and decrypting/reading a synthetic document. The latest drill does not prove recovery of a real student document.
 - Keep the artifact as a temporary additional copy only. Its 30-day retention, shared Actions quota and workflow-run deletion risk remain.
 
+### Independent artifact retrieval check — 2026-11-20
+
+- Downloaded the latest scheduled private GitHub Actions artifact `secureid-encrypted-backup-44522980025` (artifact ID `14528981106`) from the private vault repository.
+- ZIP integrity test: passed. The archive contains the encrypted backup file (3,080,487 bytes) and `secureid-backup-manifest.txt` (258 bytes).
+- Recomputed SHA-256 of the extracted encrypted backup: `89325117f76faa27353ffae77ffbf448cc72df8a1383d176628a634e13485452`; it exactly matches the manifest and the recorded 19 November export evidence.
+- This verifies artifact retrieval, archive integrity, and encrypted-file hash consistency. It does **not** decrypt the backup, validate its AES-GCM authentication tag, or prove database/document recovery. The isolated off-site restore and synthetic-document read test remain outstanding.
+
 ## Security and retention
 
 - The destination repository must remain private. The workflow checks repository visibility and fails closed otherwise.
