@@ -90,7 +90,7 @@ async function openRole(role) {
   if (!response?.ok()) throw new Error("Preview homepage did not return HTTP 200.");
   await page.getByRole("button", { name: /Continue securely/i }).click();
   await page.getByRole("button", { name: "School / College Management" }).click();
-  await page.getByRole("heading", { name: "Your college memberships" }).waitFor();
+  await page.getByRole("heading", { name: "Your school / college memberships" }).waitFor();
   return { page, pageErrors };
 }
 
@@ -106,7 +106,7 @@ try {
   await student.page.getByLabel("Document from your vault").selectOption("synthetic-doc-1");
   await student.page.getByLabel(/I agree to the college-review-v1 consent text above/i).check();
   await student.page.getByRole("button", { name: "Submit for college review" }).click();
-  await student.page.getByText("Your document reference was submitted to the selected college.").waitFor();
+  await student.page.getByText("Your document reference was submitted to the selected school / college.").waitFor();
   await student.page.getByText("submitted", { exact: true }).waitFor();
 
   // Step 3: separate reviewer account opens the queue and receives metadata only.
