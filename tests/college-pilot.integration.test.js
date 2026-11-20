@@ -199,6 +199,10 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
     method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ userId: "user-d", role: "reviewer" })
   });
   assert.equal(provisionedMembershipResponse.status, 201);
+  const ownerSelfMembershipResponse = await fetch(base + `/api/admin/institutions/${createdInstitution.id}/memberships`, {
+    method: "POST", headers: headers("user-a", true, "owner"), body: JSON.stringify({ userId: "user-a", role: "institution_admin" })
+  });
+  assert.equal(ownerSelfMembershipResponse.status, 403, "Platform Owner must remain outside school operations.");
   const provisionedMembership = (await provisionedMembershipResponse.json()).membership;
 
   const adminDirectory = await fetch(base + "/api/admin/institutions", { headers: headers("user-a", true, "owner") });
