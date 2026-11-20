@@ -6,6 +6,7 @@ import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
 import { enforceShareRateLimit } from "./share-rate-limit.js";
 import { registerInstitutionModules } from "./institution-modules.js";
+import { registerParentPortal } from "./parent-portal.js";
 import { registerInstitutionFeeRefunds } from "./institution-fee-refunds.js";
 import { registerInstitutionStudentLifecycle } from "./institution-student-lifecycle.js";
 import { registerInstitutionQueue } from "./institution-queue.js";
@@ -2768,6 +2769,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   });
 
   registerInstitutionModules({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
+  registerParentPortal({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionFeeRefunds({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionStudentLifecycle({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionQueue({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });

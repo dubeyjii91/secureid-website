@@ -4,6 +4,7 @@ import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
 import ShareManagement, { IdentityProfileEditor } from "./ShareManagement.jsx";
 import CollegeWorkspace from "./CollegeWorkspace.jsx";
+import ParentPortal from "./ParentPortal.jsx";
 import AccountSecurity from "./AccountSecurity.jsx";
 import SecurityDashboard from "./SecurityDashboard.jsx";
 import OwnerAdminDashboard from "./OwnerAdminDashboard.jsx";
@@ -115,6 +116,7 @@ const navItems = [
   ["sessions", "Active sessions", "monitor"],
   ["shares", "Share management", "share"],
   ["college", "School / College Management", "school"],
+  ["parent", "Parent Portal", "users"],
   ["account", "Account security", "settings"],
   ["legal", "Privacy & Terms", "clipboard"],
 ];
@@ -895,7 +897,7 @@ function App() {
   }
 
   return <div className="shell">
-    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => !["admin", "admin-documents"].includes(id) || sessionRole === "owner").map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span className="navIcon"><SecureIcon name={icon} size={18} /></span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => (!["admin", "admin-documents"].includes(id) || sessionRole === "owner") && (sessionRole !== "owner" || !["college", "parent"].includes(id))).map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span className="navIcon"><SecureIcon name={icon} size={18} /></span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
     <main className="main"><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span><span className={sessionRole === "owner" ? "verifiedBadge ownerRoleBadge" : "verifiedBadge"}>{sessionRole === "owner" ? "Owner" : "User"}</span></div><button type="button" className="signOut topbarSignOut" onClick={signOut}>Sign out</button></div></header>
 
       {page === "dashboard" && <SecurityDashboard sessionRole={sessionRole} />}
@@ -918,7 +920,11 @@ function App() {
 
       {page === "shares" && <ShareManagement />}
 
-      {page === "college" && <CollegeWorkspace />}
+      {page === "college" && sessionRole !== "owner" && <CollegeWorkspace />}
+      {page === "college" && sessionRole === "owner" && <section className="content"><div className="panel">College operational workspace is restricted to the institution's authorized staff. Your Owner Dashboard contains sponsorship and subscription controls only.</div></section>}
+
+      {page === "parent" && sessionRole !== "owner" && <ParentPortal />}
+      {page === "parent" && sessionRole === "owner" && <section className="content"><div className="panel">Parent and student records are private to linked parent accounts and authorized school staff.</div></section>}
 
       {page === "account" && <AccountSecurity />}
 

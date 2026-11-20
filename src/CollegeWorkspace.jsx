@@ -5,6 +5,7 @@ import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
 import InstitutionModules from "./InstitutionModules.jsx";
+import ParentLinkManager from "./ParentLinkManager.jsx";
 import InstitutionSchoolPosts from "./institution-modules/InstitutionSchoolPosts.jsx";
 import StudentAdmissions from "./StudentAdmissions.jsx";
 import InstitutionPartnershipStatus from "./InstitutionPartnershipStatus.jsx";
@@ -215,6 +216,8 @@ export default function CollegeWorkspace() {
     <StudentAdmissions memberships={memberships} adminInstitutions={isInstitutionAdminWorkspace ? activeInstitutionAdmins : []} />
 
     {isInstitutionAdminWorkspace && <InstitutionModules institutionId={activeInstitutionAdmins[0]?.institutionId} /> }
+
+    {isInstitutionAdminWorkspace && <ParentLinkManager institutionId={activeInstitutionAdmins[0]?.institutionId} /> }
 
     {isInstitutionAdminWorkspace && <div className="panel institutionAdminNotice"><div className="eyebrow dark">ADMINISTRATOR RESPONSIBILITIES</div><h3>Manage operations, not platform ownership</h3><p className="lead">You can administer the institution's operational workflows and review queues. Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner.</p></div>}
 
