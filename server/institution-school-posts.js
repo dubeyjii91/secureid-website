@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { rateLimit } from "express-rate-limit";
 
 const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -9,6 +10,20 @@ const POST_TYPES = new Set(["homework", "notice"]);
 const AUDIENCES = new Set(["all", "students", "staff"]);
 
 export function registerInstitutionSchoolPosts({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature }) {
+  const schoolPostsReadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 120,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { success: false, message: "Too many school feed requests. Please try again later." }
+  });
+  const schoolPostsWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { success: false, message: "Too many school updates. Please try again later." }
+  });
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_school_posts (
       id TEXT PRIMARY KEY,
@@ -77,7 +92,7 @@ export function registerInstitutionSchoolPosts({ app, database, requireAuth, req
       .run(id(), institutionId, postId, actorUserId, action, now());
   }
 
-  app.get("/api/institutions/:institutionId/school-posts", requireAuth, requireMfaProduction, (req, res, next) => {
+  app.get("/api/institutions/:institutionId/school-posts", schoolPostsReadLimiter, requireAuth, requireMfaProduction, (req, res, next) => {
     try {
       const institutionId = clean(req.params.institutionId, 128);
       const type = clean(req.query?.type, 20);
@@ -96,7 +111,7 @@ export function registerInstitutionSchoolPosts({ app, database, requireAuth, req
     } catch (error) { next(error); }
   });
 
-  app.post("/api/institutions/:institutionId/school-posts", enforceSameOrigin, requireAuth, requireMfaProduction, (req, res, next) => {
+  app.post("/api/institutions/:institutionId/school-posts", schoolPostsWriteLimiter, enforceSameOrigin, requireAuth, requireMfaProduction, (req, res, next) => {
     try {
       const institutionId = clean(req.params.institutionId, 128);
       const type = clean(req.body?.type, 20);
@@ -116,7 +131,7 @@ export function registerInstitutionSchoolPosts({ app, database, requireAuth, req
     } catch (error) { next(error); }
   });
 
-  app.patch("/api/institutions/:institutionId/school-posts/:postId", enforceSameOrigin, requireAuth, requireMfaProduction, (req, res, next) => {
+  app.patch("/api/institutions/:institutionId/school-posts/:postId", schoolPostsWriteLimiter, enforceSameOrigin, requireAuth, requireMfaProduction, (req, res, next) => {
     try {
       const institutionId = clean(req.params.institutionId, 128);
       const postId = clean(req.params.postId, 128);
