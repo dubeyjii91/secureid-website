@@ -15,7 +15,7 @@ test("Institution Admin receives a dedicated, institution-scoped dashboard", () 
   assert.match(workspace, /Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner/);
 });
 
-test("Warden remains isolated from Institution Admin and scholarship workspace", () => {
+test("Platform Owner is isolated from institution operations and school memberships", () => {\n  assert.match(workspace, /Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner/);\n  assert.match(backend, /PLATFORM_OWNER_ISOLATED/);\n});\n\ntest("Warden remains isolated from Institution Admin and scholarship workspace", () => {
   assert.match(workspace, /const isInstitutionAdminWorkspace = activeInstitutionAdmins\.length > 0 && !hasActiveWarden/);
   assert.match(workspace, /const activeReviewers = hasActiveWarden \? \[\] : memberships\.filter/);
   assert.match(workspace, /const canReview = !hasActiveWarden && memberships\.some/);
