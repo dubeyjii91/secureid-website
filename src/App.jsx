@@ -114,7 +114,7 @@ const navItems = [
   ["activity", "Security activity", "activity"],
   ["sessions", "Active sessions", "monitor"],
   ["shares", "Share management", "share"],
-  ["college", "College pilot", "school"],
+  ["college", "School / College Management", "school"],
   ["account", "Account security", "settings"],
   ["legal", "Privacy & Terms", "clipboard"],
 ];
