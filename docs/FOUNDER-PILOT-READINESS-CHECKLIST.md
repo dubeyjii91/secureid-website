@@ -1,6 +1,6 @@
 # SecureID founder pilot-readiness checklist
 
-Last evidence review: 2026-11-19
+Last evidence review: 2026-11-20
 
 This checklist separates verified engineering evidence from operator decisions and external proof. A checked item means the specific evidence exists; it does not imply that the whole product is certified or ready for a public launch.
 
@@ -23,6 +23,8 @@ Status: **Off-site encrypted upload verified; restore not verified**
 - [x] Private backup-vault repository is configured.
 - [x] Seven scheduled exports (13–19 November) completed successfully.
 - [x] Latest encrypted artifact and SHA-256 evidence are recorded in the production operations runbook.
+- [x] Independently downloaded the latest private-vault artifact on 20 November; ZIP integrity passed and the extracted encrypted-file SHA-256 matched its manifest.
+- [ ] Complete actual AES-GCM decryption and isolated restore from that artifact; verify a synthetic document can be read.
 - [ ] Resolve the configured-vs-observed schedule timing discrepancy.
 - [ ] Restore the actual GitHub artifact in a disposable isolated environment using the approved key-recovery process.
 - [ ] Test decryption and reading of a synthetic document after restore.
