@@ -51,5 +51,5 @@ test("school communications require enabled entitlements and valid homework dead
   let response=await request("admin","/api/institutions/school/school-posts",{method:"POST",body:JSON.stringify({type:"homework",title:"No due date",body:"Instructions without deadline"})});
   assert.equal(response.status,400);
   db.prepare("UPDATE institution_subscriptions SET features_json='[]' WHERE institution_id='school'").run();
-  response=await request("admin","/api/institutions/school/school-posts?type=notices");assert.equal(response.status,403);
+  response=await request("admin","/api/institutions/school/school-posts?type=notice");assert.equal(response.status,403);
 });
