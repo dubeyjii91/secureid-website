@@ -95,6 +95,7 @@ export default function DashboardScreen() {
         <ActionCard icon="id-card-outline" title="Identity profile" description="Manage your identity details" onPress={() => router.push("/identity")} />
         <ActionCard icon="share-social-outline" title="Secure sharing" description="Share only the details you select" onPress={() => router.push("/share")} />
         <ActionCard icon="shield-checkmark-outline" title="Security center" description="Account and device protection" onPress={() => router.push("/security")} />
+        <ActionCard icon="information-circle-outline" title="About SecureID" description="Product information, features and account help" onPress={() => router.push("/about")} />
 
         <View style={styles.notice}>
           <Ionicons name="information-circle-outline" size={20} color={colors.warning} />
