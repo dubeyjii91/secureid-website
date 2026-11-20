@@ -18,6 +18,7 @@ import { registerInstitutionFeeGateway } from "./institution-fee-gateway.js";
 import { registerInstitutionReports } from "./institution-reports.js";
 import { registerInstitutionHR } from "./institution-hr.js";
 import { registerInstitutionCalendar } from "./institution-calendar.js";
+import { registerInstitutionSchoolPosts } from "./institution-school-posts.js";
 import { registerStudentAdmissions } from "./student-admissions.js";
 import { registerSecureIdMonetization } from "./secureid-monetization.js";
 import { registerInstitutionPartnership } from "./institution-partnership.js";
@@ -1727,7 +1728,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const planKey=String(req.body?.planKey||"").trim().slice(0,40);
       const status=String(req.body?.status||"");
       const features=Array.isArray(req.body?.features)?[...new Set(req.body.features.map(String))]:[];
-      const allowedFeatures=new Set(["hostel","scholarship","student_submissions"]);
+      const allowedFeatures=new Set(["hostel","scholarship","student_submissions","academics","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]);
       const startsAt=req.body?.startsAt?String(req.body.startsAt):null;
       const endsAt=req.body?.endsAt?String(req.body.endsAt):null;
       if(!planKey||!["pilot","active","past_due","suspended","expired"].includes(status)||features.length>allowedFeatures.size||features.some(feature=>!allowedFeatures.has(feature)))
@@ -1748,7 +1749,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!name||name.length>160) return res.status(400).json({success:false,message:"Institution name must be 1–160 characters."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institutions(id,name,created_at) VALUES(?,?,?)").run(id,name,now);
-      database.prepare(`INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'pilot','pilot','["hostel","scholarship","student_submissions"]',?,?,?)`)
+      database.prepare(`INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'school-pilot','pilot','["hostel","scholarship","student_submissions","academics","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]',?,?,?)`)
         .run(id,now,req.user.id,now);
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_CREATED",req);
       res.setHeader("Cache-Control","private, no-store");
@@ -1781,8 +1782,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const institutionId=String(req.params.institutionId||""), userId=String(req.body?.userId||""), role=String(req.body?.role||"");
       if(!userId||userId.length>128||!["student","reviewer","institution_admin","read_only"].includes(role)) return res.status(400).json({success:false,message:"Choose a valid account and role."});
       const institution=database.prepare("SELECT id,name FROM institutions WHERE id=?").get(institutionId);
-      const user=database.prepare("SELECT id FROM users WHERE id=?").get(userId);
+      const user=database.prepare("SELECT id,role,email FROM users WHERE id=?").get(userId);
       if(!institution||!user) return res.status(404).json({success:false,message:"Institution or user account was not found."});
+      if(user.role==="owner" || (process.env.OWNER_EMAIL && String(user.email||"").trim().toLowerCase()===String(process.env.OWNER_EMAIL).trim().toLowerCase())) return res.status(403).json({success:false,code:"PLATFORM_OWNER_ISOLATED",message:"The SecureID Platform Owner cannot be assigned an institution operations membership."});
       if(database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId)) return res.status(409).json({success:false,message:"Membership already exists."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)").run(id,institutionId,userId,role,now,now);
@@ -2778,6 +2780,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
   registerInstitutionReports({ app, database, requireAuth, requireMfaProduction, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionHR({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionCalendar({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
+  registerInstitutionSchoolPosts({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature });
   registerInstitutionPartnership({ app, database, requireAuth, enforceSameOrigin });
   registerStudentAdmissions({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, encrypt: value => jsonEncrypt(value,key), decrypt: value => jsonDecrypt(value,key) });
   registerSecureIdMonetization({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin });
