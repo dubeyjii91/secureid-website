@@ -7,7 +7,7 @@ const state = {
   institutions: [],
   memberships: [],
   audit: [],
-  users: [{ id: "student-1", email: "student@secureid.test", role: "user", createdAt: now, status: "active" }]
+  users: [{ id: "student-1", email: "principal@secureid.test", role: "user", createdAt: now, status: "active" }]
 };
 const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
 
@@ -64,15 +64,15 @@ try {
     }
     if (path === "/api/admin/institutions/institution-1/memberships" && method === "POST") {
       const body = request.postDataJSON();
-      state.memberships = [{ id: "membership-1", institutionId: "institution-1", email: "student@secureid.test", role: body.role, status: "active" }];
-      state.audit.push({ action: "membership_provisioned", targetEmail: "student@secureid.test", toRole: body.role, createdAt: now });
+      state.memberships = [{ id: "membership-1", institutionId: "institution-1", email: "principal@secureid.test", role: "institution_admin", status: "active" }];
+      state.audit.push({ action: "membership_provisioned", targetEmail: "principal@secureid.test", toRole: "institution_admin", createdAt: now });
       return route.fulfill(json({ membership: state.memberships[0] }, 201));
     }
     if (path === "/api/admin/institutions/institution-1/audit" && method === "GET") return route.fulfill(json({ audit: state.audit }));
     if (path === "/api/admin/institutions/institution-1/memberships/membership-1" && method === "PATCH") {
       const body = request.postDataJSON();
       state.memberships[0].status = body.status;
-      state.audit.push({ action: "membership_status_changed", targetEmail: "student@secureid.test", toStatus: body.status, createdAt: now });
+      state.audit.push({ action: "membership_status_changed", targetEmail: "principal@secureid.test", toStatus: body.status, createdAt: now });
       return route.fulfill(json({ membership: state.memberships[0] }));
     }
     return route.fulfill(json({ message: "Unmocked API request in browser smoke test: " + method + " " + path }, 404));
@@ -84,32 +84,30 @@ try {
   await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
 
-  await page.getByPlaceholder("New college / institution name").fill("SecureID Browser Test College");
+  await page.getByPlaceholder("New school / college name").fill("SecureID Browser Test College");
   await page.getByRole("button", { name: "Create institution" }).click();
-  await page.getByText("Institution created. Provision staff and student memberships explicitly.").waitFor({ timeout: 5000 });
-  // Reload to verify the created institution is returned by the directory endpoint,
-  // rather than relying only on the create-success toast.
+  await page.getByText("Institution created. Next, provision the separate school Principal / Institution Admin account.").waitFor({ timeout: 5000 });
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Continue securely/i }).click();
   await page.locator(".sidebar .navItem").filter({ hasText: "Owner / Admin" }).click();
   await page.getByRole("heading", { name: /SecureID owner console/i }).waitFor();
-  // Select the reloaded institution from the membership provisioning form.
-  const institutionMembershipForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Provision membership" }) });
+
+  const institutionMembershipForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Provision school admin" }) });
   await institutionMembershipForm.locator("label").first().locator("select").selectOption("institution-1");
+  await institutionMembershipForm.locator("label").nth(1).locator("select").selectOption("student-1");
+  await page.getByRole("button", { name: "Provision school admin" }).click();
+  await page.getByText("Separate school Principal / Institution Admin access provisioned. School operations remain outside the Platform Owner workspace.").waitFor();
 
-  await page.getByLabel("Institution role").selectOption("reviewer");
-  await page.getByRole("button", { name: "Provision membership" }).click();
-  await page.getByText("Institution membership provisioned and audit entry recorded.").waitFor();
-
-  await page.getByRole("button", { name: "View selected institution audit" }).click();
-  await page.getByRole("cell",{name:"membership provisioned"}).waitFor();
-
+  await page.getByText("Principal / Institution Admin").waitFor();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Suspend" }).last().click();
   await page.getByText("Institution membership status updated and audit entry recorded.").waitFor();
 
+  if (await page.getByRole("button", { name: /View selected institution audit/i }).count()) {
+    throw new Error("Platform Owner should not receive the school operations audit console.");
+  }
   if (pageErrors.length) throw new Error("Browser JavaScript errors: " + pageErrors.join("; "));
-  console.log("PASS owner console browser smoke: owner-only navigation, institution creation, reviewer provisioning, audit display, and membership suspension UI.");
+  console.log("PASS owner console browser smoke: owner-only navigation, institution sponsorship, separate Principal provisioning, and membership suspension UI.");
 } finally {
   await browser.close();
 }
