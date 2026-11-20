@@ -97,7 +97,7 @@ async function openRole(role) {
 try {
   // Step 1: student account opens the College Workspace.
   const student = await openRole("student");
-  await student.page.getByRole("heading", { name: "Submit a document for college review" }).waitFor();
+  await student.page.getByRole("heading", { name: "Submit a document for school / college review" }).waitFor();
   await student.page.getByText("Synthetic Maths Homework").waitFor();
   await student.page.getByText("Synthetic School Notice").waitFor();
 
