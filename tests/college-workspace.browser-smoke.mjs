@@ -23,6 +23,14 @@ async function openRole(role) {
       return route.fulfill(json({ user: { email: role === "student" ? "student@secureid.test" : "reviewer@secureid.test", role: "user", mfaVerified: true }, wallet: { risk: 0, locked: false } }));
     }
     if (path === "/api/college-pilot/requests" && method === "GET") return route.fulfill(json({ requests: [] }));
+    if (path === "/api/institutions/qa-college/school-posts" && method === "GET") {
+      const type = url.searchParams.get("type");
+      const audience = role === "student" ? "students" : "staff";
+      const post = type === "homework"
+        ? { id: "qa-homework", type, title: "Synthetic Maths Homework", subject: "Mathematics", classLabel: "Class 3-A", body: "Complete the synthetic worksheet.", dueAt: "2026-12-01T12:00:00.000Z", audience, status: "published", createdAt: now }
+        : { id: "qa-notice", type, title: "Synthetic School Notice", subject: "", classLabel: "All classes", body: "Synthetic notice for browser testing.", dueAt: null, audience, status: "published", createdAt: now };
+      return route.fulfill(json({ posts: [post], canManage: false }));
+    }
     if (path === "/api/institutions/memberships" && method === "GET") {
       return route.fulfill(json({ memberships: [{ institutionId: "qa-college", institutionName: "SecureID QA Sandbox", role, status: "active", joinedAt: now }] }));
     }
@@ -81,7 +89,7 @@ async function openRole(role) {
   const response = await page.goto(baseURL, { waitUntil: "networkidle" });
   if (!response?.ok()) throw new Error("Preview homepage did not return HTTP 200.");
   await page.getByRole("button", { name: /Continue securely/i }).click();
-  await page.getByRole("button", { name: "College pilot" }).click();
+  await page.getByRole("button", { name: "School / College Management" }).click();
   await page.getByRole("heading", { name: "Your college memberships" }).waitFor();
   return { page, pageErrors };
 }
@@ -90,6 +98,8 @@ try {
   // Step 1: student account opens the College Workspace.
   const student = await openRole("student");
   await student.page.getByRole("heading", { name: "Submit a document for college review" }).waitFor();
+  await student.page.getByText("Synthetic Maths Homework").waitFor();
+  await student.page.getByText("Synthetic School Notice").waitFor();
 
   // Step 2: student selects the active institution and a synthetic Vault document, then gives explicit consent.
   await student.page.locator(".collegeSubmissionForm select").nth(0).selectOption("qa-college");
@@ -102,6 +112,8 @@ try {
   // Step 3: separate reviewer account opens the queue and receives metadata only.
   const reviewer = await openRole("reviewer");
   await reviewer.page.getByRole("heading", { name: "Student submissions" }).waitFor();
+  await reviewer.page.getByText("Synthetic Maths Homework").waitFor();
+  await reviewer.page.getByText("Synthetic School Notice").waitFor();
   await reviewer.page.getByText("Synthetic Student ID.pdf").waitFor();
   if (JSON.stringify(state.submission).includes("encrypted_path")) throw new Error("Synthetic submission unexpectedly contains a storage path.");
 
@@ -115,7 +127,7 @@ try {
   // Step 5: student reloads their own account and sees the final status and note.
   await student.page.reload({ waitUntil: "networkidle" });
   await student.page.getByRole("button", { name: "Continue securely" }).click().catch(() => {});
-  await student.page.getByRole("button", { name: "College pilot" }).click();
+  await student.page.getByRole("button", { name: "School / College Management" }).click();
   await student.page.getByText("approved", { exact: true }).waitFor();
   await student.page.getByText("Synthetic QA: please upload a clearer test copy.").waitFor();
 
