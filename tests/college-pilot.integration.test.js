@@ -335,6 +335,12 @@ test("college pilot requests require MFA, are encrypted at rest, validated, and 
   });
   assert.equal(roomResponse.status, 201, await roomResponse.clone().text());
   const room = (await roomResponse.json()).room;
+  const duplicateRoomResponse = await fetch(base + "/api/institutions/hostel-rooms", {
+    method: "POST", headers: headers("user-d"),
+    body: JSON.stringify({ institutionId: "college-a", buildingId: building.id, roomNumber: "101", roomType: "shared", capacity: 1 })
+  });
+  assert.equal(duplicateRoomResponse.status, 409, await duplicateRoomResponse.clone().text());
+  assert.match((await duplicateRoomResponse.json()).message, /already exists in this building/i);
   const reviewerOccupancyDenied = await fetch(base + `/api/institutions/hostel-rooms/${room.id}/occupancy`, {
     method: "PATCH", headers: headers("user-a"),
     body: JSON.stringify({ manualOccupiedBeds: 1, academicYear: "2026-2027" })
