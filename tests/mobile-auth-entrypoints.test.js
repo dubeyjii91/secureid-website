@@ -18,7 +18,7 @@ test("native registration uses the server registration endpoint with CSRF bootst
 test("native registration validates password confirmation and waits for email verification", () => {
   assert.match(register, /password !== confirmPassword/);
   assert.match(register, /12 and 72 bytes/);
-  assert.match(register, /verify your email before signing in/);
+  assert.match(register, /[Vv]erify your email before signing in/);
   assert.match(register, /router\.replace\("\/login"\)/);
 });
 
