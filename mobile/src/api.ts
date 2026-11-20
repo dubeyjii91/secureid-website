@@ -78,6 +78,36 @@ export async function signIn(email: string, password: string) {
   return payload;
 }
 
+async function unauthenticatedPost<T = any>(path: string, payload: Record<string, unknown>) {
+  await bootstrapCsrf();
+  const cookieName = "__Host-secureid.csrf";
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      [CLIENT_HEADER]: "native",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+      Cookie: `${cookieName}=${encodeURIComponent(csrfToken)}`,
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return readPayload(response) as Promise<T>;
+}
+
+export async function registerAccount(email: string, password: string) {
+  return unauthenticatedPost<{ success: boolean; message: string }>("/api/auth/register", {
+    email: email.trim().toLowerCase(),
+    password,
+  });
+}
+
+export async function requestPasswordReset(email: string) {
+  return unauthenticatedPost<{ success: boolean; message: string }>("/api/auth/forgot-password", {
+    email: email.trim().toLowerCase(),
+  });
+}
+
 export async function requestMfaCode() {
   return request<{ success: boolean; challengeId: string; expiresIn: number; resendAvailableIn: number; message: string }>("/api/mfa/challenge", {
     method: "POST", body: JSON.stringify({}),
