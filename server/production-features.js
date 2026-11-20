@@ -1782,9 +1782,9 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const institutionId=String(req.params.institutionId||""), userId=String(req.body?.userId||""), role=String(req.body?.role||"");
       if(!userId||userId.length>128||!["student","reviewer","institution_admin","read_only"].includes(role)) return res.status(400).json({success:false,message:"Choose a valid account and role."});
       const institution=database.prepare("SELECT id,name FROM institutions WHERE id=?").get(institutionId);
-      const user=database.prepare("SELECT id,role,email FROM users WHERE id=?").get(userId);
+      const user=database.prepare("SELECT id,email FROM users WHERE id=?").get(userId);
       if(!institution||!user) return res.status(404).json({success:false,message:"Institution or user account was not found."});
-      if(user.role==="owner" || (process.env.OWNER_EMAIL && String(user.email||"").trim().toLowerCase()===String(process.env.OWNER_EMAIL).trim().toLowerCase())) return res.status(403).json({success:false,code:"PLATFORM_OWNER_ISOLATED",message:"The SecureID Platform Owner cannot be assigned an institution operations membership."});
+      if(userId===req.user.id || (process.env.OWNER_EMAIL && String(user.email||"").trim().toLowerCase()===String(process.env.OWNER_EMAIL).trim().toLowerCase())) return res.status(403).json({success:false,code:"PLATFORM_OWNER_ISOLATED",message:"The SecureID Platform Owner cannot be assigned an institution operations membership."});
       if(database.prepare("SELECT id FROM institution_memberships WHERE institution_id=? AND user_id=?").get(institutionId,userId)) return res.status(409).json({success:false,message:"Membership already exists."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institution_memberships(id,institution_id,user_id,role,status,created_at,updated_at) VALUES(?,?,?,?, 'active',?,?)").run(id,institutionId,userId,role,now,now);
@@ -1805,10 +1805,10 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       `).all();
       const memberships=database.prepare(`
         SELECT m.id,m.institution_id AS institutionId,m.user_id AS userId,u.email,
-          CASE WHEN EXISTS (SELECT 1 FROM institution_membership_role_grants g WHERE g.membership_id=m.id AND g.role='warden') THEN 'warden' ELSE m.role END AS role,
-          m.role AS baseRole,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt
+          m.role,m.status,m.created_at AS joinedAt,m.updated_at AS updatedAt
         FROM institution_memberships m INNER JOIN users u ON u.id=m.user_id
-        ORDER BY m.institution_id,m.created_at DESC LIMIT 500
+        WHERE m.role='institution_admin'
+        ORDER BY m.institution_id,m.created_at DESC LIMIT 200
       `).all();
       res.setHeader("Cache-Control","private, no-store");
       res.json({success:true,institutions,memberships});
