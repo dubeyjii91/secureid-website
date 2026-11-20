@@ -54,7 +54,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
         AND EXISTS(SELECT 1 FROM institution_memberships m WHERE m.institution_id=l.institution_id AND m.user_id=l.student_user_id AND m.role='student' AND m.status='active')
         ORDER BY i.name,u.email`).all(req.user.id);
       res.setHeader("Cache-Control","private, no-store");
-      res.json({success:true,children:rows});
+      res.json({success:true,children:rows.filter(row=>hasInstitutionFeature(row.institutionId,"student_management"))});
     } catch(error) { next(error); }
   });
 
@@ -67,7 +67,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       if(!link) return fail(res,404,"This child is not linked to your parent account.","PARENT_LINK_NOT_FOUND");
       const student=hasInstitutionFeature(institutionId,"student_management") ? database.prepare(`SELECT u.email,p.student_number AS studentNumber,p.program,p.academic_year AS academicYear
         FROM users u LEFT JOIN institution_student_profiles p ON p.user_id=u.id AND p.institution_id=? WHERE u.id=?`).get(institutionId,studentUserId) : null;
-      const attendance=hasInstitutionFeature(institutionId,"attendance") ? database.prepare(`SELECT a.attendance_date AS date,a.status,c.title AS subject
+      const attendance=hasInstitutionFeature(institutionId,"academics") ? database.prepare(`SELECT a.attendance_date AS date,a.status,c.title AS subject
         FROM institution_attendance a JOIN institution_courses c ON c.id=a.course_id
         WHERE a.institution_id=? AND a.student_user_id=? ORDER BY a.attendance_date DESC LIMIT 90`).all(institutionId,studentUserId) : [];
       const invoices=hasInstitutionFeature(institutionId,"finance") ? database.prepare(`SELECT id,fee_head AS feeHead,description,amount_paise AS amountPaise,due_date AS dueDate,status,created_at AS createdAt
