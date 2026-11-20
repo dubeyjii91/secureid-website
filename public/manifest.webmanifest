@@ -2,13 +2,13 @@
   "id": "/",
   "name": "SecureID — Digital Identity Wallet",
   "short_name": "SecureID",
-  "description": "Privacy-first digital identity wallet and secure document sharing.",
+  "description": "A privacy-first digital identity wallet for securely managing identity documents and sharing them with control.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#070b14",
-  "theme_color": "#070b14",
+  "background_color": "#f7f9fc",
+  "theme_color": "#f7f9fc",
   "icons": [
     { "src": "/secureid-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
