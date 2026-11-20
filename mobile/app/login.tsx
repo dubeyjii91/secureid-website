@@ -49,7 +49,10 @@ export default function LoginScreen() {
             {busy ? <ActivityIndicator color={colors.background}/> : <Text style={styles.buttonText}>Continue securely</Text>}
           </Pressable>
           <View style={styles.security}><Ionicons name="lock-closed-outline" size={17} color={colors.accent}/><Text style={styles.securityText}>Passwords are sent only over HTTPS and are never stored on this device.</Text></View>
-          <Text style={styles.footer}>New account registration and password recovery remain available through the SecureID website.</Text>
+          <View style={styles.accountActions}>
+            <Pressable onPress={() => router.push("/forgot-password")}><Text style={styles.actionLink}>Forgot password?</Text></Pressable>
+            <Pressable onPress={() => router.push("/register")}><Text style={styles.actionLink}>Create a SecureID account</Text></Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -65,5 +68,5 @@ const styles=StyleSheet.create({
   input:{height:52,borderWidth:1,borderColor:colors.border,borderRadius:13,backgroundColor:colors.surface,color:colors.text,paddingHorizontal:15,fontSize:15},
   passwordWrap:{height:52,borderWidth:1,borderColor:colors.border,borderRadius:13,backgroundColor:colors.surface,paddingHorizontal:15,flexDirection:"row",alignItems:"center"},
   passwordInput:{flex:1,color:colors.text,fontSize:15},button:{height:54,borderRadius:14,backgroundColor:colors.accent,alignItems:"center",justifyContent:"center",marginTop:26},buttonText:{color:colors.background,fontSize:15,fontWeight:"900"},
-  security:{flexDirection:"row",alignItems:"center",gap:9,marginTop:22},securityText:{flex:1,color:colors.muted,fontSize:11,lineHeight:17},footer:{color:colors.muted,fontSize:11,lineHeight:17,marginTop:30}
+  security:{flexDirection:"row",alignItems:"center",gap:9,marginTop:22},securityText:{flex:1,color:colors.muted,fontSize:11,lineHeight:17},accountActions:{flexDirection:"row",justifyContent:"space-between",gap:14,flexWrap:"wrap",marginTop:25},actionLink:{color:colors.accent,fontSize:12,fontWeight:"800"}
 });
