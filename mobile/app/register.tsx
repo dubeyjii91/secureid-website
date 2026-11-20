@@ -18,7 +18,7 @@ export default function RegisterScreen() {
       Alert.alert("Missing details", "Enter your email and both password fields.");
       return;
     }
-    if (password.length < 12 || new TextEncoder().encode(password).length > 72) {
+    if (password.length < 12 || password.length > 72) {
       Alert.alert("Password requirements", "Use a password between 12 and 72 bytes long.");
       return;
     }
