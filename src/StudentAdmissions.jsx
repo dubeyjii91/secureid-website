@@ -75,8 +75,8 @@ export default function StudentAdmissions({ memberships = [], adminInstitutions 
       <label>College / Institution<select required value={form.institutionId} onChange={e=>update("institutionId",e.target.value)}><option value="">Choose institution</option>{institutions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>Full name<input required maxLength={120} value={form.fullName} onChange={e=>update("fullName",e.target.value)} /></label>
       <label>Student number (if already assigned)<input maxLength={40} value={form.studentNumber} onChange={e=>update("studentNumber",e.target.value)} /></label>
-      <label>Class / grade / department<input required maxLength={120} value={form.department} onChange={e=>update("department",e.target.value)} placeholder="e.g. Computer Science" /></label>
-      <label>Section / course / program<input required maxLength={120} value={form.course} onChange={e=>update("course",e.target.value)} placeholder="e.g. BCA" /></label>
+      <label>Section / department<input required maxLength={120} value={form.department} onChange={e=>update("department",e.target.value)} placeholder="e.g. A / B" /></label>
+      <label>Class / grade / program<input required maxLength={120} value={form.course} onChange={e=>update("course",e.target.value)} placeholder="e.g. Class 1" /></label>
       <label>Academic year<input required maxLength={32} value={form.academicYear} onChange={e=>update("academicYear",e.target.value)} placeholder="e.g. 2026-2027" /></label>
       <label>Admission year<input required maxLength={16} value={form.admissionYear} onChange={e=>update("admissionYear",e.target.value)} /></label>
       <label>Message (optional)<textarea rows={3} maxLength={500} value={form.message} onChange={e=>update("message",e.target.value)} /></label>
