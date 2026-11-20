@@ -24,3 +24,24 @@
 .institutionModuleHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .institutionModuleHeader>span{color:var(--muted);font-size:11px}
 @media(max-width:760px){.institutionModuleLauncherGrid{grid-template-columns:1fr}.institutionModuleLauncher{grid-template-columns:42px minmax(0,1fr);padding:15px}.institutionModuleLauncherIcon{width:40px;height:40px}.institutionModuleLauncherAction{grid-column:2;justify-self:start}}
+
+/* Professional school workspace: persistent left navigation + working area */
+#root .institutionDashboardShell{width:100%;max-width:none;padding:clamp(18px,2vw,28px)!important;}
+#root .institutionWorkspaceLayout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:22px;align-items:start;margin-top:20px;}
+#root .institutionSidebar{position:sticky;top:18px;max-height:calc(100vh - 36px);overflow:auto;background:#f7f8fc;border:1px solid #e5e8f0;border-radius:16px;padding:12px;}
+#root .institutionSidebar>button,#root .institutionNavGroup button{display:flex;align-items:center;gap:11px;width:100%;min-height:42px;padding:9px 11px;border:0;border-radius:9px;background:transparent;color:#46516a;text-align:left;font-size:13px;font-weight:600;cursor:pointer;}
+#root .institutionSidebar button span{width:20px;flex:0 0 20px;text-align:center;color:#6675a4;font-size:16px;}
+#root .institutionSidebar>button.active,#root .institutionNavGroup button.active{background:#e8edff;color:#263d83;font-weight:750;}
+#root .institutionNavGroup{margin-top:18px;padding-top:14px;border-top:1px solid #e5e8f0;}
+#root .institutionNavGroup>small{display:block;padding:0 10px 8px;color:#8991a4;font-size:10px;font-weight:800;letter-spacing:.1em;}
+#root .institutionNavGroup button{min-height:39px;font-weight:550;}
+#root .institutionWorkspaceMain{min-width:0;}
+#root .institutionWorkspaceMain>.lead{margin-top:0;}
+#root .institutionDashboardWelcome{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px 24px;margin:18px 0;border:1px solid #e4e8f3;border-radius:14px;background:linear-gradient(110deg,#f7f8ff,#fff);}
+#root .institutionDashboardWelcome strong{font-size:16px;color:#26324b;}
+#root .institutionDashboardWelcome p{max-width:760px;margin:7px 0 0;color:#657087;font-size:13px;line-height:1.6;}
+#root .institutionDashboardWelcome>span{font-size:36px;}
+#root .institutionModuleHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:12px 0;border-bottom:1px solid #e8eaf0;}
+#root .institutionModuleHeader>span{font-size:12px;color:#788196;}
+@media(max-width:900px){#root .institutionWorkspaceLayout{grid-template-columns:1fr;}#root .institutionSidebar{position:static;max-height:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;}#root .institutionNavGroup{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;margin-top:10px;}#root .institutionNavGroup>small{grid-column:1/-1;}}
+@media(max-width:520px){#root .institutionDashboardShell{padding:14px!important;}#root .institutionSidebar{grid-template-columns:1fr;}#root .institutionNavGroup{grid-template-columns:1fr;}#root .institutionDashboardWelcome{padding:17px;}#root .institutionDashboardWelcome>span{display:none;}}
