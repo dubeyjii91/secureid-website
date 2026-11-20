@@ -73,6 +73,445 @@ jobs:
           node -e 'const p=JSON.parse(process.argv[1]); if(typeof p.csrfToken !== "string" || !/^[A-Za-z0-9_-]{32,}$/.test(p.csrfToken)) process.exit(1);' "$csrf_payload"
           login_status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'X-SecureID-Client: native' -H 'Content-Type: application/json' -d '{}' "$API_BASE_URL/api/auth/login")"
           test "$login_status" = "403"
+          csrf_token="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(p.csrfToken)' "$csrf_payload")"
+          registration_response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H 'X-SecureID-Client: native' \
+            -H "X-CSRF-Token: $csrf_token" \
+            -H "Cookie: __Host-secureid.csrf=$csrf_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"invalid-native-registration","password":"not-a-valid-password"}' \
+            "$API_BASE_URL/api/auth/register")"
+          registration_status="${registration_response##*
+      - name: Build and download Android preview APK with EAS
+        id: eas_preview
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::EXPO_TOKEN is not configured; skipping the EAS APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::notice::A valid existing EAS project ID is not configured; skipping the APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile preview --non-interactive --wait --json)"
+          build_id="$(node -e 'const b=JSON.parse(process.argv[1]); const id=Array.isArray(b)?b[0]?.id:b?.id; if(!id) process.exit(1); process.stdout.write(id);' "$build_json")"
+          download_json="$(npx --yes eas-cli build:download --build-id "$build_id" --non-interactive --json)"
+          apk_path="$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.path) process.exit(1); process.stdout.write(d.path);' "$download_json")"
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$apk_path" "$GITHUB_WORKSPACE/apk-output/SecureID-preview.apk"
+          echo "apk_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload installable Android APK artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_preview.outputs.apk_ready == 'true'
+        with:
+          name: secureid-android-preview-apk
+          path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish preview OTA update
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview_ota
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
+            exit 1
+          fi
+          npx --yes eas-cli update --platform android --channel preview --message "SecureID preview OTA update" --non-interactive
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_url="$(node -e 'const v=JSON.parse(process.argv[1]); const b=Array.isArray(v)?v[0]:v; const u=b?.artifacts?.buildUrl; if(!u || !/^https:\/\//.test(u)) process.exit(1); process.stdout.write(u);' "$build_json")"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          curl --fail --location --silent --show-error "$build_url" --output "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          test -s "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -t "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -Z1 "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab" | grep -qx 'BundleConfig.pb'
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated mobile dependency lockfile
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Test encrypted backup and restore in isolated temporary storage
+        run: node scripts/backup-restore-smoke.mjs
+
+  codeql:
+    name: CodeQL static security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@v3
+\n'}"
+          registration_body="${registration_response%
+      - name: Build and download Android preview APK with EAS
+        id: eas_preview
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::EXPO_TOKEN is not configured; skipping the EAS APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::notice::A valid existing EAS project ID is not configured; skipping the APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile preview --non-interactive --wait --json)"
+          build_id="$(node -e 'const b=JSON.parse(process.argv[1]); const id=Array.isArray(b)?b[0]?.id:b?.id; if(!id) process.exit(1); process.stdout.write(id);' "$build_json")"
+          download_json="$(npx --yes eas-cli build:download --build-id "$build_id" --non-interactive --json)"
+          apk_path="$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.path) process.exit(1); process.stdout.write(d.path);' "$download_json")"
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$apk_path" "$GITHUB_WORKSPACE/apk-output/SecureID-preview.apk"
+          echo "apk_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload installable Android APK artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_preview.outputs.apk_ready == 'true'
+        with:
+          name: secureid-android-preview-apk
+          path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish preview OTA update
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview_ota
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
+            exit 1
+          fi
+          npx --yes eas-cli update --platform android --channel preview --message "SecureID preview OTA update" --non-interactive
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_url="$(node -e 'const v=JSON.parse(process.argv[1]); const b=Array.isArray(v)?v[0]:v; const u=b?.artifacts?.buildUrl; if(!u || !/^https:\/\//.test(u)) process.exit(1); process.stdout.write(u);' "$build_json")"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          curl --fail --location --silent --show-error "$build_url" --output "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          test -s "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -t "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -Z1 "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab" | grep -qx 'BundleConfig.pb'
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated mobile dependency lockfile
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Test encrypted backup and restore in isolated temporary storage
+        run: node scripts/backup-restore-smoke.mjs
+
+  codeql:
+    name: CodeQL static security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@v3
+\n'*}"
+          test "$registration_status" = "400"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.success !== false || p.message !== "Please enter a valid email address.") process.exit(1);' "$registration_body"
+          recovery_response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H 'X-SecureID-Client: native' \
+            -H "X-CSRF-Token: $csrf_token" \
+            -H "Cookie: __Host-secureid.csrf=$csrf_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"invalid-native-recovery"}' \
+            "$API_BASE_URL/api/auth/forgot-password")"
+          recovery_status="${recovery_response##*
+      - name: Build and download Android preview APK with EAS
+        id: eas_preview
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::EXPO_TOKEN is not configured; skipping the EAS APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::notice::A valid existing EAS project ID is not configured; skipping the APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile preview --non-interactive --wait --json)"
+          build_id="$(node -e 'const b=JSON.parse(process.argv[1]); const id=Array.isArray(b)?b[0]?.id:b?.id; if(!id) process.exit(1); process.stdout.write(id);' "$build_json")"
+          download_json="$(npx --yes eas-cli build:download --build-id "$build_id" --non-interactive --json)"
+          apk_path="$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.path) process.exit(1); process.stdout.write(d.path);' "$download_json")"
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$apk_path" "$GITHUB_WORKSPACE/apk-output/SecureID-preview.apk"
+          echo "apk_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload installable Android APK artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_preview.outputs.apk_ready == 'true'
+        with:
+          name: secureid-android-preview-apk
+          path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish preview OTA update
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview_ota
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
+            exit 1
+          fi
+          npx --yes eas-cli update --platform android --channel preview --message "SecureID preview OTA update" --non-interactive
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_url="$(node -e 'const v=JSON.parse(process.argv[1]); const b=Array.isArray(v)?v[0]:v; const u=b?.artifacts?.buildUrl; if(!u || !/^https:\/\//.test(u)) process.exit(1); process.stdout.write(u);' "$build_json")"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          curl --fail --location --silent --show-error "$build_url" --output "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          test -s "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -t "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -Z1 "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab" | grep -qx 'BundleConfig.pb'
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated mobile dependency lockfile
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Test encrypted backup and restore in isolated temporary storage
+        run: node scripts/backup-restore-smoke.mjs
+
+  codeql:
+    name: CodeQL static security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@v3
+\n'}"
+          recovery_body="${recovery_response%
+      - name: Build and download Android preview APK with EAS
+        id: eas_preview
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::notice::EXPO_TOKEN is not configured; skipping the EAS APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use only the already-linked EAS project; never create a project implicitly in CI.
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::notice::A valid existing EAS project ID is not configured; skipping the APK build."
+            echo "apk_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile preview --non-interactive --wait --json)"
+          build_id="$(node -e 'const b=JSON.parse(process.argv[1]); const id=Array.isArray(b)?b[0]?.id:b?.id; if(!id) process.exit(1); process.stdout.write(id);' "$build_json")"
+          download_json="$(npx --yes eas-cli build:download --build-id "$build_id" --non-interactive --json)"
+          apk_path="$(node -e 'const d=JSON.parse(process.argv[1]); if(!d.path) process.exit(1); process.stdout.write(d.path);' "$download_json")"
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          cp "$apk_path" "$GITHUB_WORKSPACE/apk-output/SecureID-preview.apk"
+          echo "apk_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload installable Android APK artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_preview.outputs.apk_ready == 'true'
+        with:
+          name: secureid-android-preview-apk
+          path: apk-output/SecureID-preview.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish preview OTA update
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview_ota
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot publish a preview OTA update."
+            exit 1
+          fi
+          npx --yes eas-cli update --platform android --channel preview --message "SecureID preview OTA update" --non-interactive
+      - name: Build and download signed Android production AAB with EAS
+        id: eas_production
+        if: (github.event_name == 'workflow_dispatch' && inputs.build_android_production_aab) || (github.event_name == 'pull_request' && (github.head_ref == 'release/android-production-aab-clean' || github.head_ref == 'release/android-production-aab-final') && github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not configured; cannot build the production AAB."
+            exit 1
+          fi
+          if ! node -e 'const a=require("./app.json"); const id=a.expo?.extra?.eas?.projectId; if(!id || !/^[0-9a-f-]{36}$/i.test(id)) process.exit(1)'; then
+            echo "::error::A valid existing EAS project ID is not configured."
+            exit 1
+          fi
+          build_json="$(npx --yes eas-cli build --platform android --profile production --non-interactive --wait --json)"
+          build_url="$(node -e 'const v=JSON.parse(process.argv[1]); const b=Array.isArray(v)?v[0]:v; const u=b?.artifacts?.buildUrl; if(!u || !/^https:\/\//.test(u)) process.exit(1); process.stdout.write(u);' "$build_json")"
+          mkdir -p "$GITHUB_WORKSPACE/aab-output"
+          curl --fail --location --silent --show-error "$build_url" --output "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          test -s "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -t "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab"
+          unzip -Z1 "$GITHUB_WORKSPACE/aab-output/SecureID-production.aab" | grep -qx 'BundleConfig.pb'
+          echo "aab_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload signed Android production AAB artifact
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-android-production-aab
+          path: aab-output/SecureID-production.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated mobile dependency lockfile
+        uses: actions/upload-artifact@v4
+        if: steps.eas_production.outputs.aab_ready == 'true'
+        with:
+          name: secureid-mobile-production-lockfile
+          path: mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Test encrypted backup and restore in isolated temporary storage
+        run: node scripts/backup-restore-smoke.mjs
+
+  codeql:
+    name: CodeQL static security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze JavaScript and TypeScript
+        uses: github/codeql-action/analyze@v3
+\n'*}"
+          test "$recovery_status" = "200"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.success !== true || !/If an account exists/.test(p.message || "")) process.exit(1);' "$recovery_body"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
         if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
