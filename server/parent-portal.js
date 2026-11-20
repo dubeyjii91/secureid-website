@@ -65,22 +65,24 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const institutionId=textValue(req.query.institutionId,128);
       const link=parentLink(req,institutionId,studentUserId);
       if(!link) return fail(res,404,"This child is not linked to your parent account.","PARENT_LINK_NOT_FOUND");
-      const student=database.prepare(`SELECT u.email,p.student_number AS studentNumber,p.program,p.academic_year AS academicYear
-        FROM users u LEFT JOIN institution_student_profiles p ON p.user_id=u.id AND p.institution_id=? WHERE u.id=?`).get(institutionId,studentUserId);
-      const attendance=database.prepare(`SELECT a.attendance_date AS date,a.status,c.title AS subject
+      const student=hasInstitutionFeature(institutionId,"student_management") ? database.prepare(`SELECT u.email,p.student_number AS studentNumber,p.program,p.academic_year AS academicYear
+        FROM users u LEFT JOIN institution_student_profiles p ON p.user_id=u.id AND p.institution_id=? WHERE u.id=?`).get(institutionId,studentUserId) : null;
+      const attendance=hasInstitutionFeature(institutionId,"attendance") ? database.prepare(`SELECT a.attendance_date AS date,a.status,c.title AS subject
         FROM institution_attendance a JOIN institution_courses c ON c.id=a.course_id
-        WHERE a.institution_id=? AND a.student_user_id=? ORDER BY a.attendance_date DESC LIMIT 90`).all(institutionId,studentUserId);
-      const invoices=database.prepare(`SELECT id,fee_head AS feeHead,description,amount_paise AS amountPaise,due_date AS dueDate,status,created_at AS createdAt
+        WHERE a.institution_id=? AND a.student_user_id=? ORDER BY a.attendance_date DESC LIMIT 90`).all(institutionId,studentUserId) : [];
+      const invoices=hasInstitutionFeature(institutionId,"finance") ? database.prepare(`SELECT id,fee_head AS feeHead,description,amount_paise AS amountPaise,due_date AS dueDate,status,created_at AS createdAt
         FROM institution_fee_invoices WHERE institution_id=? AND student_user_id=? AND status<>'cancelled'
-        ORDER BY COALESCE(due_date,created_at) DESC LIMIT 100`).all(institutionId,studentUserId);
-      const results=database.prepare(`SELECT a.title,a.exam_date AS examDate,c.title AS subject,
+        ORDER BY COALESCE(due_date,created_at) DESC LIMIT 100`).all(institutionId,studentUserId) : [];
+      const results=hasInstitutionFeature(institutionId,"academics") ? database.prepare(`SELECT a.title,a.exam_date AS examDate,c.title AS subject,
         r.marks_hundredths AS marksHundredths,a.total_marks_hundredths AS totalMarksHundredths
         FROM institution_assessment_results r JOIN institution_assessments a ON a.id=r.assessment_id
         JOIN institution_courses c ON c.id=a.course_id
-        WHERE r.institution_id=? AND r.student_user_id=? ORDER BY a.exam_date DESC LIMIT 100`).all(institutionId,studentUserId);
+        WHERE r.institution_id=? AND r.student_user_id=? ORDER BY a.exam_date DESC LIMIT 100`).all(institutionId,studentUserId) : [];
       const homework=hasInstitutionFeature(institutionId,"homework") ? database.prepare("SELECT id,title,subject,class_label AS classLabel,body,due_at AS dueAt,created_at AS createdAt FROM institution_school_posts WHERE institution_id=? AND post_type='homework' AND status='published' AND audience IN ('all','students') ORDER BY created_at DESC LIMIT 50").all(institutionId) : [];
+      database.prepare("INSERT INTO institution_parent_portal_audit(id,institution_id,actor_user_id,parent_user_id,student_user_id,action,created_at) VALUES(?,?,?,?,?,'parent_child_records_viewed',?)")
+        .run(id(),institutionId,req.user.id,req.user.id,studentUserId,new Date().toISOString());
       res.setHeader("Cache-Control","private, no-store");
-      res.json({success:true,child:{...student,institutionName:link.institutionName||"",relationship:link.relationship},
+      res.json({success:true,child:{...(student||{}),institutionName:link.institutionName||"",relationship:link.relationship},
         attendance,invoices,results,homework});
     } catch(error) { next(error); }
   });
@@ -89,6 +91,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
     try {
       const institutionId=textValue(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
       if(!member||member.status!=="active"||member.role!=="institution_admin") return fail(res,403,"Only the institution administrator can view parent links.");
+      if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Parent-link management requires the institution's student-management subscription feature.","FEATURE_NOT_ENTITLED");
       const rows=database.prepare(`SELECT l.parent_user_id AS parentUserId,p.email AS parentEmail,l.student_user_id AS studentUserId,s.email AS studentEmail,l.relationship,l.created_at AS linkedAt
         FROM institution_parent_links l JOIN users p ON p.id=l.parent_user_id JOIN users s ON s.id=l.student_user_id
         WHERE l.institution_id=? AND l.status='active' ORDER BY l.created_at DESC LIMIT 500`).all(institutionId);
@@ -102,6 +105,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const member=getInstitutionMembership(req.user.id,institutionId);
       if(!member || member.status!=="active" || member.role!=="institution_admin")
         return fail(res,403,"Only the institution administrator can link a parent account.");
+      if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Parent-link management requires the institution's student-management subscription feature.","FEATURE_NOT_ENTITLED");
       const parentEmail=textValue(req.body?.parentEmail,254).toLowerCase();
       const studentUserId=textValue(req.body?.studentUserId,128);
       const relationship=textValue(req.body?.relationship||"guardian",40);
@@ -130,6 +134,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const institutionId=textValue(req.params.institutionId,128),parentUserId=textValue(req.params.parentUserId,128),studentUserId=textValue(req.params.studentUserId,128);
       const member=getInstitutionMembership(req.user.id,institutionId);
       if(!member || member.status!=="active" || member.role!=="institution_admin") return fail(res,403,"Only the institution administrator can revoke a parent link.");
+      if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Parent-link management requires the institution's student-management subscription feature.","FEATURE_NOT_ENTITLED");
       const timestamp=new Date().toISOString();
       const result=database.prepare("UPDATE institution_parent_links SET status='revoked',revoked_at=? WHERE institution_id=? AND parent_user_id=? AND student_user_id=? AND status='active'").run(timestamp,institutionId,parentUserId,studentUserId);
       if(!result.changes) return fail(res,404,"Active parent link was not found.");
