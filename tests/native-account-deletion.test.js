@@ -28,7 +28,7 @@ test("account deletion clears the local biometric preference", () => {
 });
 
 test("public deletion instructions describe both app and website request paths", () => {
-  assert.match(deletionPage, /Delete from the Android app/);
+  assert.match(deletionPage, /In the Android app/);
   assert.match(deletionPage, /Request deletion from the website/);
   assert.match(deletionPage, /Open SecureID sign in/);
 });
