@@ -13,11 +13,14 @@ import InstitutionCertificates from "./institution-modules/InstitutionCertificat
 import InstitutionReports from "./institution-modules/InstitutionReports.jsx";
 import InstitutionHR from "./institution-modules/InstitutionHR.jsx";
 import InstitutionCalendar from "./institution-modules/InstitutionCalendar.jsx";
+import InstitutionSchoolPosts from "./institution-modules/InstitutionSchoolPosts.jsx";
 
 const moduleCards = [
   { key:"Students", title:"Student Management", description:"Student profiles, guardian contacts, status history and enrollment.", icon:"graduation" },
   { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"users" },
-  { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"book" },
+  { key:"Academics", title:"Academics", description:"Classes, subjects, sections, attendance, timetable and results.", icon:"book" },
+  { key:"Homework", title:"Homework & Assignments", description:"Class-wise homework, subject instructions and due dates.", icon:"book-open" },
+  { key:"Notices", title:"Notices & Circulars", description:"School announcements for students, teachers and staff.", icon:"message-square" },
   { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" },
   { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters, service appointments and live student service flow.", icon:"clock" },
   { key:"Library", title:"Library", description:"Catalogue, book circulation, overdue returns and reservations.", icon:"book-open" },
@@ -119,7 +122,7 @@ export default function InstitutionModules({ institutionId }) {
 
   if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
   const navGroups = [
-    { title:"ACADEMIC", items:[["Academics","Academics"],["Examinations","Examinations"],["Calendar","Academic Calendar"],["Library","Library"],["Reports","Reports & Exports"]] },
+    { title:"ACADEMIC", items:[["Academics","Academics"],["Homework","Homework & Assignments"],["Notices","Notices & Circulars"],["Examinations","Examinations"],["Calendar","Academic Calendar"],["Library","Library"],["Reports","Reports & Exports"]] },
     { title:"ADMINISTRATION", items:[["Students","Student Management"],["Staff","Staff Management"],["HR","HR & Staff Operations"],["Finance","Finance & Fees"],["Queue","Service Queue"],["Grievances","Grievances & Helpdesk"],["Certificates","Certificates"]] }
   ];
   return <section className="panel institutionModules institutionDashboardShell">
@@ -159,6 +162,8 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Certificates"&&<InstitutionCertificates institutionId={institutionId}/>}
     {tab==="Reports"&&<InstitutionReports institutionId={institutionId}/>}
     {tab==="HR"&&<InstitutionHR institutionId={institutionId} staff={staff}/>}
+    {tab==="Homework"&&<InstitutionSchoolPosts institutionId={institutionId} type="homework"/>}
+    {tab==="Notices"&&<InstitutionSchoolPosts institutionId={institutionId} type="notice"/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
       </main>
     </div>
