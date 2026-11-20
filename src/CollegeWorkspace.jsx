@@ -5,6 +5,7 @@ import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
 import InstitutionModules from "./InstitutionModules.jsx";
+import InstitutionSchoolPosts from "./institution-modules/InstitutionSchoolPosts.jsx";
 import StudentAdmissions from "./StudentAdmissions.jsx";
 import InstitutionPartnershipStatus from "./InstitutionPartnershipStatus.jsx";
 
@@ -205,6 +206,12 @@ export default function CollegeWorkspace() {
       {mySubmissions.length === 0 ? <p className="lead">You have not submitted any documents for college review.</p> : <div className="collegeRequestList">{mySubmissions.map(item => <article className="collegeRequest" key={item.id}><strong>{item.documentName}</strong><span className="collegeStatus">{item.status.replaceAll("_", " ")}</span><small>{item.institutionName} · {item.purpose} · Consent {item.consentVersion || "legacy"} · {new Date(item.consentedAt || item.createdAt).toLocaleString()}</small>{item.reviewNote && <p>{item.reviewNote}</p>}{["submitted", "needs_correction"].includes(item.status) && <button type="button" className="secondary" onClick={() => withdrawSubmission(item.id)}>Withdraw submission</button>}<button type="button" className="secondary" onClick={() => showAudit(item.id)}>View audit history</button>{auditHistory[item.id] && <ul className="collegeAuditList">{auditHistory[item.id].map((entry,index) => <li key={index}>{entry.action.replaceAll("_"," ")} · {entry.actorEmail || "account"} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}</article>)}</div>}
     </section>}
 
+    {memberships.filter(item => item.status === "active" && ["student","reviewer"].includes(item.role)).map(item => <section className="panel collegeReviewPanel institutionSchoolFeeds" key={item.institutionId}>
+      <div className="eyebrow dark">SCHOOL UPDATES · {item.role === "student" ? "STUDENT FEED" : "TEACHER / STAFF FEED"}</div>
+      <h2>{item.institutionName} · Homework & Notices</h2>
+      <InstitutionSchoolPosts institutionId={item.institutionId} type="homework"/>
+      <InstitutionSchoolPosts institutionId={item.institutionId} type="notice"/>
+    </section>)}
     <StudentAdmissions memberships={memberships} adminInstitutions={isInstitutionAdminWorkspace ? activeInstitutionAdmins : []} />
 
     {isInstitutionAdminWorkspace && <InstitutionModules institutionId={activeInstitutionAdmins[0]?.institutionId} /> }
