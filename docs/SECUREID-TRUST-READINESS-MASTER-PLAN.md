@@ -1,7 +1,7 @@
 # SecureID trust-readiness master plan
 
-Last audited: 2026-11-12
-Base commit: 910df6bd5c4ce1e8913122723b0781ce39ca9a9d
+Last audited: 2026-11-19
+Production baseline commit: 0890eb75fb7d5731bd4f043378ef921341fc11b9
 Status: implementation roadmap and evidence register; not a launch approval.
 
 This document is deliberately evidence-led. A feature is not marked complete merely because a screen, API route, CI test, or successful deployment exists. Production claims require the relevant runtime, device, security, legal, or operational evidence.
@@ -31,19 +31,21 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 - SQLite and encrypted document files are stored on that volume.
 - AES-256-GCM encrypted backups include a database snapshot and encrypted document blobs.
 - Restore validates the authenticated backup, checks SQLite integrity, stages restored documents, and retains a pre-restore database copy.
-- An isolated restore drill was recorded on 2026-11-11: SQLite integrity OK, 67 tables and 6 document blobs restored.
+- An isolated on-volume restore drill on 2026-11-19 passed SQLite integrity and restored 109 tables, but reported zero active document records and zero document blobs; document recovery was not verified.
 
 **Blocking gaps**
-- The recorded drill restored from the Railway volume; it did not prove recovery from an off-platform copy.
-- The scheduler runs inside the API process. It cannot guarantee scheduled backups while the service is sleeping or stopped.
-- The production environment currently has no object-storage bucket provisioned.
-- No independent off-platform restore evidence, formally agreed RPO/RTO, or verified stale-backup alert is recorded.
+- A separate private GitHub repository now receives encrypted GitHub Actions backup artifacts with 30-day retention; the last seven scheduled runs (13–19 November) succeeded.
+- The private artifact upload is verified, but no isolated restore from the actual off-platform artifact has been completed.
+- The latest production drill found zero active document records and zero document blobs, so recovery of an actual student document is not proven.
+- The private workflow is configured for 09:25 Asia/Kolkata, but observed runs were delayed; do not promise a completion time until investigated.
+- No object-storage bucket is provisioned. GitHub Actions artifacts are temporary and do not replace a durable archival/recovery service.
+- No formally agreed RPO/RTO or verified stale-backup alert is recorded.
 
 **Required implementation sequence**
 1. Keep single replica while SQLite and process-local rate limits remain.
 2. Do not enable a paid bucket, cron service, database, or storage plan without explicit budget approval.
-3. Evaluate a genuinely zero-cost, reliable off-platform copy; if none is suitable, document this as a launch blocker rather than pretending it is solved.
-4. When a provider and budget are approved, upload only already-encrypted backup artifacts over TLS using least-privilege credentials; add retention/versioning, checksum verification, stale/failure alerts, and isolated restore tests.
+3. Keep the private GitHub Actions artifact as a temporary zero-budget off-platform copy, while treating its 30-day expiry/quota limits as residual risk.
+4. Restore the actual encrypted artifact into a disposable isolated environment using the approved key-recovery process; verify SQLite integrity and a synthetic document before claiming disaster recovery. Consider durable object storage only after cost/budget approval.
 5. Record RPO/RTO only after repeated timed restore drills.
 
 ### 3. Can SecureID verify that an identity document is genuine?
@@ -104,8 +106,9 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 - [ ] Test account A/B isolation for every document, identity, share, institution, and admin API.
 - [ ] Test actual old-session-cookie replay after logout and session revocation.
 - [ ] Verify MFA, recovery, CSRF, rate limits, upload validation, share expiry/revocation, cache headers, and alert delivery.
-- [ ] Verify backup scheduler behavior while the service is sleeping; replace in-process-only scheduling only with an approved, affordable external mechanism.
-- [ ] Establish off-platform encrypted backup and isolated restore proof; if no free provider is viable, keep this as a disclosed blocker.
+- [x] Establish a private off-platform encrypted artifact workflow; last seven scheduled uploads succeeded, with 30-day retention.
+- [ ] Investigate schedule delays and add verified stale-backup/failure alerting.
+- [ ] Restore the actual off-platform artifact in isolation and verify a synthetic document; keep this as a launch blocker until proven.
 - [ ] Verify production encryption keys and separate key custody without copying secrets into Git, chat, or logs.
 - [ ] Complete legal operator, contact, retention, vendor/DPA, processing-region, rights, complaint, incident, and deletion facts; obtain jurisdiction-appropriate legal review before publishing the privacy notice.
 - [ ] Confirm the data-deletion and backup-retention behavior with synthetic accounts.
@@ -115,7 +118,8 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 - [ ] Complete college onboarding and staff invitation/revocation.
 - [ ] Complete auditable admission and document review workflows.
 - [ ] Connect hostel allocation to approved student records without weakening Warden boundaries.
-- [ ] Finish mobile backend integration and physical-device tests for login, MFA, vault, upload/download/delete, sharing, revocation, offline/error states, and session expiry.
+- [x] Implement the mobile API client for native sign-in/session, MFA, identity profile, vault upload/download/delete, sharing, and security/session endpoints.
+- [ ] Complete physical-device acceptance tests for login, MFA, vault, upload/download/delete, sharing, revocation, offline/error states, and session expiry.
 - [ ] Complete OCR temporary-file cleanup/no-upload evidence; implement PDF OCR only after a safe local rendering approach is validated.
 - [ ] Complete notification permission granted/denied tests and native upgrade compatibility.
 
