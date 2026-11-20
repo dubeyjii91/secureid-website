@@ -496,12 +496,12 @@ export default function OwnerAdminDashboard() {
     </div>
 
     <div className="panel collegeInstitutionManagement">
-      <div className="eyebrow dark">COLLEGE / INSTITUTION MANAGEMENT</div>
-      <h3>Institution directory · {institutions.length}</h3>
+      <div className="eyebrow dark">SCHOOL & COLLEGE SPONSORSHIP</div>
+      <h3>Sponsored institution directory · {institutions.length}</h3>
       <p>Provision institution access only after verifying the institution and the user's account. Every membership creation or status change is recorded in the institution audit trail. All actions require owner authorization and MFA on the server.</p>
       {institutionError && <p role="alert">{institutionError}</p>}
       <form className="collegeCreateInstitutionForm" onSubmit={createInstitution}>
-        <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New college / institution name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} /><button type="button" className="secondary" onClick={() => setInstitutionName("")} disabled={!institutionName}>Clear value</button>
+        <input aria-label="Institution name" required maxLength={160} value={institutionName} onChange={event => setInstitutionName(event.target.value)} placeholder="New school / college name" style={{flex:"1 1 240px",minWidth:0,border:"1px solid var(--border,#ddd)",borderRadius:9,padding:11}} /><button type="button" className="secondary" onClick={() => setInstitutionName("")} disabled={!institutionName}>Clear value</button>
         <button className="primary" disabled={institutionBusy}>{institutionBusy ? "Saving…" : "Create institution"}</button>
       </form>
       {institutions.length > 0 && <>
