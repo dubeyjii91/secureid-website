@@ -1728,7 +1728,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       const planKey=String(req.body?.planKey||"").trim().slice(0,40);
       const status=String(req.body?.status||"");
       const features=Array.isArray(req.body?.features)?[...new Set(req.body.features.map(String))]:[];
-      const allowedFeatures=new Set(["hostel","scholarship","student_submissions","academics","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]);
+      const allowedFeatures=new Set(["hostel","scholarship","student_submissions","academics","student_management","staff_management","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]);
       const startsAt=req.body?.startsAt?String(req.body.startsAt):null;
       const endsAt=req.body?.endsAt?String(req.body.endsAt):null;
       if(!planKey||!["pilot","active","past_due","suspended","expired"].includes(status)||features.length>allowedFeatures.size||features.some(feature=>!allowedFeatures.has(feature)))
@@ -1749,7 +1749,7 @@ app.post("/api/wallet/share",enforceSameOrigin,requireAuth,requireMfaProduction,
       if(!name||name.length>160) return res.status(400).json({success:false,message:"Institution name must be 1–160 characters."});
       const id=crypto.randomUUID(), now=new Date().toISOString();
       database.prepare("INSERT INTO institutions(id,name,created_at) VALUES(?,?,?)").run(id,name,now);
-      database.prepare(`INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'school-pilot','pilot','["hostel","scholarship","student_submissions","academics","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]',?,?,?)`)
+      database.prepare(`INSERT INTO institution_subscriptions(institution_id,plan_key,status,features_json,starts_at,updated_by,updated_at) VALUES(?,'school-pilot','pilot','["hostel","scholarship","student_submissions","academics","student_management","staff_management","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]',?,?,?)`)
         .run(id,now,req.user.id,now);
       if(typeof logEvent==="function") logEvent(req.user.id,"INSTITUTION_CREATED",req);
       res.setHeader("Cache-Control","private, no-store");
