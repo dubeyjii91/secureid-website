@@ -4,6 +4,7 @@ import SecurityActivity from "./SecurityActivity.jsx";
 import SecuritySessions from "./SecuritySessions.jsx";
 import ShareManagement, { IdentityProfileEditor } from "./ShareManagement.jsx";
 import CollegeWorkspace from "./CollegeWorkspace.jsx";
+import ParentPortal from "./ParentPortal.jsx";
 import AccountSecurity from "./AccountSecurity.jsx";
 import SecurityDashboard from "./SecurityDashboard.jsx";
 import OwnerAdminDashboard from "./OwnerAdminDashboard.jsx";
@@ -115,6 +116,7 @@ const navItems = [
   ["sessions", "Active sessions", "monitor"],
   ["shares", "Share management", "share"],
   ["college", "School / College Management", "school"],
+  ["parent", "Parent Portal", "users"],
   ["account", "Account security", "settings"],
   ["legal", "Privacy & Terms", "clipboard"],
 ];
@@ -919,6 +921,8 @@ function App() {
       {page === "shares" && <ShareManagement />}
 
       {page === "college" && <CollegeWorkspace />}
+
+      {page === "parent" && <ParentPortal />}
 
       {page === "account" && <AccountSecurity />}
 
