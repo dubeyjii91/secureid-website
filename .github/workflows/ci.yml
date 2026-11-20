@@ -73,6 +73,29 @@ jobs:
           node -e 'const p=JSON.parse(process.argv[1]); if(typeof p.csrfToken !== "string" || !/^[A-Za-z0-9_-]{32,}$/.test(p.csrfToken)) process.exit(1);' "$csrf_payload"
           login_status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'X-SecureID-Client: native' -H 'Content-Type: application/json' -d '{}' "$API_BASE_URL/api/auth/login")"
           test "$login_status" = "403"
+          csrf_token="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(p.csrfToken)' "$csrf_payload")"
+          registration_response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H 'X-SecureID-Client: native' \
+            -H "X-CSRF-Token: $csrf_token" \
+            -H "Cookie: __Host-secureid.csrf=$csrf_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"invalid-native-registration","password":"not-a-valid-password"}' \
+            "$API_BASE_URL/api/auth/register")"
+          registration_status="${registration_response##*$'\n'}"
+          registration_body="${registration_response%$'\n'*}"
+          test "$registration_status" = "400"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.success !== false || p.message !== "Please enter a valid email address.") process.exit(1);' "$registration_body"
+          recovery_response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H 'X-SecureID-Client: native' \
+            -H "X-CSRF-Token: $csrf_token" \
+            -H "Cookie: __Host-secureid.csrf=$csrf_token" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"invalid-native-recovery"}' \
+            "$API_BASE_URL/api/auth/forgot-password")"
+          recovery_status="${recovery_response##*$'\n'}"
+          recovery_body="${recovery_response%$'\n'*}"
+          test "$recovery_status" = "200"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.success !== true || !/If an account exists/.test(p.message || "")) process.exit(1);' "$recovery_body"
       - name: Build and download Android preview APK with EAS
         id: eas_preview
         if: (github.event_name == 'workflow_dispatch' && inputs.build_android_preview_apk) || (github.event_name == 'pull_request' && github.head_ref == 'feat/local-ocr-expiry-reminders' && github.event.pull_request.head.repo.full_name == github.repository)
