@@ -13,11 +13,14 @@ import InstitutionCertificates from "./institution-modules/InstitutionCertificat
 import InstitutionReports from "./institution-modules/InstitutionReports.jsx";
 import InstitutionHR from "./institution-modules/InstitutionHR.jsx";
 import InstitutionCalendar from "./institution-modules/InstitutionCalendar.jsx";
+import InstitutionSchoolPosts from "./institution-modules/InstitutionSchoolPosts.jsx";
 
 const moduleCards = [
   { key:"Students", title:"Student Management", description:"Student profiles, guardian contacts, status history and enrollment.", icon:"graduation" },
   { key:"Staff", title:"Staff Management", description:"Employee directory, departments, designations and staff status.", icon:"users" },
-  { key:"Academics", title:"Academics", description:"Courses, attendance, assessments and student results.", icon:"book" },
+  { key:"Academics", title:"Academics", description:"Classes, subjects, sections, attendance, timetable and results.", icon:"book" },
+  { key:"Homework", title:"Homework & Assignments", description:"Class-wise homework, subject instructions and due dates.", icon:"book-open" },
+  { key:"Notices", title:"Notices & Circulars", description:"School announcements for students, teachers and staff.", icon:"message-square" },
   { key:"Finance", title:"Finance & Fees", description:"Fee invoices, payment entries, outstanding balances and collection ledger.", icon:"wallet" },
   { key:"Queue", title:"Service Queue", description:"Digital tokens, department counters, service appointments and live student service flow.", icon:"clock" },
   { key:"Library", title:"Library", description:"Catalogue, book circulation, overdue returns and reservations.", icon:"book-open" },
@@ -113,13 +116,14 @@ export default function InstitutionModules({ institutionId }) {
   }
   async function createOnlinePaymentLink(invoiceId){setBusy(true);setError("");setMessage("");try{const result=await api(`/api/institutions/${encodeURIComponent(institutionId)}/finance/invoices/${encodeURIComponent(invoiceId)}/payment-link`,{method:"POST",body:JSON.stringify({})});setMessage("Secure payment link created. Payment will be recorded only after verified provider confirmation.");await load();return result.paymentLink||null;}catch(err){setError(err.message||"Online payment link could not be created.");return null;}finally{setBusy(false);}}
   async function saveStudentProfile(userId){const draft=profileDrafts[userId]||{};await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/students/${encodeURIComponent(userId)}`,{method:"PUT",body:JSON.stringify(draft)}),"Student profile updated.");}
+  async function promoteStudent(userId,nextProgram){const draft=profileDrafts[userId]||{};await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/students/${encodeURIComponent(userId)}`,{method:"PUT",body:JSON.stringify({...draft,program:nextProgram})}),"Student promoted to "+nextProgram+".");}
   async function loadAssessments(courseId){setAssessmentForm(v=>({...v,courseId}));try{const a=await api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(courseId)}/assessments`,{cache:"no-store"});setAssessments(a.assessments||[]);}catch(err){setError(err.message||"Assessments could not be loaded.");}}
   async function saveAssessment(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/courses/${encodeURIComponent(assessmentForm.courseId)}/assessments`,{method:"POST",body:JSON.stringify(assessmentForm)}),"Assessment created.");setAssessmentForm(v=>({...v,title:"",totalMarks:"100"}));}
   async function saveResult(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/assessments/${encodeURIComponent(resultForm.assessmentId)}/results/${encodeURIComponent(resultForm.studentUserId)}`,{method:"PUT",body:JSON.stringify({marksObtained:Number(resultForm.marksObtained)})}),"Student result saved.");}
 
   if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
   const navGroups = [
-    { title:"ACADEMIC", items:[["Academics","Academics"],["Examinations","Examinations"],["Calendar","Academic Calendar"],["Library","Library"],["Reports","Reports & Exports"]] },
+    { title:"ACADEMIC", items:[["Academics","Academics"],["Homework","Homework & Assignments"],["Notices","Notices & Circulars"],["Examinations","Examinations"],["Calendar","Academic Calendar"],["Library","Library"],["Reports","Reports & Exports"]] },
     { title:"ADMINISTRATION", items:[["Students","Student Management"],["Staff","Staff Management"],["HR","HR & Staff Operations"],["Finance","Finance & Fees"],["Queue","Service Queue"],["Grievances","Grievances & Helpdesk"],["Certificates","Certificates"]] }
   ];
   return <section className="panel institutionModules institutionDashboardShell">
@@ -140,6 +144,13 @@ export default function InstitutionModules({ institutionId }) {
         <article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
       </div>}
       <div className="institutionDashboardWelcome"><div><strong>Welcome to your school workspace</strong><p>Use the left navigation to manage academic activities, students, staff, fees and school operations. Each section opens in this workspace.</p></div><span>🏫</span></div>
+      <div className="institutionModuleLauncherGrid" aria-label="School management modules">
+        {moduleCards.map(item=><button type="button" className="institutionModuleLauncher" key={item.key} onClick={()=>{setMessage("");setError("");setTab(item.key);}}>
+          <span className="institutionModuleLauncherIcon"><SecureIcon name={item.icon} size={23} /></span>
+          <span className="institutionModuleLauncherCopy"><strong>{item.title}</strong><small>{item.description}</small></span>
+          <span className="institutionModuleLauncherAction">Open <span aria-hidden="true">→</span></span>
+        </button>)}
+      </div>
       <p className="collegePrivacyNote">Staff account linking requires an exact matching email and active institution membership; linking does not grant additional permissions. Online fee links require configured Razorpay credentials and are settled only by signed webhooks. All writes remain institution-scoped and audited.</p>
     </>}
     {tab!=="Overview"&&<div className="institutionModuleHeader">
@@ -147,7 +158,7 @@ export default function InstitutionModules({ institutionId }) {
       <span>Separate workspace · Institution-scoped access</span>
     </div>}
     {busy&&<p>Loading / saving securely…</p>}
-    {tab==="Students"&&<InstitutionStudents institutionId={institutionId} canManageStudents={canManageStudents} students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} busy={busy}/>}
+    {tab==="Students"&&<InstitutionStudents institutionId={institutionId} canManageStudents={canManageStudents} students={students} profileDrafts={profileDrafts} setProfileDrafts={setProfileDrafts} saveStudentProfile={saveStudentProfile} promoteStudent={promoteStudent} busy={busy}/>}
     {tab==="Staff"&&<InstitutionStaff institutionId={institutionId} staff={staff} staffForm={staffForm} setStaffForm={setStaffForm} saveStaff={saveStaff} busy={busy} run={run}/>}
     {tab==="Finance"&&<InstitutionFinance students={students} invoiceForm={invoiceForm} setInvoiceForm={setInvoiceForm} saveInvoice={saveInvoice} invoices={invoices} money={money} paymentForm={paymentForm} setPaymentForm={setPaymentForm} receivePayment={receivePayment} createOnlinePaymentLink={createOnlinePaymentLink} refundPayments={refundPayments} refundRequests={refundRequests} canRequestRefund={canRequestRefund} canReviewRefunds={canReviewRefunds} requestRefund={requestRefund} reviewRefund={reviewRefund} busy={busy}/>}
     {tab==="Academics"&&<InstitutionAcademics sections={sections} sectionForm={sectionForm} setSectionForm={setSectionForm} saveSection={saveSection} enrollments={enrollments} enrollmentForm={enrollmentForm} setEnrollmentForm={setEnrollmentForm} saveEnrollment={saveEnrollment} withdrawEnrollment={withdrawEnrollment} courses={courses} courseForm={courseForm} setCourseForm={setCourseForm} saveCourse={saveCourse} attendanceForm={attendanceForm} setAttendanceForm={setAttendanceForm} markAttendance={markAttendance} students={students} staff={staff} timetable={timetable} timetableForm={timetableForm} setTimetableForm={setTimetableForm} saveTimetableEntry={saveTimetableEntry} deleteTimetableEntry={deleteTimetableEntry} assessmentForm={assessmentForm} setAssessmentForm={setAssessmentForm} loadAssessments={loadAssessments} saveAssessment={saveAssessment} assessments={assessments} resultForm={resultForm} setResultForm={setResultForm} saveResult={saveResult} busy={busy}/>}
@@ -159,6 +170,8 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Certificates"&&<InstitutionCertificates institutionId={institutionId}/>}
     {tab==="Reports"&&<InstitutionReports institutionId={institutionId}/>}
     {tab==="HR"&&<InstitutionHR institutionId={institutionId} staff={staff}/>}
+    {tab==="Homework"&&<InstitutionSchoolPosts institutionId={institutionId} type="homework"/>}
+    {tab==="Notices"&&<InstitutionSchoolPosts institutionId={institutionId} type="notice"/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
       </main>
     </div>

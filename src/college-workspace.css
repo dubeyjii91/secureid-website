@@ -45,3 +45,15 @@
 #root .institutionModuleHeader>span{font-size:12px;color:#788196;}
 @media(max-width:900px){#root .institutionWorkspaceLayout{grid-template-columns:1fr;}#root .institutionSidebar{position:static;max-height:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;}#root .institutionNavGroup{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;margin-top:10px;}#root .institutionNavGroup>small{grid-column:1/-1;}}
 @media(max-width:520px){#root .institutionDashboardShell{padding:14px!important;}#root .institutionSidebar{grid-template-columns:1fr;}#root .institutionNavGroup{grid-template-columns:1fr;}#root .institutionDashboardWelcome{padding:17px;}#root .institutionDashboardWelcome>span{display:none;}}
+
+/* School communication modules */
+#root .institutionSchoolPostsIntro h3{margin:0 0 6px;font-size:17px;color:#27334b}
+#root .institutionSchoolPostsIntro p{margin:0 0 16px;color:#69758b;font-size:13px;line-height:1.6}
+#root .institutionSchoolPostForm{padding:18px;border:1px solid #e5e9f2;border-radius:13px;background:#fbfcff}
+#root .institutionSchoolPostBody{grid-column:1/-1}
+#root .institutionSchoolPostMeta{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+#root .institutionSchoolPostMeta span{padding:4px 8px;border-radius:20px;background:#eef2ff;color:#465b99;font-size:10px;font-weight:750}
+#root .institutionSchoolPost p{margin:9px 0;color:#4f5d73;font-size:13px;line-height:1.65;white-space:pre-wrap}
+#root .institutionSchoolPost small{display:block;margin:8px 0;color:#7b8497;font-size:10px;line-height:1.5}
+#root .institutionSchoolPost button{margin-top:8px}
+@media(max-width:650px){#root .institutionSchoolPostBody{grid-column:auto}}

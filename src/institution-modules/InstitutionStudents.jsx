@@ -3,7 +3,7 @@ import api from "../api.js";
 
 const emptyGuardian={fullName:"",relationship:"parent",email:"",phone:"",isPrimary:false};
 
-export default function InstitutionStudents({institutionId,canManageStudents,students,profileDrafts,setProfileDrafts,saveStudentProfile,busy}){
+export default function InstitutionStudents({institutionId,canManageStudents,students,profileDrafts,setProfileDrafts,saveStudentProfile,promoteStudent,busy}){
  const [selectedStudentId,setSelectedStudentId]=useState("");
  const [guardians,setGuardians]=useState([]);
  const [canManageGuardians,setCanManageGuardians]=useState(false);
@@ -57,12 +57,13 @@ export default function InstitutionStudents({institutionId,canManageStudents,stu
    <strong>{s.email}</strong><small>Institution membership: {s.membershipStatus||"active"}</small>
    <div className="collegeSubmissionForm">
     <label>Student number<input disabled={!canManageStudents} value={profileDrafts[s.userId]?.studentNumber||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],studentNumber:e.target.value}}))}/></label>
-    <label>Department<input disabled={!canManageStudents} value={profileDrafts[s.userId]?.department||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],department:e.target.value}}))}/></label>
-    <label>Course / program<input disabled={!canManageStudents} value={profileDrafts[s.userId]?.program||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],program:e.target.value}}))}/></label>
+    <label>Section / department<input disabled={!canManageStudents} value={profileDrafts[s.userId]?.department||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],department:e.target.value}}))}/></label>
+    <label>Class / grade or program<input disabled={!canManageStudents} value={profileDrafts[s.userId]?.program||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],program:e.target.value}}))}/></label>
     <label>Academic year<input disabled={!canManageStudents} placeholder="2026-2027" value={profileDrafts[s.userId]?.academicYear||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],academicYear:e.target.value}}))}/></label>
     <label>Record status<select disabled={!canManageStudents} value={profileDrafts[s.userId]?.status||"active"} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],status:e.target.value}}))}><option value="active">Active</option><option value="graduated">Graduated</option><option value="suspended">Suspended — institution access blocked</option><option value="withdrawn">Withdrawn — institution access blocked</option></select></label>
     <label>Status-change reason<input disabled={!canManageStudents} minLength="5" maxLength="500" placeholder="Required only when changing status" value={profileDrafts[s.userId]?.statusReason||""} onChange={e=>setProfileDrafts(v=>({...v,[s.userId]:{...v[s.userId],statusReason:e.target.value}}))}/></label>
     {canManageStudents&&<button type="button" className="secondary" disabled={busy} onClick={()=>saveStudentProfile(s.userId)}>Save student record</button>}
+    {canManageStudents&&/^class\s*[1-6](?:\b|[- ])?/i.test(profileDrafts[s.userId]?.program||"")&&<button type="button" className="secondary" disabled={busy} onClick={()=>{const current=profileDrafts[s.userId]?.program||"";const match=current.match(/^(class\s*)([1-6])(.*)$/i);if(match&&window.confirm("Promote this student from "+current+" to "+match[1]+(Number(match[2])+1)+match[3]+"?"))promoteStudent(s.userId,match[1]+(Number(match[2])+1)+match[3]);}}>Promote to next class</button>}
     <button type="button" className="secondary" disabled={loadingDetails||savingGuardian} onClick={()=>selectedStudentId===s.userId?setSelectedStudentId(""):loadDetails(s.userId)}>{selectedStudentId===s.userId?"Close lifecycle records":"Manage guardians & status history"}</button>
    </div>
    {selectedStudentId===s.userId&&<section className="collegeRequestList">

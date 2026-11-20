@@ -5,6 +5,7 @@ import api from "./api.js";
 import HostelManagement from "./HostelManagement.jsx";
 import ScholarshipManagement from "./ScholarshipManagement.jsx";
 import InstitutionModules from "./InstitutionModules.jsx";
+import InstitutionSchoolPosts from "./institution-modules/InstitutionSchoolPosts.jsx";
 import StudentAdmissions from "./StudentAdmissions.jsx";
 import InstitutionPartnershipStatus from "./InstitutionPartnershipStatus.jsx";
 
@@ -106,7 +107,7 @@ export default function CollegeWorkspace() {
         body: JSON.stringify({ institutionId: selectedInstitutionId, documentId: selectedDocumentId, purpose: submissionPurpose, consent })
       });
       setConsent(false);
-      setMessage("Your document reference was submitted to the selected college. The institution receives document metadata only in this workflow; file access is not granted.");
+      setMessage("Your document reference was submitted to the selected school / college. The institution receives document metadata only in this workflow; file access is not granted.");
       await loadRequests();
     } catch (err) {
       setError(err.message || "Document submission could not be created.");
@@ -168,14 +169,14 @@ export default function CollegeWorkspace() {
 
   return <section className="content collegeWorkspace">
     <div className="functionHero">
-      <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "Bring SecureID to your college"}</h2><p>{isInstitutionAdminWorkspace ? "Manage your institution's student submissions, hostel operations and scholarship workflows. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
+      <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "School & College Management"}</h2><p>{isInstitutionAdminWorkspace ? "Manage school classes and sections, admissions, student and guardian records, teachers and staff, attendance, fees, exams and results, timetable, homework, notices, holidays, library, certificates and reports. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
       <div className="collegeHeroIcon" aria-hidden="true">🏫</div>
     </div>
     {isInstitutionAdminWorkspace && <InstitutionPartnershipStatus />}
     {isInstitutionAdminWorkspace && <section className="collegeValueGrid institutionAdminOverview" aria-label="Institution administration overview">
       <article className="panel"><span className="collegeStep">01</span><h3>Institution access</h3><p>{institutionNames.length ? institutionNames.join(" · ") : "Your assigned institution"}</p><small>{activeMembershipCount} active membership{activeMembershipCount === 1 ? "" : "s"} on this account</small></article>
       <article className="panel"><span className="collegeStep">02</span><h3>Student review queue</h3><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? "" : "s"} currently visible to your institution role.</p><small>Review decisions are audited</small></article>
-      <article className="panel"><span className="collegeStep">03</span><h3>Institution modules</h3><p>Hostel Management and Scholarship Management</p><small>Access is role- and subscription-controlled</small></article>
+      <article className="panel"><span className="collegeStep">03</span><h3>School management modules</h3><p>Students, staff, classes, attendance, fees, exams, timetable, homework, notices, library, certificates and reports.</p><small>Access is role- and subscription-controlled</small></article>
     </section>}
     {!isInstitutionAdminWorkspace && !hasActiveWarden && <div className="collegeValueGrid collegeIntroGrid">
       <article className="panel"><span className="collegeStep">01</span><h3>Student onboarding</h3><p>Students manage their own SecureID profile and documents, then choose what to submit.</p><small>Explicit consent · Student-controlled</small></article>
@@ -183,15 +184,15 @@ export default function CollegeWorkspace() {
       <article className="panel"><span className="collegeStep">03</span><h3>Institution controls</h3><p>Memberships are provisioned by a trusted SecureID operator and protected by MFA.</p><small>No public self-assigned roles</small></article>
     </div>}
     <section className="panel collegeMembershipPanel" aria-labelledby="college-membership-heading">
-      <div className="eyebrow dark">INSTITUTION ACCESS</div><h2 id="college-membership-heading">Your college memberships</h2>
+      <div className="eyebrow dark">INSTITUTION ACCESS</div><h2 id="college-membership-heading">Your school / college memberships</h2>
       {loading ? <p>Checking your institution access…</p> : memberships.length === 0
         ? <p className="lead">No institution membership is assigned to this account yet. Access is provisioned by a trusted SecureID operator; you cannot grant yourself staff or administrator permissions.</p>
         : <div className="collegeRequestList">{memberships.map(item => <article className="collegeRequest" key={item.institutionId}><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "active" ? "Active membership" : "Membership suspended"}</span><small>Role: {item.role.replaceAll("_", " ")} · Joined {new Date(item.joinedAt).toLocaleDateString()}</small></article>)}</div>}
     </section>
 
     {activeStudents.length > 0 && <section className="panel collegeReviewPanel">
-      <div className="eyebrow dark">STUDENT DOCUMENT SUBMISSION</div><h2>Submit a document for college review</h2>
-      <p className="lead">Choose a document already in your SecureID Vault. Your college receives its name, category and submission purpose for tracking. This endpoint does not grant staff permission to download or view the encrypted file.</p>
+      <div className="eyebrow dark">STUDENT DOCUMENT SUBMISSION</div><h2>Submit a document for school / college review</h2>
+      <p className="lead">Choose a document already in your SecureID Vault. Your school / college receives its name, category and submission purpose for tracking. This endpoint does not grant staff permission to download or view the encrypted file.</p>
       <form className="collegeSubmissionForm" onSubmit={submitDocument}>
         <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)} required><option value="">Choose institution…</option>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select><button type="button" className="secondary" disabled={!selectedInstitutionId || saving} onClick={() => setSelectedInstitutionId("")}>Clear selection</button></label>
         <label>Document from your vault<select value={selectedDocumentId} onChange={event => setSelectedDocumentId(event.target.value)} required><option value="">Choose a document</option>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select><button type="button" className="secondary" disabled={!selectedDocumentId || saving} onClick={() => setSelectedDocumentId("")}>Clear selection</button></label>
@@ -205,6 +206,12 @@ export default function CollegeWorkspace() {
       {mySubmissions.length === 0 ? <p className="lead">You have not submitted any documents for college review.</p> : <div className="collegeRequestList">{mySubmissions.map(item => <article className="collegeRequest" key={item.id}><strong>{item.documentName}</strong><span className="collegeStatus">{item.status.replaceAll("_", " ")}</span><small>{item.institutionName} · {item.purpose} · Consent {item.consentVersion || "legacy"} · {new Date(item.consentedAt || item.createdAt).toLocaleString()}</small>{item.reviewNote && <p>{item.reviewNote}</p>}{["submitted", "needs_correction"].includes(item.status) && <button type="button" className="secondary" onClick={() => withdrawSubmission(item.id)}>Withdraw submission</button>}<button type="button" className="secondary" onClick={() => showAudit(item.id)}>View audit history</button>{auditHistory[item.id] && <ul className="collegeAuditList">{auditHistory[item.id].map((entry,index) => <li key={index}>{entry.action.replaceAll("_"," ")} · {entry.actorEmail || "account"} · {entry.toStatus || entry.fromStatus || "event"} · {new Date(entry.createdAt).toLocaleString()}</li>)}</ul>}</article>)}</div>}
     </section>}
 
+    {memberships.filter(item => item.status === "active" && ["student","reviewer"].includes(item.role)).map(item => <section className="panel collegeReviewPanel institutionSchoolFeeds" key={item.institutionId}>
+      <div className="eyebrow dark">SCHOOL UPDATES · {item.role === "student" ? "STUDENT FEED" : "TEACHER / STAFF FEED"}</div>
+      <h2>{item.institutionName} · Homework & Notices</h2>
+      <InstitutionSchoolPosts institutionId={item.institutionId} type="homework"/>
+      <InstitutionSchoolPosts institutionId={item.institutionId} type="notice"/>
+    </section>)}
     <StudentAdmissions memberships={memberships} adminInstitutions={isInstitutionAdminWorkspace ? activeInstitutionAdmins : []} />
 
     {isInstitutionAdminWorkspace && <InstitutionModules institutionId={activeInstitutionAdmins[0]?.institutionId} /> }
@@ -224,9 +231,9 @@ export default function CollegeWorkspace() {
 
     {!hasActiveInstitutionMembership && <div className="collegeColumns collegeWorkspaceColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
-        <div className="eyebrow dark">PILOT INTEREST</div><h2>Register institutional interest</h2>
+        <div className="eyebrow dark">PILOT INTEREST</div><h2>Register school / college interest</h2>
         <p className="lead">Use a college name and general workflow needs only. Do not enter student names, identity numbers, documents, OTPs or other sensitive data here.</p>
-        <label>College / institution name<input required maxLength={120} value={form.institutionName} onChange={e => update("institutionName", e.target.value)} placeholder="e.g. Example College" /></label>
+        <label>School / college name<input required maxLength={120} value={form.institutionName} onChange={e => update("institutionName", e.target.value)} placeholder="e.g. Example College" /></label>
         <label>Your role<select value={form.role} onChange={e => update("role", e.target.value)}><option>Student</option><option>Faculty</option><option>College administrator</option><option>IT / security team</option><option>Other</option></select></label>
         <label>Approximate student population<select value={form.studentCount} onChange={e => update("studentCount", e.target.value)}><option>Under 500</option><option>500–2,000</option><option>2,001–10,000</option><option>Over 10,000</option><option>Not sure</option></select></label>
         <fieldset><legend>Workflows you want to explore</legend>{["Student onboarding", "Document submission tracking", "Staff review queue", "Shareable student credentials", "Audit history and reports"].map(workflow => <label className="collegeCheck" key={workflow}><input type="checkbox" checked={form.workflows.includes(workflow)} onChange={() => toggleWorkflow(workflow)} />{workflow}</label>)}</fieldset>
@@ -234,7 +241,7 @@ export default function CollegeWorkspace() {
         <button className="primary" type="submit" disabled={saving || form.workflows.length === 0}>{saving ? "Saving securely…" : "Save pilot interest"}</button>
       </form>
       <section className="panel collegeRequestPanel"><div className="eyebrow dark">YOUR REQUESTS</div><h2>Saved pilot interest</h2><p className="lead">Only requests submitted by your signed-in account appear here.</p>
-        {loading ? <p>Loading your requests…</p> : requests.length === 0 ? <div className="collegeEmpty"><span>📋</span><strong>No requests yet</strong><p>Submit the form to record a college pilot interest.</p></div> : <div className="collegeRequestList">{requests.map(item => <article key={item.id} className="collegeRequest"><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "received" ? "Interest received" : item.status}</span><small>{new Date(item.createdAt).toLocaleString()}</small><p>{item.workflows.join(" · ")}</p></article>)}</div>}
+        {loading ? <p>Loading your requests…</p> : requests.length === 0 ? <div className="collegeEmpty"><span>📋</span><strong>No requests yet</strong><p>Submit the form to record a school or college pilot interest.</p></div> : <div className="collegeRequestList">{requests.map(item => <article key={item.id} className="collegeRequest"><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "received" ? "Interest received" : item.status}</span><small>{new Date(item.createdAt).toLocaleString()}</small><p>{item.workflows.join(" · ")}</p></article>)}</div>}
       </section>
     </div>}
     {error && <p className="collegeAlert error" role="alert">{error}</p>}{message && <p className="collegeAlert" role="status">{message}</p>}

@@ -222,8 +222,10 @@ export function registerInstitutionModules({
       if(!membership) return fail(res,404,"Active student membership was not found.");
       const studentNumber=safeText(req.body?.studentNumber,60),department=safeText(req.body?.department,100),program=safeText(req.body?.program,120),academicYear=safeText(req.body?.academicYear,20),status=safeText(req.body?.status||"active",20),statusReason=safeText(req.body?.statusReason,500);
       if(!["active","graduated","suspended","withdrawn"].includes(status)||!/^$|^20\d{2}-20\d{2}$/.test(academicYear)) return fail(res,400,"Enter a valid student status and academic year.");
-      const current=database.prepare("SELECT status FROM institution_student_profiles WHERE institution_id=? AND user_id=?").get(institutionId,userId);
+      const current=database.prepare("SELECT status,program FROM institution_student_profiles WHERE institution_id=? AND user_id=?").get(institutionId,userId);
       const previousStatus=current?.status||"active";
+      const previousProgram=current?.program||"";
+      const programChanged=previousProgram!==program;
       if(status!==previousStatus&&statusReason.length<5) return fail(res,400,"A status-change reason of at least 5 characters is required.");
       const timestamp=iso();
       database.exec("BEGIN IMMEDIATE");
@@ -235,7 +237,7 @@ export function registerInstitutionModules({
         database.prepare("UPDATE institution_memberships SET status=?,updated_at=? WHERE id=?").run(membershipStatus,timestamp,membership.id);
         if(status!==previousStatus) database.prepare("INSERT INTO institution_student_status_history(id,institution_id,student_user_id,from_status,to_status,reason,actor_user_id,changed_at) VALUES(?,?,?,?,?,?,?,?)")
           .run(crypto.randomUUID(),institutionId,userId,previousStatus,status,statusReason,req.user.id,timestamp);
-        audit(institutionId,req.user.id,"student_profile_updated","student",userId,{status,previousStatus,membershipStatus,statusReasonProvided:status!==previousStatus});
+        audit(institutionId,req.user.id,programChanged?"student_class_or_program_updated":"student_profile_updated","student",userId,{status,previousStatus,membershipStatus,statusReasonProvided:status!==previousStatus,previousProgram,nextProgram:program,programChanged});
         database.exec("COMMIT");
       } catch(error) { try{database.exec("ROLLBACK");}catch{} throw error; }
       res.setHeader("Cache-Control","private, no-store");res.json({success:true});

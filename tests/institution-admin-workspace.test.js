@@ -11,8 +11,18 @@ test("Institution Admin receives a dedicated, institution-scoped dashboard", () 
   assert.match(workspace, /isInstitutionAdminWorkspace/);
   assert.match(workspace, /Institution Admin Dashboard/);
   assert.match(workspace, /Student review queue/);
-  assert.match(workspace, /Hostel Management and Scholarship Management/);
+  assert.match(workspace, /School management modules/);
   assert.match(workspace, /Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner/);
+});
+
+test("Students and staff receive their own institution-scoped homework and notice feeds", () => {
+  assert.match(workspace, /InstitutionSchoolPosts institutionId=\{item\.institutionId\} type="homework"/);
+  assert.match(workspace, /InstitutionSchoolPosts institutionId=\{item\.institutionId\} type="notice"/);
+});
+
+test("Platform Owner is isolated from institution operations and school memberships", () => {
+  assert.match(workspace, /Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner/);
+  assert.match(backend, /PLATFORM_OWNER_ISOLATED/);
 });
 
 test("Warden remains isolated from Institution Admin and scholarship workspace", () => {
