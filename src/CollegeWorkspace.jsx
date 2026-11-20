@@ -168,7 +168,7 @@ export default function CollegeWorkspace() {
 
   return <section className="content collegeWorkspace">
     <div className="functionHero">
-      <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "Bring SecureID to your college"}</h2><p>{isInstitutionAdminWorkspace ? "Manage your institution's student submissions, hostel operations and scholarship workflows. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
+      <div><div className="eyebrow dark">{isInstitutionAdminWorkspace ? "INSTITUTION ADMIN · CONTROL CENTER" : hasActiveWarden ? "WARDEN · HOSTEL OPERATIONS" : "INSTITUTIONAL WORKSPACE · PILOT"}</div><h2>{isInstitutionAdminWorkspace ? "Institution Admin Dashboard" : hasActiveWarden ? "Hostel Operations Workspace" : "School & College Management"}</h2><p>{isInstitutionAdminWorkspace ? "Manage your institution's student submissions, hostel operations and scholarship workflows. All records and actions remain scoped to your active institution membership." : hasActiveWarden ? "Manage assigned hostel applications, buildings, rooms, occupancy and allocations. Scholarship and institution-wide administration remain unavailable to Warden accounts." : "Student-controlled document submissions, institution review tracking and accountable access boundaries. College staff do not receive file access through this review queue."}</p></div>
       <div className="collegeHeroIcon" aria-hidden="true">🏫</div>
     </div>
     {isInstitutionAdminWorkspace && <InstitutionPartnershipStatus />}
@@ -224,9 +224,9 @@ export default function CollegeWorkspace() {
 
     {!hasActiveInstitutionMembership && <div className="collegeColumns collegeWorkspaceColumns">
       <form className="panel collegePilotForm" onSubmit={submit}>
-        <div className="eyebrow dark">PILOT INTEREST</div><h2>Register institutional interest</h2>
+        <div className="eyebrow dark">PILOT INTEREST</div><h2>Register school / college interest</h2>
         <p className="lead">Use a college name and general workflow needs only. Do not enter student names, identity numbers, documents, OTPs or other sensitive data here.</p>
-        <label>College / institution name<input required maxLength={120} value={form.institutionName} onChange={e => update("institutionName", e.target.value)} placeholder="e.g. Example College" /></label>
+        <label>School / college name<input required maxLength={120} value={form.institutionName} onChange={e => update("institutionName", e.target.value)} placeholder="e.g. Example College" /></label>
         <label>Your role<select value={form.role} onChange={e => update("role", e.target.value)}><option>Student</option><option>Faculty</option><option>College administrator</option><option>IT / security team</option><option>Other</option></select></label>
         <label>Approximate student population<select value={form.studentCount} onChange={e => update("studentCount", e.target.value)}><option>Under 500</option><option>500–2,000</option><option>2,001–10,000</option><option>Over 10,000</option><option>Not sure</option></select></label>
         <fieldset><legend>Workflows you want to explore</legend>{["Student onboarding", "Document submission tracking", "Staff review queue", "Shareable student credentials", "Audit history and reports"].map(workflow => <label className="collegeCheck" key={workflow}><input type="checkbox" checked={form.workflows.includes(workflow)} onChange={() => toggleWorkflow(workflow)} />{workflow}</label>)}</fieldset>
@@ -234,7 +234,7 @@ export default function CollegeWorkspace() {
         <button className="primary" type="submit" disabled={saving || form.workflows.length === 0}>{saving ? "Saving securely…" : "Save pilot interest"}</button>
       </form>
       <section className="panel collegeRequestPanel"><div className="eyebrow dark">YOUR REQUESTS</div><h2>Saved pilot interest</h2><p className="lead">Only requests submitted by your signed-in account appear here.</p>
-        {loading ? <p>Loading your requests…</p> : requests.length === 0 ? <div className="collegeEmpty"><span>📋</span><strong>No requests yet</strong><p>Submit the form to record a college pilot interest.</p></div> : <div className="collegeRequestList">{requests.map(item => <article key={item.id} className="collegeRequest"><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "received" ? "Interest received" : item.status}</span><small>{new Date(item.createdAt).toLocaleString()}</small><p>{item.workflows.join(" · ")}</p></article>)}</div>}
+        {loading ? <p>Loading your requests…</p> : requests.length === 0 ? <div className="collegeEmpty"><span>📋</span><strong>No requests yet</strong><p>Submit the form to record a school or college pilot interest.</p></div> : <div className="collegeRequestList">{requests.map(item => <article key={item.id} className="collegeRequest"><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "received" ? "Interest received" : item.status}</span><small>{new Date(item.createdAt).toLocaleString()}</small><p>{item.workflows.join(" · ")}</p></article>)}</div>}
       </section>
     </div>}
     {error && <p className="collegeAlert error" role="alert">{error}</p>}{message && <p className="collegeAlert" role="status">{message}</p>}
