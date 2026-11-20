@@ -118,9 +118,19 @@ export default function InstitutionModules({ institutionId }) {
   async function saveResult(e){e.preventDefault();await run(()=>api(`/api/institutions/${encodeURIComponent(institutionId)}/assessments/${encodeURIComponent(resultForm.assessmentId)}/results/${encodeURIComponent(resultForm.studentUserId)}`,{method:"PUT",body:JSON.stringify({marksObtained:Number(resultForm.marksObtained)})}),"Student result saved.");}
 
   if(!institutionId)return <section className="panel"><h3>Institution modules</h3><p>Select an active institution administrator membership to manage its modules.</p></section>;
-  return <section className="panel institutionModules">
-    <div className="eyebrow dark">INSTITUTION OPERATIONS</div>
-    <h2>{tab==="Overview"?"Institution Management":moduleCards.find(item=>item.key===tab)?.title||"Institution module"}</h2>
+  const navGroups = [
+    { title:"ACADEMIC", items:[["Academics","Academics"],["Examinations","Examinations"],["Calendar","Academic Calendar"],["Library","Library"],["Reports","Reports & Exports"]] },
+    { title:"ADMINISTRATION", items:[["Students","Student Management"],["Staff","Staff Management"],["HR","HR & Staff Operations"],["Finance","Finance & Fees"],["Queue","Service Queue"],["Grievances","Grievances & Helpdesk"],["Certificates","Certificates"]] }
+  ];
+  return <section className="panel institutionModules institutionDashboardShell">
+    <div className="eyebrow dark">SECUREID · SCHOOL MANAGEMENT</div>
+    <h2>{tab==="Overview"?"School Dashboard":moduleCards.find(item=>item.key===tab)?.title||"Institution module"}</h2>
+    <div className="institutionWorkspaceLayout">
+      <aside className="institutionSidebar" aria-label="School management navigation">
+        <button type="button" className={tab==="Overview"?"active":""} onClick={()=>setTab("Overview")}><span>▦</span> Dashboard</button>
+        {navGroups.map(group=><div className="institutionNavGroup" key={group.title}><small>{group.title}</small>{group.items.map(([key,label])=><button type="button" key={key} className={tab===key?"active":""} onClick={()=>{setMessage("");setError("");setTab(key);}}><span>{key==="Academics"?"▤":key==="Examinations"?"✎":key==="Calendar"?"▦":key==="Library"?"▣":key==="Reports"?"▥":key==="Students"?"♙":key==="Staff"?"♧":key==="HR"?"◷":key==="Finance"?"₹":key==="Queue"?"◉":key==="Grievances"?"☏":"▧"}</span>{label}</button>)}</div>)}
+      </aside>
+      <main className="institutionWorkspaceMain">
     {tab==="Overview"&&<>
       <p className="lead">Each department has its own workspace. The figures below are shared institution-wide summaries; open a module to manage its records separately.</p>
       {overview&&<div className="collegeValueGrid institutionAdminOverview">
@@ -129,13 +139,7 @@ export default function InstitutionModules({ institutionId }) {
         <article className="panel"><h3>Courses</h3><p>{overview.courses}</p></article>
         <article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
       </div>}
-      <div className="institutionModuleLauncherGrid" aria-label="Separate institution workspaces">
-        {moduleCards.map(item=><button key={item.key} type="button" className="institutionModuleLauncher" onClick={()=>{setMessage("");setError("");setTab(item.key);}}>
-          <span className="institutionModuleLauncherIcon" aria-hidden="true"><SecureIcon name={item.icon} size={23} /></span>
-          <span className="institutionModuleLauncherCopy"><strong>{item.title}</strong><small>{item.description}</small></span>
-          <span className="institutionModuleLauncherAction">Open workspace <span aria-hidden="true">→</span></span>
-        </button>)}
-      </div>
+      <div className="institutionDashboardWelcome"><div><strong>Welcome to your school workspace</strong><p>Use the left navigation to manage academic activities, students, staff, fees and school operations. Each section opens in this workspace.</p></div><span>🏫</span></div>
       <p className="collegePrivacyNote">Staff account linking requires an exact matching email and active institution membership; linking does not grant additional permissions. Online fee links require configured Razorpay credentials and are settled only by signed webhooks. All writes remain institution-scoped and audited.</p>
     </>}
     {tab!=="Overview"&&<div className="institutionModuleHeader">
@@ -156,5 +160,7 @@ export default function InstitutionModules({ institutionId }) {
     {tab==="Reports"&&<InstitutionReports institutionId={institutionId}/>}
     {tab==="HR"&&<InstitutionHR institutionId={institutionId} staff={staff}/>}
     {error&&<p className="collegeAlert error" role="alert">{error}</p>}{message&&<p className="collegeAlert" role="status">{message}</p>}
+      </main>
+    </div>
   </section>;
 }
