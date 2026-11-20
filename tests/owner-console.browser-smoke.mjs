@@ -98,7 +98,7 @@ try {
   await page.getByRole("button", { name: "Provision school admin" }).click();
   await page.getByText("Separate school Principal / Institution Admin access provisioned. School operations remain outside the Platform Owner workspace.").waitFor();
 
-  await page.getByText("Principal / Institution Admin").waitFor();
+  await page.getByRole("cell", { name: "Principal / Institution Admin" }).waitFor();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Suspend" }).last().click();
   await page.getByText("Institution membership status updated and audit entry recorded.").waitFor();
