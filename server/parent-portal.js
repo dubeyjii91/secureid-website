@@ -34,8 +34,9 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
 
   function parentLink(req, institutionId, studentUserId) {
     return database.prepare(`SELECT l.id,l.institution_id AS institutionId,l.student_user_id AS studentUserId,
-      u.email AS parentEmail,l.relationship,l.created_at AS linkedAt
+      u.email AS parentEmail,i.name AS institutionName,l.relationship,l.created_at AS linkedAt
       FROM institution_parent_links l JOIN users u ON u.id=l.parent_user_id
+      JOIN institutions i ON i.id=l.institution_id
       WHERE l.institution_id=? AND l.parent_user_id=? AND l.student_user_id=? AND l.status='active'`)
       .get(institutionId, req.user.id, studentUserId);
   }
@@ -110,7 +111,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const student=database.prepare(`SELECT u.id FROM users u JOIN institution_memberships m ON m.user_id=u.id
         WHERE u.id=? AND m.institution_id=? AND m.role='student' AND m.status='active'`).get(studentUserId,institutionId);
       if(!student) return fail(res,404,"Active student membership was not found.");
-      const parent=database.prepare("SELECT id FROM users WHERE lower(email)=?").get(parentEmail);
+      const parent=database.prepare("SELECT u.id FROM users u JOIN email_verification_state ev ON ev.user_id=u.id AND ev.verified_at IS NOT NULL WHERE lower(u.email)=?").get(parentEmail);
       if(!parent) return fail(res,404,"The parent must create and verify a SecureID account before the school can link it.","PARENT_ACCOUNT_NOT_FOUND");
       if(parent.id===studentUserId) return fail(res,400,"A student account cannot be linked as its own parent.");
       const timestamp=new Date().toISOString(),linkId=id();
