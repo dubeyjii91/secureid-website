@@ -107,7 +107,7 @@ export default function CollegeWorkspace() {
         body: JSON.stringify({ institutionId: selectedInstitutionId, documentId: selectedDocumentId, purpose: submissionPurpose, consent })
       });
       setConsent(false);
-      setMessage("Your document reference was submitted to the selected college. The institution receives document metadata only in this workflow; file access is not granted.");
+      setMessage("Your document reference was submitted to the selected school / college. The institution receives document metadata only in this workflow; file access is not granted.");
       await loadRequests();
     } catch (err) {
       setError(err.message || "Document submission could not be created.");
@@ -176,7 +176,7 @@ export default function CollegeWorkspace() {
     {isInstitutionAdminWorkspace && <section className="collegeValueGrid institutionAdminOverview" aria-label="Institution administration overview">
       <article className="panel"><span className="collegeStep">01</span><h3>Institution access</h3><p>{institutionNames.length ? institutionNames.join(" · ") : "Your assigned institution"}</p><small>{activeMembershipCount} active membership{activeMembershipCount === 1 ? "" : "s"} on this account</small></article>
       <article className="panel"><span className="collegeStep">02</span><h3>Student review queue</h3><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? "" : "s"} currently visible to your institution role.</p><small>Review decisions are audited</small></article>
-      <article className="panel"><span className="collegeStep">03</span><h3>Institution modules</h3><p>Hostel Management and Scholarship Management</p><small>Access is role- and subscription-controlled</small></article>
+      <article className="panel"><span className="collegeStep">03</span><h3>School management modules</h3><p>Students, staff, classes, attendance, fees, exams, timetable, homework, notices, library, certificates and reports.</p><small>Access is role- and subscription-controlled</small></article>
     </section>}
     {!isInstitutionAdminWorkspace && !hasActiveWarden && <div className="collegeValueGrid collegeIntroGrid">
       <article className="panel"><span className="collegeStep">01</span><h3>Student onboarding</h3><p>Students manage their own SecureID profile and documents, then choose what to submit.</p><small>Explicit consent · Student-controlled</small></article>
@@ -184,15 +184,15 @@ export default function CollegeWorkspace() {
       <article className="panel"><span className="collegeStep">03</span><h3>Institution controls</h3><p>Memberships are provisioned by a trusted SecureID operator and protected by MFA.</p><small>No public self-assigned roles</small></article>
     </div>}
     <section className="panel collegeMembershipPanel" aria-labelledby="college-membership-heading">
-      <div className="eyebrow dark">INSTITUTION ACCESS</div><h2 id="college-membership-heading">Your college memberships</h2>
+      <div className="eyebrow dark">INSTITUTION ACCESS</div><h2 id="college-membership-heading">Your school / college memberships</h2>
       {loading ? <p>Checking your institution access…</p> : memberships.length === 0
         ? <p className="lead">No institution membership is assigned to this account yet. Access is provisioned by a trusted SecureID operator; you cannot grant yourself staff or administrator permissions.</p>
         : <div className="collegeRequestList">{memberships.map(item => <article className="collegeRequest" key={item.institutionId}><strong>{item.institutionName}</strong><span className="collegeStatus">{item.status === "active" ? "Active membership" : "Membership suspended"}</span><small>Role: {item.role.replaceAll("_", " ")} · Joined {new Date(item.joinedAt).toLocaleDateString()}</small></article>)}</div>}
     </section>
 
     {activeStudents.length > 0 && <section className="panel collegeReviewPanel">
-      <div className="eyebrow dark">STUDENT DOCUMENT SUBMISSION</div><h2>Submit a document for college review</h2>
-      <p className="lead">Choose a document already in your SecureID Vault. Your college receives its name, category and submission purpose for tracking. This endpoint does not grant staff permission to download or view the encrypted file.</p>
+      <div className="eyebrow dark">STUDENT DOCUMENT SUBMISSION</div><h2>Submit a document for school / college review</h2>
+      <p className="lead">Choose a document already in your SecureID Vault. Your school / college receives its name, category and submission purpose for tracking. This endpoint does not grant staff permission to download or view the encrypted file.</p>
       <form className="collegeSubmissionForm" onSubmit={submitDocument}>
         <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)} required><option value="">Choose institution…</option>{activeStudents.map(item => <option key={item.institutionId} value={item.institutionId}>{item.institutionName}</option>)}</select><button type="button" className="secondary" disabled={!selectedInstitutionId || saving} onClick={() => setSelectedInstitutionId("")}>Clear selection</button></label>
         <label>Document from your vault<select value={selectedDocumentId} onChange={event => setSelectedDocumentId(event.target.value)} required><option value="">Choose a document</option>{documents.map(doc => <option key={doc.id} value={doc.id}>{doc.name} · {doc.category}</option>)}</select><button type="button" className="secondary" disabled={!selectedDocumentId || saving} onClick={() => setSelectedDocumentId("")}>Clear selection</button></label>
