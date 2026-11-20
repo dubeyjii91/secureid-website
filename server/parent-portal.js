@@ -84,6 +84,17 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
     } catch(error) { next(error); }
   });
 
+  app.get("/api/institutions/:institutionId/parent-links", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId=textValue(req.params.institutionId,128),member=getInstitutionMembership(req.user.id,institutionId);
+      if(!member||member.status!=="active"||member.role!=="institution_admin") return fail(res,403,"Only the institution administrator can view parent links.");
+      const rows=database.prepare(`SELECT l.parent_user_id AS parentUserId,p.email AS parentEmail,l.student_user_id AS studentUserId,s.email AS studentEmail,l.relationship,l.created_at AS linkedAt
+        FROM institution_parent_links l JOIN users p ON p.id=l.parent_user_id JOIN users s ON s.id=l.student_user_id
+        WHERE l.institution_id=? AND l.status='active' ORDER BY l.created_at DESC LIMIT 500`).all(institutionId);
+      res.setHeader("Cache-Control","private, no-store");res.json({success:true,links:rows});
+    } catch(error){next(error);}
+  });
+
   app.post("/api/institutions/:institutionId/parent-links", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
     try {
       const institutionId=textValue(req.params.institutionId,128);
