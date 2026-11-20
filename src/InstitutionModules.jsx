@@ -144,6 +144,13 @@ export default function InstitutionModules({ institutionId }) {
         <article className="panel"><h3>Fees collected</h3><p>{money(overview.collectedPaise)}</p></article>
       </div>}
       <div className="institutionDashboardWelcome"><div><strong>Welcome to your school workspace</strong><p>Use the left navigation to manage academic activities, students, staff, fees and school operations. Each section opens in this workspace.</p></div><span>🏫</span></div>
+      <div className="institutionModuleLauncherGrid" aria-label="School management modules">
+        {moduleCards.map(item=><button type="button" className="institutionModuleLauncher" key={item.key} onClick={()=>{setMessage("");setError("");setTab(item.key);}}>
+          <span className="institutionModuleLauncherIcon"><SecureIcon name={item.icon} size={23}/></span>
+          <span className="institutionModuleLauncherCopy"><strong>{item.title}</strong><small>{item.description}</small></span>
+          <span className="institutionModuleLauncherAction">Open <span aria-hidden="true">→</span></span>
+        </button>)}
+      </div>
       <p className="collegePrivacyNote">Staff account linking requires an exact matching email and active institution membership; linking does not grant additional permissions. Online fee links require configured Razorpay credentials and are settled only by signed webhooks. All writes remain institution-scoped and audited.</p>
     </>}
     {tab!=="Overview"&&<div className="institutionModuleHeader">
