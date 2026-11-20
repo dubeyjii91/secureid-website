@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   brandMark: { width: 62, height: 62, borderRadius: 19, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginBottom: 14 },
   brand: { color: colors.text, fontSize: 27, fontWeight: "900" },
   eyebrow: { color: colors.accent, fontSize: 9, letterSpacing: 1.6, fontWeight: "800", marginTop: 5, marginBottom: 30 },
-  title: { color: colors.text, fontSize: 28, lineHeight: 35, fontWeight: "850", letterSpacing: -0.6 },
+  title: { color: colors.text, fontSize: 28, lineHeight: 35, fontWeight: "800", letterSpacing: -0.6 },
   subtitle: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: 12, marginBottom: 27 },
   sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: "800", flex: 1, marginTop: 22, marginBottom: 12 },
