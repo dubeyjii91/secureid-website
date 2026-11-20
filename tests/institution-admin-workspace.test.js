@@ -11,7 +11,7 @@ test("Institution Admin receives a dedicated, institution-scoped dashboard", () 
   assert.match(workspace, /isInstitutionAdminWorkspace/);
   assert.match(workspace, /Institution Admin Dashboard/);
   assert.match(workspace, /Student review queue/);
-  assert.match(workspace, /Hostel Management and Scholarship Management/);
+  assert.match(workspace, /School management modules/);
   assert.match(workspace, /Platform-wide account provisioning, role grants, subscription changes and owner security controls remain restricted to the SecureID Owner/);
 });
 
