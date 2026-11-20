@@ -10,8 +10,8 @@ const forgot = await readFile(new URL("../mobile/app/forgot-password.tsx", impor
 test("native registration uses the server registration endpoint with CSRF bootstrap", () => {
   assert.match(api, /async function unauthenticatedPost/);
   assert.match(api, /X-CSRF-Token/);
-  assert.match(api, /const cookieName = "__Host-secureid\\.csrf"/);
-  assert.match(api, /Cookie: `\\$\\{cookieName\\}=/);
+  assert.match(api, /const cookieName = "__Host-secureid\.csrf"/);
+  assert.match(api, /Cookie: `\$\{cookieName\}=/);
   assert.match(api, /registerAccount\(email: string, password: string\)/);
   assert.match(api, /"\/api\/auth\/register"/);
 });
