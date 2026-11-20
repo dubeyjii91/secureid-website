@@ -108,7 +108,7 @@ export function registerInstitutionSchoolPosts({ app, database, requireAuth, req
       const postId = id(), timestamp = now();
       database.prepare(`INSERT INTO institution_school_posts
         (id,institution_id,post_type,title,subject,class_label,body,due_at,audience,status,created_by,updated_by,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,'published',?,?,?,?,?)`)
+        VALUES(?,?,?,?,?,?,?,?,?,'published',?,?,?,?)`)
         .run(postId,institutionId,type,post.title,post.subject||null,post.classLabel||null,post.body,post.dueAt,post.audience,req.user.id,req.user.id,timestamp,timestamp);
       audit(institutionId, postId, req.user.id, type + "_created");
       res.setHeader("Cache-Control", "private, no-store");
