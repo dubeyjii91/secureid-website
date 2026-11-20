@@ -78,7 +78,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
         FROM institution_assessment_results r JOIN institution_assessments a ON a.id=r.assessment_id
         JOIN institution_courses c ON c.id=a.course_id
         WHERE r.institution_id=? AND r.student_user_id=? ORDER BY a.exam_date DESC LIMIT 100`).all(institutionId,studentUserId) : [];
-      const homework=hasInstitutionFeature(institutionId,"homework") ? database.prepare("SELECT id,title,subject,class_label AS classLabel,body,due_at AS dueAt,created_at AS createdAt FROM institution_school_posts WHERE institution_id=? AND post_type='homework' AND status='published' AND audience IN ('all','students') ORDER BY created_at DESC LIMIT 50").all(institutionId) : [];
+      const homework=hasInstitutionFeature(institutionId,"homework") ? database.prepare("SELECT id,title,subject,class_label AS classLabel,body,due_at AS dueAt,created_at AS createdAt FROM institution_school_posts WHERE institution_id=? AND post_type='homework' AND status='published' AND audience IN ('all','students') AND (class_label IS NULL OR class_label='' OR class_label=(SELECT p.program FROM institution_student_profiles p WHERE p.institution_id=? AND p.user_id=?)) ORDER BY created_at DESC LIMIT 50").all(institutionId,institutionId,studentUserId) : [];
       database.prepare("INSERT INTO institution_parent_portal_audit(id,institution_id,actor_user_id,parent_user_id,student_user_id,action,created_at) VALUES(?,?,?,?,?,'parent_child_records_viewed',?)")
         .run(id(),institutionId,req.user.id,req.user.id,studentUserId,new Date().toISOString());
       res.setHeader("Cache-Control","private, no-store");
