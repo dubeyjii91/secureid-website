@@ -65,6 +65,13 @@ The privacy notice remains a draft. The service operator must supply and verify:
 
 Do not invent these values or publish the draft with placeholders. A technical code change cannot replace legal review or the operator's factual confirmation.
 
+### Production runtime observation — 2026-11-20
+
+- Railway runtime logs show repeated container starts during 17–20 November while the service is configured to sleep when idle. The sampled log window contains 107 deploy entries; it does not include a reliable application-ready event for measuring exact cold-start duration.
+- At `2026-11-20T12:21:16Z`, the backup trigger request returned HTTP 200 after proxy-level upstream connection-refused retries during container wake-up. The subsequent encrypted-backup download returned HTTP 200 at `12:21:19Z`.
+- The sampled 211 HTTP log entries contain one HTTP 500: `POST /api/institutions/hostel-rooms` at `2026-11-18T12:49:28Z`. This matches the duplicate-room SQLite conflict reported in the production runbook and targeted by draft PR #208. The sampled window contains no later HTTP 500, but PR #208 remains undeployed, so the bug must not be marked fixed in production.
+- These observations confirm transient wake-up connection retries and the historical duplicate-room failure. They do not establish an uptime percentage, exact cold-start SLO, or successful post-fix production behavior. Continue monitoring and verify after an approved deployment.
+
 ## Scale and security gates
 
 - Keep one API replica while SQLite and process-local rate limits are in use.
