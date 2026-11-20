@@ -35,6 +35,8 @@ jobs:
             { path: "/manifest.webmanifest", type: "manifest-json" },
             { path: "/service-worker.js", type: "javascript" },
             { path: "/secureid-app-icon.svg", type: "image/svg+xml" },
+            { path: "/about.html", type: "text/html", expectedText: "Your important documents." },
+            { path: "/sitemap.xml", type: "xml", expectedText: "about.html" },
             { path: "/delete-account.html", type: "text/html", expectedText: "Delete your SecureID account" },
             { path: "/play-store-feature-graphic.svg", type: "image/svg+xml", expectedText: "Your documents." },
             { path: "/api/health", type: "json" },
