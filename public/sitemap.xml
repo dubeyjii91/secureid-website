@@ -4,6 +4,9 @@
     <loc>https://secureid-production-b732.up.railway.app/</loc>
   </url>
   <url>
+    <loc>https://secureid-production-b732.up.railway.app/about.html</loc>
+  </url>
+  <url>
     <loc>https://secureid-production-b732.up.railway.app/delete-account.html</loc>
   </url>
 </urlset>
