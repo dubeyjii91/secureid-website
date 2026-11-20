@@ -75,7 +75,6 @@ export default function OwnerAdminDashboard() {
   const [subscriptionEndsAt, setSubscriptionEndsAt] = useState("");
   const [institutionError, setInstitutionError] = useState("");
   const [institutionBusy, setInstitutionBusy] = useState(false);
-  const [institutionAudit, setInstitutionAudit] = useState({});
 
 
 
@@ -312,7 +311,7 @@ export default function OwnerAdminDashboard() {
       setInstitutionName("");
       await load();
       setSelectedInstitutionId(result.institution.id);
-      setNotice("Institution created. Provision staff and student memberships explicitly.");
+      setNotice("Institution created. Next, provision the separate school Principal / Institution Admin account.");
     } catch (e) {
       setInstitutionError(e?.message || "Institution could not be created.");
     } finally { setInstitutionBusy(false); }
@@ -352,29 +351,7 @@ export default function OwnerAdminDashboard() {
     } finally { setInstitutionBusy(false); }
   }
 
-  async function loadInstitutionAudit(institutionId) {
-    setInstitutionError("");
-    try {
-      const result = await api("/api/admin/institutions/" + encodeURIComponent(institutionId) + "/audit", { cache: "no-store" });
-      setInstitutionAudit(current => ({ ...current, [institutionId]: result.audit || [] }));
-    } catch (e) {
-      setInstitutionError(e?.message || "Institution audit history could not be loaded.");
-    }
-  }
 
-  async function updateWardenRole(membership, action) {
-    if (institutionBusy) return;
-    setInstitutionBusy(true); setInstitutionError(""); setNotice("");
-    try {
-      await api("/api/admin/institutions/" + encodeURIComponent(membership.institutionId) + "/membership-roles", {
-        method: "POST", body: JSON.stringify({ userId: membership.userId, role: "warden", action })
-      });
-      await load();
-      setNotice(action === "grant" ? "Warden role granted and recorded." : "Warden role revoked and recorded.");
-    } catch (e) {
-      setInstitutionError(e?.message || "Warden role could not be updated.");
-    } finally { setInstitutionBusy(false); }
-  }
 
   async function updateMembership(membership, status) {
     if (institutionBusy || !window.confirm((status === "suspended" ? "Suspend " : "Reactivate ") + membership.email + " in this institution?")) return;
@@ -500,14 +477,14 @@ export default function OwnerAdminDashboard() {
       {institutions.length > 0 && <>
         <p className="collegePrivacyNote">Choose the verified SecureID account belonging to the school Principal or authorized Institution Admin. The Platform Owner account is intentionally excluded from school operations.</p>
         <form className="collegeProvisionForm" onSubmit={provisionMembership}>
-          <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}><option value="">Choose institution…</option>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" className="secondary" disabled={institutionBusy || !selectedInstitutionId} onClick={() => { setSelectedInstitutionId(""); setInstitutionAudit({}); }}>Clear selection</button></label>
+          <label>Institution<select value={selectedInstitutionId} onChange={event => setSelectedInstitutionId(event.target.value)}><option value="">Choose institution…</option>{institutions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" className="secondary" disabled={institutionBusy || !selectedInstitutionId} onClick={() => setSelectedInstitutionId("")}>Clear selection</button></label>
           <label>SecureID account<select value={selectedMemberUserId} onChange={event => setSelectedMemberUserId(event.target.value)}><option value="">Choose account…</option>{users.filter(user => user.role !== "owner").map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select><button type="button" className="secondary clearFieldButton" onClick={() => setSelectedMemberUserId("")} disabled={!selectedMemberUserId}>Clear selection</button></label>
           <p className="collegePrivacyNote">Access level: School Principal / Institution Admin only. The school administrator manages teachers, students, fees, attendance and all daily operations.</p>
           <button className="primary" type="submit" disabled={institutionBusy || !selectedMemberUserId}>Provision school admin</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => setSelectedMemberUserId("")}>Clear selection</button>
         </form>
         <form className="collegeSubscriptionForm" onSubmit={saveInstitutionSubscription}>
           <strong>Institution subscription & feature access</strong>
-          <p className="collegePrivacyNote">Subscription controls enabled modules only. It never grants Student, Warden, Reviewer or Institution Admin permissions.</p>
+          <p className="collegePrivacyNote">Subscription controls only manage sponsored modules and dates. They do not grant anyone an operational role.</p>
           <div className="collegeSubscriptionFields">
             <label>Plan key<input value={subscriptionPlan} maxLength={40} onChange={event => setSubscriptionPlan(event.target.value)} required /><button type="button" className="secondary" onClick={() => setSubscriptionPlan("")} disabled={!subscriptionPlan}>Clear value</button></label>
             <label>Subscription status<select value={subscriptionStatus} onChange={event => setSubscriptionStatus(event.target.value)}><option value="">Clear / choose status</option><option value="pilot">Pilot</option><option value="active">Active</option><option value="past_due">Past due</option><option value="suspended">Suspended</option><option value="expired">Expired</option></select></label>
@@ -523,15 +500,10 @@ export default function OwnerAdminDashboard() {
           </div>
           <div className="collegeSubscriptionActions"><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSubscriptionPlan(""); setSubscriptionStartsAt(""); setSubscriptionEndsAt(""); setSubscriptionFeatures([]); setSubscriptionStatus(""); }}>Clear values</button><button className="secondary" type="button" disabled={institutionBusy} onClick={() => { setSubscriptionPlan("pilot"); setSubscriptionStatus("pilot"); setSubscriptionFeatures(["hostel","scholarship","student_submissions","academics","students","staff","finance","admissions","homework","notices","library","calendar","examinations","timetable","reports","hr","certificates","grievances","queue"]); setSubscriptionStartsAt(""); setSubscriptionEndsAt(""); }}>Reset defaults</button><button className="secondary" type="submit" disabled={institutionBusy || !selectedInstitutionId || !subscriptionPlan.trim() || !subscriptionStatus}>Save subscription entitlements</button></div>
         </form>
-        <div className="collegeInstitutionAuditActions">
-          <button type="button" className="secondary" disabled={!selectedInstitutionId} onClick={() => loadInstitutionAudit(selectedInstitutionId)}>View selected institution audit</button>
-          {institutionAudit[selectedInstitutionId] && <small>{institutionAudit[selectedInstitutionId].length} recent audit events</small>}
-        </div>
-        {institutionAudit[selectedInstitutionId] && <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:"8px"}}>Time</th><th style={{padding:"8px"}}>Action</th><th style={{padding:"8px"}}>Account</th><th style={{padding:"8px"}}>Role / status</th></tr></thead><tbody>{institutionAudit[selectedInstitutionId].map((event,index)=><tr key={index}><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{formatDate(event.createdAt)}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.action.replaceAll("_"," ")}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.targetEmail}</td><td style={{padding:"8px",borderTop:"1px solid var(--border,#ddd)"}}>{event.fromRole || "—"} → {event.toRole || "—"} · {event.fromStatus || "—"} → {event.toStatus || "—"}</td></tr>)}</tbody></table></div>}
-        <div className="collegeInstitutionTableWrap"><table className="collegeInstitutionTable"><thead><tr><th>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>Role</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.filter(member => member.role === "institution_admin").map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{"Principal / Institution Admin"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status === "active" && <button className="secondary" disabled={institutionBusy} onClick={() => updateWardenRole(member,member.role === "warden" ? "revoke" : "grant")}>{member.role === "warden" ? "Revoke Warden" : "Grant Warden"}</button>} <button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
+        <div className="collegeInstitutionTableWrap"><table className="collegeInstitutionTable"><thead><tr><th>Institution</th><th style={{padding:"10px 8px"}}>Account</th><th style={{padding:"10px 8px"}}>School access</th><th style={{padding:"10px 8px"}}>Status</th><th style={{padding:"10px 8px"}}>Action</th></tr></thead><tbody>{institutionMemberships.filter(member => member.role === "institution_admin").map(member => <tr key={member.id}><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{institutions.find(item => item.id === member.institutionId)?.name || member.institutionId}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.email}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{"Principal / Institution Admin"}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}>{member.status}</td><td style={{padding:"10px 8px",borderTop:"1px solid var(--border,#ddd)"}}><button className="primary" disabled={institutionBusy} onClick={() => updateMembership(member,member.status === "active" ? "suspended" : "active")}>{member.status === "active" ? "Suspend" : "Reactivate"}</button></td></tr>)}</tbody></table></div>
       </>}
       {institutions.length === 0 && <p>No institutions have been provisioned yet.</p>}
-      <small>Never provision a student or staff role based only on an unverified email or college name. Membership does not itself authorize document downloads.</small>
+      <small>Student and staff onboarding, school records and daily operations are managed by the institution Principal/Admin, not by the Platform Owner.</small>
     </div>
     <InstitutionPartnershipPanel />
     <OwnerTestInstitutionCleanup />
