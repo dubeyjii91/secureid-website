@@ -4,7 +4,7 @@ const id = () => crypto.randomUUID();
 const textValue = (value, max = 160) => String(value ?? "").trim().slice(0, max);
 const fail = (res, status, message, code) => res.status(status).json({ success: false, message, ...(code ? { code } : {}) });
 
-export function registerParentPortal({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership }) {
+export function registerParentPortal({ app, database, requireAuth, requireMfaProduction, enforceSameOrigin, getInstitutionMembership, hasInstitutionFeature }) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_parent_links (
       id TEXT PRIMARY KEY,
@@ -77,10 +77,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
         FROM institution_assessment_results r JOIN institution_assessments a ON a.id=r.assessment_id
         JOIN institution_courses c ON c.id=a.course_id
         WHERE r.institution_id=? AND r.student_user_id=? ORDER BY a.exam_date DESC LIMIT 100`).all(institutionId,studentUserId);
-      const homework=database.prepare(`SELECT id,title,body,type,created_at AS createdAt
-        FROM institution_school_posts WHERE institution_id=? AND type='homework'
-        AND (target_student_user_id IS NULL OR target_student_user_id=?)
-        ORDER BY created_at DESC LIMIT 50`).all(institutionId,studentUserId);
+      const homework=hasInstitutionFeature(institutionId,"homework") ? database.prepare("SELECT id,title,subject,class_label AS classLabel,body,due_at AS dueAt,created_at AS createdAt FROM institution_school_posts WHERE institution_id=? AND post_type='homework' AND status='published' AND audience IN ('all','students') ORDER BY created_at DESC LIMIT 50").all(institutionId) : [];
       res.setHeader("Cache-Control","private, no-store");
       res.json({success:true,child:{...student,institutionName:link.institutionName||"",relationship:link.relationship},
         attendance,invoices,results,homework});
