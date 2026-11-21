@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const productionFeatures = await readFile(
   new URL("../server/production-features.js", import.meta.url),
   "utf8",
-);
+)).replace(/\r\n/g, "\n");
 
 function routeBlock(source, route, nextRoute) {
   const start = source.indexOf(route);
