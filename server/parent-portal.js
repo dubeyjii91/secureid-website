@@ -65,6 +65,9 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const institutionId=textValue(req.query.institutionId,128);
       const link=parentLink(req,institutionId,studentUserId);
       if(!link) return fail(res,404,"This child is not linked to your parent account.","PARENT_LINK_NOT_FOUND");
+      const activeStudent=database.prepare(`SELECT 1 FROM institution_memberships
+        WHERE institution_id=? AND user_id=? AND role='student' AND status='active'`).get(institutionId,studentUserId);
+      if(!activeStudent) return fail(res,404,"This child is not an active student at this institution.","PARENT_LINK_NOT_FOUND");
       const student=hasInstitutionFeature(institutionId,"student_management") ? database.prepare(`SELECT u.email,p.student_number AS studentNumber,p.program,p.academic_year AS academicYear
         FROM users u LEFT JOIN institution_student_profiles p ON p.user_id=u.id AND p.institution_id=? WHERE u.id=?`).get(institutionId,studentUserId) : null;
       const attendance=hasInstitutionFeature(institutionId,"academics") ? database.prepare(`SELECT a.attendance_date AS date,a.status,c.title AS subject
@@ -94,6 +97,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Parent-link management requires the institution's student-management subscription feature.","FEATURE_NOT_ENTITLED");
       const rows=database.prepare(`SELECT l.parent_user_id AS parentUserId,p.email AS parentEmail,l.student_user_id AS studentUserId,s.email AS studentEmail,l.relationship,l.created_at AS linkedAt
         FROM institution_parent_links l JOIN users p ON p.id=l.parent_user_id JOIN users s ON s.id=l.student_user_id
+        JOIN institution_memberships m ON m.institution_id=l.institution_id AND m.user_id=l.student_user_id AND m.role='student' AND m.status='active'
         WHERE l.institution_id=? AND l.status='active' ORDER BY l.created_at DESC LIMIT 500`).all(institutionId);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,links:rows});
     } catch(error){next(error);}
@@ -110,8 +114,9 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       const studentUserId=textValue(req.body?.studentUserId,128);
       const relationship=textValue(req.body?.relationship||"guardian",40);
       const consentConfirmed=req.body?.consentConfirmed===true;
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail) || !studentUserId || !consentConfirmed)
-        return fail(res,400,"Enter a valid parent account email, student and confirm guardian authorization.");
+      const allowedRelationships=new Set(["guardian","mother","father","other_guardian"]);
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail) || !studentUserId || !consentConfirmed || !allowedRelationships.has(relationship))
+        return fail(res,400,"Enter a valid parent account email, student, supported relationship and confirm guardian authorization.");
       const student=database.prepare(`SELECT u.id FROM users u JOIN institution_memberships m ON m.user_id=u.id
         WHERE u.id=? AND m.institution_id=? AND m.role='student' AND m.status='active'`).get(studentUserId,institutionId);
       if(!student) return fail(res,404,"Active student membership was not found.");
