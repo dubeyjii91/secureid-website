@@ -1,6 +1,6 @@
 # SecureID founder pilot-readiness checklist
 
-Last evidence review: 2026-11-21
+Last evidence review: 2026-11-21 (updated after the 2026-11-21 Parent Portal release and isolated off-site restore)
 
 This checklist separates verified engineering evidence from operator decisions and external proof. A checked item means the specific evidence exists; it does not imply that the whole product is certified or ready for a public launch.
 
@@ -11,14 +11,14 @@ Status: **Partially verified — latest release deployed; cold-start and externa
 - [x] Production homepage and health/readiness endpoints returned HTTP 200 in the 2026-11-19 production smoke.
 - [x] Unauthenticated smoke requests to protected API endpoints were rejected.
 - [x] Duplicate hostel-room conflict fix and regression assertion from PR #208 were merged on 2026-11-20 (merge commit `4ba22e09cb9fbe21747f9fc27da4c69608e904d0`).
-- [x] The fix is included in the current Railway production release at commit `2c4d948ae8f159ff65bae055145dbd32c1acc3f4`.
+- [x] Parent Portal active-membership authorization fix from PR #221 was merged as `ec4c93e7578c0958f3f00b21a4e8d60f53c62191` and Railway production deployment `1aba807d-bf79-4d94-bef6-999c6e8e73c0` reached SUCCESS on 2026-11-21; Railway reported 1/1 replica running and zero recent failures at verification time.
 - [ ] Re-test duplicate room creation against the deployed version using an authorized synthetic institution account; CI coverage is not a substitute for production acceptance.
 - [ ] Investigate Railway wake-up retries/connection-refused events and measure cold-start behavior.
 - [ ] Establish external uptime and error alerts with a verified recipient.
 
 ## 2. Backup and document recovery
 
-Status: **Off-site encrypted upload verified; restore not verified**
+Status: **Off-site artifact integrity, AES-GCM decryption and isolated database restore verified; document recovery remains unproven**
 
 - [x] Private backup-vault repository is configured.
 - [x] Seven scheduled exports (13–19 November) completed successfully.
@@ -39,7 +39,7 @@ Status: **Automated evidence good; operational and independent checks remain**
 
 - [x] SecureID CI on PR #208 passed 178 security/unit tests, build/lint, dependency audit, Trivy, CodeQL and isolated backup/document round-trip smoke.
 - [x] Documentation PR #209 CI also passed on 19 November: build, lint, dependency audit, Trivy, 178 tests, mobile TypeScript, CodeQL, owner-console browser smoke, and visual appearance smoke.
-- [x] Owner-console browser smoke and visual appearance smoke passed on PR #208 and PR #209.
+- [x] Owner-console browser smoke passed on the 2026-11-21 Parent Portal release commit `ec4c93e`; build/lint, dependency audit, Trivy, unit tests, mobile TypeScript, native authentication bootstrap smoke and isolated backup/restore smoke also passed. CodeQL was still running at the time this checklist update was prepared.
 - [ ] Reduce the current 88 non-blocking lint warnings (0 lint errors) and review deprecated transitive npm dependencies; avoid broad refactors without targeted tests.
 - [ ] Perform authenticated manual acceptance tests with synthetic accounts for registration, email verification, MFA, logout/session revocation, document ownership, share expiry/revocation and account deletion.
 - [ ] Verify alert delivery end-to-end and missed-backup alerting.
@@ -52,7 +52,7 @@ Status: **Automated evidence good; operational and independent checks remain**
 Status: **Blocked on operator facts and qualified review**
 
 - [x] A privacy notice engineering draft exists and is explicitly marked not for publication.
-- [x] Draft now describes the known private encrypted artifact workflow and clearly discloses that off-site restore has not yet been proven.
+- [x] Draft describes the private encrypted artifact workflow and accurately distinguishes successful isolated database restore from the still-unproven recovery of an active document blob.
 - [ ] Supply the legal operator/controller name and jurisdiction.
 - [ ] Supply a monitored privacy/support contact and the canonical public domain.
 - [ ] Confirm data categories, purposes, lawful basis/consent flow, retention, deletion, backup expiry and provider contracts/processing locations.
@@ -113,6 +113,6 @@ Status: **Scale plan and pilot preparation; no expansion approval**
 
 ## Current release decision
 
-**No broad public launch recommendation yet.** The immediate technical blockers are the unproven restore from the actual off-site artifact (including a synthetic document), Railway wake-up reliability, and remaining authenticated acceptance tests. Privacy/legal sign-off and verified institution permission are separate operator gates.
+**No broad public launch recommendation yet.** The immediate technical blockers are recovery of a synthetic document from an artifact containing an active document blob, Railway wake-up reliability, and remaining authenticated acceptance tests. Privacy/legal sign-off and verified institution permission are separate operator gates.
 
 Production merges, deployments, secrets, Railway variables, production data, paid services and public app-store releases require the project owner's explicit approval.
