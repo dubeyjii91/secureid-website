@@ -22,6 +22,7 @@ import "./secureid-atmosphere.css";
 import "./secureid-accessibility-contrast.css";
 import "./secureid-professional-spacing.css";
 import "./secureid-workspace-layout.css";
+import "./secureid-auth-responsive.css";
 const defaultShare = { name: true, age: false, dateOfBirth: false, identityId: false, verificationStatus: false, email: false, phone: false, address: false, college: false, studentId: false, governmentId: false };
 const defaultWallet = { risk: 18, locked: false, shareData: defaultShare };
 const shareClaimLabels = { name: "Name", age: "Age", dateOfBirth: "Date of birth", address: "Address", email: "Email", phone: "Phone number", identityId: "Identity ID", college: "College / institution", studentId: "Student ID", governmentId: "Government ID", verificationStatus: "Verification status" };
