@@ -37,6 +37,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       u.email AS parentEmail,i.name AS institutionName,l.relationship,l.created_at AS linkedAt
       FROM institution_parent_links l JOIN users u ON u.id=l.parent_user_id
       JOIN institutions i ON i.id=l.institution_id
+      JOIN institution_memberships m ON m.institution_id=l.institution_id AND m.user_id=l.student_user_id AND m.role='student' AND m.status='active'
       WHERE l.institution_id=? AND l.parent_user_id=? AND l.student_user_id=? AND l.status='active'`)
       .get(institutionId, req.user.id, studentUserId);
   }
@@ -94,6 +95,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       if(!hasInstitutionFeature(institutionId,"student_management")) return fail(res,403,"Parent-link management requires the institution's student-management subscription feature.","FEATURE_NOT_ENTITLED");
       const rows=database.prepare(`SELECT l.parent_user_id AS parentUserId,p.email AS parentEmail,l.student_user_id AS studentUserId,s.email AS studentEmail,l.relationship,l.created_at AS linkedAt
         FROM institution_parent_links l JOIN users p ON p.id=l.parent_user_id JOIN users s ON s.id=l.student_user_id
+        JOIN institution_memberships m ON m.institution_id=l.institution_id AND m.user_id=l.student_user_id AND m.role='student' AND m.status='active'
         WHERE l.institution_id=? AND l.status='active' ORDER BY l.created_at DESC LIMIT 500`).all(institutionId);
       res.setHeader("Cache-Control","private, no-store");res.json({success:true,links:rows});
     } catch(error){next(error);}
