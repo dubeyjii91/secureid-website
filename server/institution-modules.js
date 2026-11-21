@@ -10,6 +10,23 @@ export function registerInstitutionModules({
   app, database, requireAuth, requireMfaProduction, enforceSameOrigin,
   getInstitutionMembership, hasInstitutionFeature
 }) {
+  // Preserve older pilot attendance data while replacing an incompatible legacy shape.
+  const existingStaffAttendance = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='institution_staff_attendance'"
+  ).get();
+  if (existingStaffAttendance) {
+    const columns = database.prepare("PRAGMA table_info(institution_staff_attendance)").all();
+    const required = ["institution_id", "session_id", "user_id", "challenge_id", "checked_in_at"];
+    if (required.some(name => !columns.some(column => column.name === name))) {
+      let legacyTable = "institution_staff_attendance_legacy";
+      let suffix = 1;
+      while (database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(legacyTable)) {
+        legacyTable = `institution_staff_attendance_legacy_${suffix++}`;
+      }
+      database.exec(`ALTER TABLE institution_staff_attendance RENAME TO ${legacyTable}`);
+    }
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_student_profiles (
       institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
