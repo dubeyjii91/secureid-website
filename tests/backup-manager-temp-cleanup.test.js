@@ -29,7 +29,12 @@ test("encrypted backup always removes its plaintext snapshot directory", () => {
 
     const backup = runEncryptedBackup();
     assert.equal(backup.success, true);
-    assert.equal(statSync(backup.file).mode & 0o777, 0o600);
+    // Windows exposes ACL-backed permissions, not POSIX mode bits through stat().
+    if (process.platform !== "win32") {
+      assert.equal(statSync(backup.file).mode & 0o777, 0o600);
+    } else {
+      assert.equal(statSync(backup.file).isFile(), true);
+    }
     assert.equal(readdirSync(backupDir).some((name) => name.startsWith(".secureid-snapshot-")), false,
       "successful backup must not leave a plaintext snapshot directory");
 
