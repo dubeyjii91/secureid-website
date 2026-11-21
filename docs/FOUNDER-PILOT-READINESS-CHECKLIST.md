@@ -24,10 +24,10 @@ Status: **Off-site artifact integrity, AES-GCM decryption and isolated database 
 - [x] Seven scheduled exports (13–19 November) completed successfully.
 - [x] Latest encrypted artifact and SHA-256 evidence are recorded in the production operations runbook.
 - [x] Independently downloaded the latest private-vault artifact on 20 November; ZIP integrity passed and the extracted encrypted-file SHA-256 matched its manifest.
-- [ ] Complete actual AES-GCM decryption and isolated restore from that artifact; verify a synthetic document can be read.
+- [x] Complete AES-GCM decryption and isolated database restore of the downloaded off-site artifact; SQLite integrity passed and 112 tables were restored.
+- [ ] Recover and read a synthetic active document from a backup artifact that actually contains an active document record and blob; the inspected artifact contained five deleted records, zero active records and zero matching files.
 - [ ] Resolve the configured-vs-observed schedule timing discrepancy.
-- [ ] Restore the actual GitHub artifact in a disposable isolated environment using the approved key-recovery process.
-- [ ] Test decryption and reading of a synthetic document after restore.
+- [x] Restore the actual downloaded off-site artifact in a disposable isolated environment using the approved key-recovery process.
 - [ ] Investigate why the 2026-11-19 production restore drill contained zero document records and zero document blobs; do not infer that user data was lost or recovered without evidence.
 - [ ] Record recovery-point and recovery-time objectives, key custodian, retention and expiry process.
 
@@ -41,7 +41,7 @@ Status: **Automated evidence good; operational and independent checks remain**
 - [x] Documentation PR #209 CI also passed on 19 November: build, lint, dependency audit, Trivy, 178 tests, mobile TypeScript, CodeQL, owner-console browser smoke, and visual appearance smoke.
 - [x] Owner-console browser smoke passed on the 2026-11-21 Parent Portal release commit `ec4c93e`; build/lint, dependency audit, Trivy, unit tests, mobile TypeScript, native authentication bootstrap smoke and isolated backup/restore smoke also passed. CodeQL was still running at the time this checklist update was prepared.
 - [ ] Reduce the current 88 non-blocking lint warnings (0 lint errors) and review deprecated transitive npm dependencies; avoid broad refactors without targeted tests.
-- [ ] Perform authenticated manual acceptance tests with synthetic accounts for registration, email verification, MFA, logout/session revocation, document ownership, share expiry/revocation and account deletion.
+- [ ] Complete remaining authenticated acceptance coverage for registration, email verification, session revocation, document ownership, share expiry/revocation and account deletion; the user-confirmed Android device flow is recorded separately below.
 - [ ] Verify alert delivery end-to-end and missed-backup alerting.
 - [ ] Review privacy-minimized production logs and monitor 5xx/cold-start rates.
 - [ ] Commission an independent security/penetration test before broad public onboarding.
@@ -76,14 +76,14 @@ Status: **Manual evidence required**
 
 ## 6. Native mobile integration
 
-Status: **Backend integration exists in code; full device acceptance remains unverified**
+Status: **Backend integration and owner-reported physical-device core flow verified; file-cleanup and fresh-build checks remain**
 
 - [x] Mobile API client targets the current SecureID Railway API.
 - [x] Mobile TypeScript check passed in PR #209 CI.
 - [x] Native sign-in obtains a native session token and stores it in Android secure storage.
 - [x] Mobile client includes session, MFA, identity profile, document upload/download/delete, sharing and security/session API calls.
 - [x] Mobile screens use the API client for the Vault and Secure Sharing flows.
-- [ ] Run a full physical-device acceptance test with a synthetic account: sign in, receive/verify MFA, upload, list, download, share, revoke, logout and re-login.
+- [x] Owner confirmed physical-device acceptance with a synthetic account: sign in, receive/verify MFA, upload, list, download, share, revoke, logout and re-login.
 - [ ] Verify plaintext temporary-file cleanup and behavior after interrupted downloads.
 - [ ] Complete a fresh internal Android build and test the exact build against production without using real identity documents. EAS preview APK, OTA, and production AAB steps were skipped in the documentation PR CI; no new mobile artifact was created.
 - [ ] Do not publish an APK/AAB or claim store readiness until the owner explicitly approves release preparation.
@@ -113,6 +113,6 @@ Status: **Scale plan and pilot preparation; no expansion approval**
 
 ## Current release decision
 
-**No broad public launch recommendation yet.** The immediate technical blockers are recovery of a synthetic document from an artifact containing an active document blob, Railway wake-up reliability, and remaining authenticated acceptance tests. Privacy/legal sign-off and verified institution permission are separate operator gates.
+**No broad public launch recommendation yet.** The immediate technical blockers are recovery of a synthetic document from an artifact containing an active document blob, Railway wake-up reliability, remaining authenticated acceptance coverage, and a fresh internal Android build. Privacy/legal sign-off and verified institution permission are separate operator gates.
 
 Production merges, deployments, secrets, Railway variables, production data, paid services and public app-store releases require the project owner's explicit approval.
