@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import QRCode from "qrcode";
 
 const id = () => crypto.randomUUID();
 const iso = () => new Date().toISOString();
@@ -110,6 +111,39 @@ export function registerInstitutionModules({
     );
     CREATE INDEX IF NOT EXISTS idx_inst_invoice_student ON institution_fee_invoices(institution_id,student_user_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_inst_attendance_course_date ON institution_attendance(institution_id,course_id,attendance_date);
+    CREATE TABLE IF NOT EXISTS institution_attendance_sessions (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closed')),
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      closed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_inst_attendance_sessions_institution
+      ON institution_attendance_sessions(institution_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS institution_attendance_qr_challenges (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES institution_attendance_sessions(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_inst_attendance_qr_session
+      ON institution_attendance_qr_challenges(session_id,expires_at);
+    CREATE TABLE IF NOT EXISTS institution_staff_attendance (
+      id TEXT PRIMARY KEY,
+      institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL REFERENCES institution_attendance_sessions(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      challenge_id TEXT NOT NULL REFERENCES institution_attendance_qr_challenges(id),
+      checked_in_at TEXT NOT NULL,
+      UNIQUE(session_id,user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_inst_staff_attendance_user
+      ON institution_staff_attendance(institution_id,user_id,checked_in_at DESC);
     CREATE TABLE IF NOT EXISTS institution_assessments (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -469,6 +503,170 @@ export function registerInstitutionModules({
       audit(institutionId,req.user.id,"attendance_recorded","attendance",saved?.id||attendanceId,{courseId,studentUserId,date,status});
       res.status(201).json({success:true});
     }catch(error){next(error);}
+  });
+
+  // Staff attendance uses a short-lived server-issued QR challenge. The native app
+  // accepts scans only from its live camera preview; the server rejects expired,
+  // rotated, cross-institution, unentitled and duplicate check-ins.
+  const attendanceStaffRoles = ["institution_admin", "reviewer", "warden"];
+  const attendanceManagerRoles = attendanceStaffRoles;
+  function attendanceMembership(req, res, institutionId, roles = attendanceStaffRoles) {
+    if (!hasInstitutionFeature(institutionId, "academics")) {
+      fail(res, 403, "Staff attendance is not enabled for this institution.", "FEATURE_NOT_ENTITLED");
+      return null;
+    }
+    const member = getInstitutionMembership(req.user.id, institutionId);
+    if (!member || member.status !== "active" || !roles.includes(member.role)) {
+      fail(res, 403, "Active institution staff access is required for attendance.");
+      return null;
+    }
+    return member;
+  }
+
+  app.post("/api/institutions/:institutionId/attendance/sessions", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceManagerRoles)) return;
+      const title = safeText(req.body?.title,100);
+      if (title.length < 2) return fail(res,400,"Enter an attendance session name between 2 and 100 characters.");
+      const sessionId = id(), now = Date.now();
+      const createdAt = new Date(now).toISOString(), expiresAt = new Date(now + 12 * 60 * 60 * 1000).toISOString();
+      const recentStartCount = database.prepare("SELECT COUNT(*) AS count FROM institution_attendance_sessions WHERE created_by=? AND created_at>=?")
+        .get(req.user.id,new Date(now - 60 * 60 * 1000).toISOString()).count;
+      if (Number(recentStartCount) >= 20) return fail(res,429,"Too many attendance sessions were started recently. Try again later.","ATTENDANCE_SESSION_RATE_LIMIT");
+      database.prepare("INSERT INTO institution_attendance_sessions(id,institution_id,title,status,created_by,created_at,expires_at) VALUES(?,?,?,'open',?,?,?)")
+        .run(sessionId,institutionId,title,req.user.id,createdAt,expiresAt);
+      audit(institutionId,req.user.id,"staff_attendance_session_started","attendance_session",sessionId,{title});
+      res.setHeader("Cache-Control","private, no-store");
+      res.status(201).json({success:true,session:{id:sessionId,title,status:"open",createdAt,expiresAt}});
+    } catch(error) { next(error); }
+  });
+
+  app.get("/api/institutions/:institutionId/attendance/sessions", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceManagerRoles)) return;
+      const now = iso();
+      database.prepare("UPDATE institution_attendance_sessions SET status='closed',closed_at=expires_at WHERE institution_id=? AND status='open' AND expires_at<=?")
+        .run(institutionId,now);
+      const sessions = database.prepare(`
+        SELECT s.id,s.title,s.status,s.created_at AS createdAt,s.expires_at AS expiresAt,s.closed_at AS closedAt,
+          COUNT(a.id) AS checkInCount
+        FROM institution_attendance_sessions s
+        LEFT JOIN institution_staff_attendance a ON a.session_id=s.id
+        WHERE s.institution_id=?
+        GROUP BY s.id
+        ORDER BY s.created_at DESC LIMIT 50
+      `).all(institutionId);
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,sessions});
+    } catch(error) { next(error); }
+  });
+
+  app.post("/api/institutions/:institutionId/attendance/sessions/:sessionId/qr", enforceSameOrigin, requireAuth, requireMfaProduction, async (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128), sessionId = safeText(req.params.sessionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceManagerRoles)) return;
+      const session = database.prepare("SELECT id,title,status,expires_at AS expiresAt FROM institution_attendance_sessions WHERE id=? AND institution_id=?").get(sessionId,institutionId);
+      const now = Date.now();
+      if (!session || session.status !== "open" || Date.parse(session.expiresAt) <= now) return fail(res,404,"This attendance session is no longer open.");
+      const latestChallenge = database.prepare("SELECT created_at AS createdAt FROM institution_attendance_qr_challenges WHERE session_id=? ORDER BY created_at DESC LIMIT 1").get(sessionId);
+      if (latestChallenge && now - Date.parse(latestChallenge.createdAt) < 8_000) return fail(res,429,"Wait for the current QR refresh interval before requesting another code.","ATTENDANCE_QR_RATE_LIMIT");
+      const token = crypto.randomBytes(32).toString("base64url");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const challengeId = id(), createdAt = new Date(now).toISOString(), expiresAt = new Date(now + 20_000).toISOString();
+      const cleanupBefore = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      database.prepare(`DELETE FROM institution_attendance_qr_challenges
+        WHERE session_id=? AND expires_at<? AND id NOT IN (
+          SELECT challenge_id FROM institution_staff_attendance
+        )`).run(sessionId,cleanupBefore);
+      database.prepare("UPDATE institution_attendance_qr_challenges SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL")
+        .run(createdAt,sessionId);
+      database.prepare("INSERT INTO institution_attendance_qr_challenges(id,session_id,token_hash,created_at,expires_at) VALUES(?,?,?,?,?)")
+        .run(challengeId,sessionId,tokenHash,createdAt,expiresAt);
+      const qrValue = `secureid://attendance/${token}`;
+      const qrCodeDataUrl = await QRCode.toDataURL(qrValue,{errorCorrectionLevel:"M",margin:2,width:640,color:{dark:"#071323",light:"#FFFFFF"}});
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,challenge:{qrValue,qrCodeDataUrl,expiresAt,sessionTitle:session.title}});
+    } catch(error) { next(error); }
+  });
+
+  app.post("/api/institutions/attendance/check-in", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const qrValue = String(req.body?.qrValue || "");
+      const match = /^secureid:\/\/attendance\/([A-Za-z0-9_-]{40,64})$/.exec(qrValue);
+      if (!match) return fail(res,400,"This is not a valid SecureID live attendance QR.","INVALID_ATTENDANCE_QR");
+      const tokenHash = crypto.createHash("sha256").update(match[1]).digest("hex"), now = Date.now();
+      const challenge = database.prepare(`
+        SELECT c.id AS challengeId,c.expires_at AS challengeExpiresAt,s.id AS sessionId,s.institution_id AS institutionId,
+          s.title,s.status AS sessionStatus,s.expires_at AS sessionExpiresAt
+        FROM institution_attendance_qr_challenges c
+        JOIN institution_attendance_sessions s ON s.id=c.session_id
+        WHERE c.token_hash=? AND c.revoked_at IS NULL
+      `).get(tokenHash);
+      if (!challenge || Date.parse(challenge.challengeExpiresAt) <= now || challenge.sessionStatus !== "open" || Date.parse(challenge.sessionExpiresAt) <= now) {
+        return fail(res,410,"This attendance QR has expired or rotated. Scan the current code.","ATTENDANCE_QR_EXPIRED");
+      }
+      if (!attendanceMembership(req,res,challenge.institutionId,attendanceStaffRoles)) return;
+      const existing = database.prepare("SELECT checked_in_at AS checkedInAt FROM institution_staff_attendance WHERE session_id=? AND user_id=?")
+        .get(challenge.sessionId,req.user.id);
+      if (existing) return fail(res,409,"Attendance is already recorded for this session.","ATTENDANCE_ALREADY_RECORDED");
+      const checkedInAt = new Date(now).toISOString(), attendanceId = id();
+      database.prepare("INSERT INTO institution_staff_attendance(id,institution_id,session_id,user_id,challenge_id,checked_in_at) VALUES(?,?,?,?,?,?)")
+        .run(attendanceId,challenge.institutionId,challenge.sessionId,req.user.id,challenge.challengeId,checkedInAt);
+      audit(challenge.institutionId,req.user.id,"staff_attendance_checked_in","staff_attendance",attendanceId,{sessionId:challenge.sessionId});
+      res.setHeader("Cache-Control","private, no-store");
+      return res.status(201).json({success:true,attendance:{id:attendanceId,sessionId:challenge.sessionId,sessionTitle:challenge.title,checkedInAt}});
+    } catch(error) {
+      if (String(error?.code || "").includes("CONSTRAINT")) return fail(res,409,"Attendance is already recorded for this session.","ATTENDANCE_ALREADY_RECORDED");
+      next(error);
+    }
+  });
+
+  app.get("/api/institutions/:institutionId/attendance/my", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceStaffRoles)) return;
+      const attendance = database.prepare(`
+        SELECT a.id,a.checked_in_at AS checkedInAt,s.id AS sessionId,s.title AS sessionTitle
+        FROM institution_staff_attendance a JOIN institution_attendance_sessions s ON s.id=a.session_id
+        WHERE a.institution_id=? AND a.user_id=? ORDER BY a.checked_in_at DESC LIMIT 100
+      `).all(institutionId,req.user.id);
+      res.setHeader("Cache-Control","private, no-store");
+      res.json({success:true,attendance});
+    } catch(error) { next(error); }
+  });
+
+  app.get("/api/institutions/:institutionId/attendance/sessions/:sessionId/records", requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128), sessionId = safeText(req.params.sessionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceManagerRoles)) return;
+      const session = database.prepare("SELECT id FROM institution_attendance_sessions WHERE id=? AND institution_id=?").get(sessionId,institutionId);
+      if (!session) return fail(res,404,"Attendance session was not found.");
+      const records = database.prepare(`
+        SELECT a.user_id AS userId,u.email,a.checked_in_at AS checkedInAt
+        FROM institution_staff_attendance a JOIN users u ON u.id=a.user_id
+        WHERE a.session_id=? AND a.institution_id=? ORDER BY a.checked_in_at
+      `).all(sessionId,institutionId);
+      res.setHeader("Cache-Control","private, no-store");
+      return res.json({success:true,records});
+    } catch(error) { next(error); }
+  });
+
+  app.post("/api/institutions/:institutionId/attendance/sessions/:sessionId/close", enforceSameOrigin, requireAuth, requireMfaProduction, (req,res,next) => {
+    try {
+      const institutionId = safeText(req.params.institutionId,128), sessionId = safeText(req.params.sessionId,128);
+      if (!attendanceMembership(req,res,institutionId,attendanceManagerRoles)) return;
+      const session = database.prepare("SELECT id,status FROM institution_attendance_sessions WHERE id=? AND institution_id=?").get(sessionId,institutionId);
+      if (!session) return fail(res,404,"Attendance session was not found.");
+      if (session.status === "open") {
+        const now = iso();
+        database.prepare("UPDATE institution_attendance_sessions SET status='closed',closed_at=? WHERE id=? AND institution_id=?").run(now,sessionId,institutionId);
+        database.prepare("UPDATE institution_attendance_qr_challenges SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL").run(now,sessionId);
+        audit(institutionId,req.user.id,"staff_attendance_session_closed","attendance_session",sessionId);
+      }
+      return res.json({success:true,status:"closed"});
+    } catch(error) { next(error); }
   });
 
   app.get("/api/institutions/:institutionId/finance", requireAuth, requireMfaProduction, (req,res,next) => {

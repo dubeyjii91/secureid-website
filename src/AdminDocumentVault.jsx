@@ -84,7 +84,7 @@ export default function AdminDocumentVault() {
     }
   }
 
-  return <div className="content">
+  return <div className="documentAdminWorkspace">
     <section className="panel">
       <div className="sectionHeading">
         <div><div className="eyebrow">RESTRICTED OWNER ACCESS</div><h2>All user documents</h2></div>

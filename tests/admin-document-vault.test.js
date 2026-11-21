@@ -42,7 +42,7 @@ test("listing and download failures create error audit events", () => {
 });
 
 test("owner-only navigation exposes the admin document vault", () => {
-  assert.ok(app.includes('import AdminDocumentVault from "./AdminDocumentVault.jsx"'));
+  assert.ok(app.includes('const AdminDocumentVault = lazy(() => import("./AdminDocumentVault.jsx"))'));
   assert.ok(app.includes('["admin-documents", "All user documents", "files"]'));
   assert.ok(app.includes('className="navIcon"><SecureIcon name={icon} size={18} />'));
   assert.ok(app.includes('page === "admin-documents" && sessionRole === "owner"'));
@@ -50,6 +50,15 @@ test("owner-only navigation exposes the admin document vault", () => {
   assert.ok(ui.includes("/api/admin/documents/"));
 });
 
+test("personal and owner document workspaces use the full available page width", () => {
+  const styles = readFileSync(new URL("../src/secureid-workspace-layout.css", import.meta.url), "utf8");
+  assert.match(app, /page === "admin-documents" && sessionRole === "owner" && <section className="content documentWorkspace">/);
+  assert.match(app, /page === "documents" && <section className="content documentWorkspace">/);
+  assert.match(ui, /return <div className="documentAdminWorkspace">/);
+  assert.match(styles, /#root \.documentWorkspace\s*\{[^}]*max-width:\s*none/s);
+  assert.match(styles, /#root \.documentAdminWorkspace > \.panel\s*\{[^}]*width:\s*100%/s);
+  assert.match(styles, /#root \.documentWorkspace > \.documentVault\s*,\s*#root \.documentAdminWorkspace > \.panel\s*\{[^}]*width:\s*100%/s);
+});
 
 test("admin document pagination has clear spacing and responsive layout", () => {
   const styles = readFileSync(new URL("../src/secureid-layout-fixes.css", import.meta.url), "utf8");
