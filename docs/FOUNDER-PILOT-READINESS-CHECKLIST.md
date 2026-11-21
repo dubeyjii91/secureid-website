@@ -1,18 +1,18 @@
 # SecureID founder pilot-readiness checklist
 
-Last evidence review: 2026-11-20
+Last evidence review: 2026-11-21
 
 This checklist separates verified engineering evidence from operator decisions and external proof. A checked item means the specific evidence exists; it does not imply that the whole product is certified or ready for a public launch.
 
 ## 1. Production reliability
 
-Status: **Partially verified — release fix pending**
+Status: **Partially verified — latest release deployed; cold-start and external monitoring checks remain**
 
 - [x] Production homepage and health/readiness endpoints returned HTTP 200 in the 2026-11-19 production smoke.
 - [x] Unauthenticated smoke requests to protected API endpoints were rejected.
-- [x] Duplicate hostel-room conflict fix and regression assertion are prepared in draft PR #208; all three PR workflows passed.
-- [ ] Merge and deploy PR #208 only after the project owner explicitly approves the production release.
-- [ ] Re-test duplicate room creation on the deployed version.
+- [x] Duplicate hostel-room conflict fix and regression assertion from PR #208 were merged on 2026-11-20 (merge commit `4ba22e09cb9fbe21747f9fc27da4c69608e904d0`).
+- [x] The fix is included in the current Railway production release at commit `2c4d948ae8f159ff65bae055145dbd32c1acc3f4`.
+- [ ] Re-test duplicate room creation against the deployed version using an authorized synthetic institution account; CI coverage is not a substitute for production acceptance.
 - [ ] Investigate Railway wake-up retries/connection-refused events and measure cold-start behavior.
 - [ ] Establish external uptime and error alerts with a verified recipient.
 
@@ -113,6 +113,6 @@ Status: **Scale plan and pilot preparation; no expansion approval**
 
 ## Current release decision
 
-**No broad public launch recommendation yet.** The immediate technical blockers are the undeployed duplicate-room fix, the unproven restore from the actual off-site artifact (including a synthetic document), and Railway wake-up reliability. Privacy/legal sign-off and verified institution permission are separate operator gates.
+**No broad public launch recommendation yet.** The immediate technical blockers are the unproven restore from the actual off-site artifact (including a synthetic document), Railway wake-up reliability, and remaining authenticated acceptance tests. Privacy/legal sign-off and verified institution permission are separate operator gates.
 
 Production merges, deployments, secrets, Railway variables, production data, paid services and public app-store releases require the project owner's explicit approval.

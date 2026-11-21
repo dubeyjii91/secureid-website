@@ -1,6 +1,6 @@
 # SecureID Production Security Test Plan
 
-Last updated: 2026-11-19
+Last updated: 2026-11-21
 
 This is a repeatable release checklist, not a claim that every item has passed. Record evidence for each test and rerun after authentication, storage, sharing, or deployment changes. Use synthetic data and a separate test account. Never use real PAN/Aadhaar values in test fixtures.
 
@@ -31,7 +31,11 @@ A production smoke sequence against `https://secureid-production-b732.up.railway
 
 These checks verify selected public health and negative authorization paths only. They do not replace authenticated end-to-end student acceptance tests, physical-device mobile testing, a penetration test, or a restore from the actual off-site backup artifact. Railway wake-up retries remain a reliability issue to investigate.
 
-PR #208's duplicate-hostel-room fix has passed its build/lint/security CI, owner-console browser smoke, and visual appearance smoke workflows, but remains an unmerged draft and is not deployed to production.
+PR #208's duplicate-hostel-room fix was merged on 2026-11-20 (merge commit `4ba22e09cb9fbe21747f9fc27da4c69608e904d0`) and is included in the current Railway production deployment at commit `2c4d948ae8f159ff65bae055145dbd32c1acc3f4`. The PR reports passing build/lint/security CI, owner-console browser smoke, and visual appearance smoke. Production duplicate-room acceptance using an authorized synthetic institution account remains unchecked.
+
+## Current deployment snapshot — 2026-11-21
+
+Railway reports the production service on branch `main`, commit `2c4d948ae8f159ff65bae055145dbd32c1acc3f4`, with one replica and a live 500 MB persistent volume. The latest deployment is in `SLEEPING` (autosleep) state, with no active warnings/criticals or failed deployments reported in the preceding seven days. This is a platform status snapshot, not a fresh HTTP health check; the public endpoint could not be independently fetched during this review. Investigate cold-start behavior and establish external uptime/error monitoring before broad onboarding. The service uses SQLite and one replica; do not scale horizontally without the documented database and shared-rate-limit migration.
 
 ## 1. Automated checks
 Run on the exact release commit in CI:
