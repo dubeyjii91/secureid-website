@@ -28,7 +28,12 @@ test("encrypted backup restores a consistent SQLite snapshot and verifies integr
     assert.equal(backup.status, 0, backup.stderr || backup.stdout);
     const backupResult = JSON.parse(backup.stdout.trim().split("\n").at(-1));
     assert.equal(backupResult.success, true);
-    assert.equal(statSync(backupResult.file).mode & 0o777, 0o600, "encrypted backup files must be owner-readable/writable only");
+    // Windows reports ACL-backed permissions differently from POSIX stat mode bits.
+    if (process.platform !== "win32") {
+      assert.equal(statSync(backupResult.file).mode & 0o777, 0o600, "encrypted backup files must be owner-readable/writable only");
+    } else {
+      assert.equal(statSync(backupResult.file).isFile(), true);
+    }
 
     const mutate = new DatabaseSync(dbPath);
     mutate.prepare("INSERT INTO probe(value) VALUES (?)").run("after-backup");
