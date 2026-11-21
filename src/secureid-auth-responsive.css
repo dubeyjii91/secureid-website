@@ -1,0 +1,172 @@
+/* Responsive entry experience: desktop gets a true web-app scale while mobile keeps its compact proportions. */
+#root .authShell {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 100svh !important;
+  min-height: 100vh !important;
+  height: 100svh !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  place-items: center !important;
+  align-content: center !important;
+  gap: 0 !important;
+  padding: 88px 40px 40px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+#root .authBrand {
+  position: absolute !important;
+  top: 28px !important;
+  left: clamp(24px, 4vw, 64px) !important;
+  margin: 0 !important;
+  font-size: 20px !important;
+  letter-spacing: -.02em !important;
+}
+#root .authBrand .shield {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 12px !important;
+  font-size: 20px !important;
+}
+#root .authCard {
+  box-sizing: border-box !important;
+  width: min(560px, 100%) !important;
+  max-width: 560px !important;
+  margin: 0 auto !important;
+  padding: clamp(34px, 4vw, 48px) !important;
+  border-radius: 22px !important;
+}
+#root .authCard .eyebrow {
+  font-size: 11px !important;
+  letter-spacing: .13em !important;
+  margin-bottom: 10px !important;
+}
+#root .authCard h1 {
+  font-size: clamp(30px, 2.5vw, 36px) !important;
+  line-height: 1.16 !important;
+  letter-spacing: -.035em !important;
+  margin: 8px 0 12px !important;
+}
+#root .authCard > p {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  max-width: 48ch !important;
+}
+#root .authCard label {
+  gap: 9px !important;
+  margin: 18px 0 !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+#root .authCard input {
+  box-sizing: border-box !important;
+  min-height: 50px !important;
+  padding: 13px 15px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+}
+#root .authTabs {
+  margin: 26px 0 !important;
+  padding: 5px !important;
+  border-radius: 11px !important;
+}
+#root .authTabs button {
+  min-height: 42px !important;
+  padding: 10px 14px !important;
+  font-size: 14px !important;
+}
+#root .authCard .primary,
+#root .authCard button[type="submit"] {
+  min-height: 50px !important;
+  padding: 13px 20px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+}
+#root .authCard small,
+#root .authCard .authMessage,
+#root .authCard .textButton {
+  font-size: 13px !important;
+}
+#root .authShell > .authCard {
+  position: relative !important;
+  z-index: 1 !important;
+}
+@media (min-width: 1100px) {
+  #root .authCard:not(.legalPublic):not(.publicDocumentCard) {
+    width: min(600px, 100%) !important;
+    max-width: 600px !important;
+    padding: 52px 58px !important;
+  }
+}
+@media (max-width: 760px) {
+  #root .authShell {
+    height: auto !important;
+    min-height: 100svh !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: stretch !important;
+    padding: 82px 16px 24px !important;
+    overflow-y: auto !important;
+  }
+  #root .authBrand {
+    position: absolute !important;
+    top: 18px !important;
+    left: 16px !important;
+    font-size: 17px !important;
+  }
+  #root .authBrand .shield {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 17px !important;
+  }
+  #root .authCard {
+    width: 100% !important;
+    max-width: 460px !important;
+    padding: 24px 20px !important;
+    border-radius: 18px !important;
+  }
+  #root .authCard h1 {
+    font-size: 25px !important;
+  }
+  #root .authCard > p {
+    font-size: 13px !important;
+  }
+  #root .authCard label {
+    margin: 14px 0 !important;
+    font-size: 12px !important;
+  }
+  #root .authCard input {
+    min-height: 46px !important;
+    padding: 11px 12px !important;
+    font-size: 16px !important;
+  }
+  #root .authTabs {
+    margin: 20px 0 !important;
+  }
+  #root .authTabs button {
+    min-height: 38px !important;
+    font-size: 12px !important;
+  }
+  #root .authCard .primary,
+  #root .authCard button[type="submit"] {
+    min-height: 46px !important;
+    font-size: 14px !important;
+  }
+}
+@media (max-width: 380px) {
+  #root .authShell { padding-left: 12px !important; padding-right: 12px !important; }
+  #root .authCard { padding: 20px 16px !important; }
+}
+/* The welcome interstitial is a true overlay, never a second page peeking below it. */
+#root .welcomeSplash {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100svh !important;
+  height: 100vh !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  z-index: 1000 !important;
+}
