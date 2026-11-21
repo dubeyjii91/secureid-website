@@ -10,6 +10,11 @@
 #root .content { width: 100%; max-width: 1680px; padding: clamp(24px, 2.4vw, 38px) clamp(22px, 3vw, 52px); }
 #root .content.narrow { width: 100%; max-width: none; margin-inline: 0; }
 #root .content > * + * { margin-top: var(--sid-section-gap); }
+#root .documentWorkspace { width: 100%; max-width: none; }
+#root .documentAdminWorkspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sid-section-gap); width: 100%; min-width: 0; }
+#root .documentWorkspace > .documentVault,
+#root .documentAdminWorkspace > .panel { width: 100%; max-width: none; min-width: 0; }
+#root .documentAdminWorkspace > .panel { margin: 0; }
 #root .panel { min-width: 0; padding: clamp(22px, 2vw, 32px); border-radius: 16px; }
 #root .panelHead { align-items: center; gap: 16px 24px; margin-bottom: 20px; }
 #root .sectionTitle { margin: 34px 0 20px; }

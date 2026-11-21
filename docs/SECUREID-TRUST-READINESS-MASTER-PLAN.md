@@ -1,7 +1,7 @@
 # SecureID trust-readiness master plan
 
-Last audited: 2026-11-19
-Production baseline commit: 0890eb75fb7d5731bd4f043378ef921341fc11b9
+Last audited: 2026-11-21
+Production baseline commit: 4f4beb41a02cb48576b2cf7e2df6e550aacab46d
 Status: implementation roadmap and evidence register; not a launch approval.
 
 This document is deliberately evidence-led. A feature is not marked complete merely because a screen, API route, CI test, or successful deployment exists. Production claims require the relevant runtime, device, security, legal, or operational evidence.
@@ -53,16 +53,23 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 **Current boundary**
 - Upload, storage, user-entered identity details, selective sharing, and on-device image OCR are not proof of authenticity.
 - PR #94 is merged. The mobile release includes opt-in local OCR for JPG/PNG and local expiry reminders. User-confirmed device testing covered English/Hindi OCR previews and expiry reminders.
-- PDF OCR is not implemented. OCR temporary-file cleanup and the no-persistence/no-upload privacy assertion still need explicit evidence.
+- PDF OCR is not implemented. Automated tests now evidence temporary-file cleanup and the no-persistence/no-upload privacy assertion; physical-device checks remain open.
 
 **Required sequence**
-1. Complete OCR privacy/temporary-file tests and unsupported-device/error handling.
+1. Keep OCR privacy/temporary-file tests and unsupported-device/error handling in the release suite.
 2. Keep every OCR result labelled as an unverified extraction; never auto-save extracted fields.
 3. Add institution-issued ID review as a distinct workflow with reviewer identity, evidence, decision, timestamp, and audit history.
 4. Integrate government/third-party verification only after legal authorization, approved provider credentials, contracts, security review, and a real test environment.
 5. Verify provider signatures, TLS, timeout/retry behavior, data minimization, auditability, and failure states before enabling any verified badge.
 
 **Permitted statement today:** SecureID can manage and selectively share user-provided documents and can locally extract text from supported images. It does not currently certify PAN, Aadhaar, passport, certificate, or other government-document authenticity.
+
+### Staff attendance QR — local implementation status
+
+- The native Android/iOS app has a live-camera-only attendance scanner. The attendance screen does not choose or upload QR images from the photo gallery.
+- An active institution administrator, reviewer/teacher, or Warden with MFA can open a staff session, show its QR, rotate/close it, and review check-ins. Active staff can check in once per session. The server scopes each challenge to the institution, stores only its hash, expires it after 20 seconds, invalidates the previous code when rotating, and audits check-ins.
+- Expiry and replay controls reduce misuse; they cannot prove that a live camera is viewing a physical display. Someone could scan a photo of the currently valid code with another device before it expires. Display codes under staff supervision; do not describe attendance as photo-proof.
+- Automated integration tests cover MFA, role and institution isolation, invalid/rotated/expired/duplicate codes, session closure, and audit-backed records. Production release, Android/iOS builds, and physical-device camera permission/scan tests remain open.
 
 ### 4. Can college staff access only what they are allowed to access?
 
@@ -116,11 +123,11 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 ### P1 — institution pilot readiness
 - [ ] Complete a server-side role/permission matrix and endpoint authorization tests.
 - [ ] Complete college onboarding and staff invitation/revocation.
-- [ ] Complete auditable admission and document review workflows.
+- [x] Complete auditable admission and document review workflows.
 - [ ] Connect hostel allocation to approved student records without weakening Warden boundaries.
 - [x] Implement the mobile API client for native sign-in/session, MFA, identity profile, vault upload/download/delete, sharing, and security/session endpoints.
-- [ ] Complete physical-device acceptance tests for login, MFA, vault, upload/download/delete, sharing, revocation, offline/error states, and session expiry.
-- [ ] Complete OCR temporary-file cleanup/no-upload evidence; implement PDF OCR only after a safe local rendering approach is validated.
+- [ ] Complete physical-device acceptance tests for login, MFA, vault, upload/download/delete, sharing, revocation, offline/error states, session expiry, and camera-only attendance QR scanning.
+- [x] Complete OCR temporary-file cleanup/no-upload evidence; implement PDF OCR only after a safe local rendering approach is validated.
 - [ ] Complete notification permission granted/denied tests and native upgrade compatibility.
 
 ### P2 — scale and product expansion
@@ -128,8 +135,10 @@ This document is deliberately evidence-led. A feature is not marked complete mer
 - [ ] Add shared/distributed rate limiting and coordination before horizontal scaling.
 - [ ] Add institution analytics and admission reporting after workflows are stable.
 - [ ] Add a digital identity card/QR only with server-side, auditable verification semantics; a QR code alone is not proof.
-- [ ] Build monetization foundation behind inactive/draft state; do not enable payment collection.
+- [x] Build monetization foundation behind inactive/draft state; do not enable payment collection.
 - [ ] Add document categories, expiry, OCR-assisted field suggestions, and duplicate detection only where they improve the existing Vault; do not create a duplicate vault.
+
+Checklist count for this audit: 25 items total; 5 complete with implementation or local evidence and 20 remain open for production evidence or additional scope.
 
 ## Hard constraints and change controls
 - Preserve existing user documents and existing Vault, Share ID, Share Management, Security Center, and Warden features. Improve and integrate; do not create duplicate modules or remove current capabilities.
@@ -151,5 +160,43 @@ For every completed gate, record:
 - Reviewer/operator:
 - Remaining limitations:
 - Related deployment ID (if deployed):
+
+## Local evidence recorded on 2026-11-21
+
+### P1 — auditable admissions and document review
+- Requirement and test case: `tests/student-admissions.integration.test.js` and `tests/college-pilot.integration.test.js` cover consent, encrypted application storage, duplicate protection, account/institution isolation, decision history, reviewer authorization, audit visibility, and cross-account denials.
+- Environment and commit SHA: local release candidate based on production `4f4beb41a02cb48576b2cf7e2df6e550aacab46d`.
+- CI/manual test link: PR #228; CI and manual institution onboarding evidence must be recorded separately.
+- Synthetic test account/data only: automated in-memory fixtures; no production student records used.
+- Result: local `npm test` passed 193/193 on 2026-11-21; real-institution onboarding remains open.
+- Reviewer/operator: local automated test runner; independent release review is not represented.
+- Related deployment ID: none.
+
+### P1 — OCR temporary-file cleanup and no-upload controls
+- Requirement and test case: `tests/mobile-ocr-privacy.test.js` verifies cache and partial-download cleanup, plaintext deletion on success/failure, image-only opt-in OCR, and no upload/profile persistence of extracted text.
+- Environment and commit SHA: local release candidate based on production `4f4beb41a02cb48576b2cf7e2df6e550aacab46d`.
+- CI/manual test link: PR #228; device error-state checks remain open.
+- Synthetic test account/data only: automated local tests and temporary files; no production account or document used.
+- Result: local `npm test` passed 193/193 on 2026-11-21; PDF OCR remains intentionally unimplemented.
+- Reviewer/operator: local automated test runner; no device test is claimed.
+- Related deployment ID: none.
+
+### P2 — inactive monetization foundation
+- Requirement and test case: `tests/secureid-monetization.integration.test.js` checks Owner/MFA access, idempotent ledger entries, labelled sponsorships, and draft-by-default state.
+- Environment and commit SHA: local release candidate based on production `4f4beb41a02cb48576b2cf7e2df6e550aacab46d`.
+- CI/manual test link: PR #228.
+- Synthetic test account/data only: automated in-memory fixtures; no real payment or sponsor data used.
+- Result: local `npm test` passed 193/193 on 2026-11-21; no payment gateway, live billing, or collection was enabled.
+- Reviewer/operator: local automated test runner.
+- Related deployment ID: none.
+
+### P1 — camera-only attendance QR implementation
+- Requirement and test case: `tests/institution-staff-attendance.integration.test.js` checks MFA/role/institution isolation, short expiry and rotation, duplicate check-ins, session closure, audit events, and that the mobile scanner has no gallery picker.
+- Environment and commit SHA: local release candidate based on production `4f4beb41a02cb48576b2cf7e2df6e550aacab46d`.
+- CI/manual test link: PR #228; Android/iOS physical-device checks are still required.
+- Synthetic test account/data only: automated in-memory institution and user fixtures.
+- Result: local `npm test` passed 193/193 on 2026-11-21; not evidence that the feature is already installed on a published mobile app.
+- Reviewer/operator: local automated test runner; independent release review is not represented.
+- Related deployment ID: none.
 
 A checkbox is complete only when its evidence record exists. A successful build or healthy deployment alone is not proof that the five principal questions have been answered.

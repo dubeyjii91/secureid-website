@@ -1,19 +1,20 @@
 ﻿import "./document-vault.css";
-import DocumentVault from "./DocumentVault.jsx";
-import SecurityActivity from "./SecurityActivity.jsx";
-import SecuritySessions from "./SecuritySessions.jsx";
-import ShareManagement, { IdentityProfileEditor } from "./ShareManagement.jsx";
-import CollegeWorkspace from "./CollegeWorkspace.jsx";
-import ParentPortal from "./ParentPortal.jsx";
-import AccountSecurity from "./AccountSecurity.jsx";
-import SecurityDashboard from "./SecurityDashboard.jsx";
-import OwnerAdminDashboard from "./OwnerAdminDashboard.jsx";
-import AdminDocumentVault from "./AdminDocumentVault.jsx";
-import SecureShareQR from "./SecureShareQR.jsx";
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+const DocumentVault = lazy(() => import("./DocumentVault.jsx"));
+const SecurityActivity = lazy(() => import("./SecurityActivity.jsx"));
+const SecuritySessions = lazy(() => import("./SecuritySessions.jsx"));
+const ShareManagement = lazy(() => import("./ShareManagement.jsx"));
+const IdentityProfileEditor = lazy(() => import("./ShareManagement.jsx").then((module) => ({ default: module.IdentityProfileEditor })));
+const CollegeWorkspace = lazy(() => import("./CollegeWorkspace.jsx"));
+const ParentPortal = lazy(() => import("./ParentPortal.jsx"));
+const AccountSecurity = lazy(() => import("./AccountSecurity.jsx"));
+const SecurityDashboard = lazy(() => import("./SecurityDashboard.jsx"));
+const OwnerAdminDashboard = lazy(() => import("./OwnerAdminDashboard.jsx"));
+const AdminDocumentVault = lazy(() => import("./AdminDocumentVault.jsx"));
+const SecureShareQR = lazy(() => import("./SecureShareQR.jsx"));
 import api from "./api.js";
 import SecureIcon from "./SecureIcon.jsx";
 import "./secureid-font-clean.css";
-import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import "./secureid-redesign.css";
 import "./secureid-polish.css";
@@ -904,10 +905,10 @@ function App() {
       {page === "dashboard" && <SecurityDashboard sessionRole={sessionRole} />}
       {page === "admin" && sessionRole === "owner" && <OwnerAdminDashboard />}
       {page === "admin" && sessionRole !== "owner" && <section className="content"><div className="panel">Owner permissions are required.</div></section>}
-      {page === "admin-documents" && sessionRole === "owner" && <section className="content"><AdminDocumentVault /></section>}
+      {page === "admin-documents" && sessionRole === "owner" && <section className="content documentWorkspace"><AdminDocumentVault /></section>}
       {page === "admin-documents" && sessionRole !== "owner" && <section className="content"><div className="panel">Owner permissions are required.</div></section>}
 
-      {page === "documents" && <section className="content"><DocumentVault /></section>}
+      {page === "documents" && <section className="content documentWorkspace"><DocumentVault /></section>}
 
       {page === "identity" && <section className="content"><div className="functionHero"><div><div className="eyebrow dark">SECUREID SECURITY CENTER</div><h2>Privacy-first identity, protected by design.</h2><p>Keep control of your identity while every important action stays protected.</p></div><FunctionVisual label="SecureID identity protection" /></div><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your identity profile</h2></div><span className="statusBadge success">✓ Account active</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-••••</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><IdentityProfileEditor/><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
 
@@ -965,7 +966,7 @@ class SecureIDErrorBoundary extends Component {
 }
 
 export default function SecureIDApp() {
-  return <SecureIDErrorBoundary><App /></SecureIDErrorBoundary>;
+  return <SecureIDErrorBoundary><Suspense fallback={<div className="loadingPage"><div className="spinner" /><span>Loading SecureID…</span></div>}><App /></Suspense></SecureIDErrorBoundary>;
 }
 
 

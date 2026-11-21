@@ -1,0 +1,195 @@
+/* Shared sizing rules keep feature screens aligned without forcing fixed heights. */
+:root {
+  --sid-control-size: 44px;
+  --sid-card-gap: clamp(12px, 1.5vw, 18px);
+  --sid-card-padding: clamp(16px, 2vw, 24px);
+}
+
+#root,
+#root * {
+  box-sizing: border-box;
+}
+
+#root :where(
+  .panel, .card, .actionCard, .quickAccessCard, .institutionModuleLauncher,
+  .collegeRequest, .documentItem, .claim, .statusCard, .profileCard,
+  .lockPanel, .shareResult, .authCard, .mfaModal, .welcomeCard, .tableWrap
+) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#root :where(.panel, .profilePanel, .statusPanel, .lockPanel) {
+  padding: var(--sid-card-padding);
+}
+
+#root :where(.profileGrid, .dashboardGrid, .actionGrid, .quickAccessGrid, .claimGrid, .formGrid, .collegeRequestList) {
+  min-width: 0;
+  align-items: stretch;
+  gap: var(--sid-card-gap);
+}
+
+#root :where(.profileGrid, .dashboardGrid, .actionGrid, .quickAccessGrid, .claimGrid, .formGrid, .collegeRequestList) > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#root :where(.actionCard, .quickAccessCard, .institutionModuleLauncher) {
+  height: 100%;
+  overflow-wrap: anywhere;
+}
+
+#root :where(label, legend) {
+  min-width: 0;
+  line-height: 1.45;
+}
+
+#root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]),
+#root select,
+#root textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--sid-control-size);
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+#root textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+#root input[type="checkbox"],
+#root input[type="radio"] {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+#root button:not(.navItem):not(.textButton):not(.footerLink):not(.textSizeButton),
+#root a.buttonLike {
+  min-height: 40px;
+  max-width: 100%;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+#root .authShell {
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(24px, 5vh, 48px) clamp(16px, 4vw, 40px);
+  align-content: center;
+}
+
+#root .authCard {
+  width: min(100%, 440px);
+  margin-inline: auto;
+  padding: clamp(22px, 3vw, 30px);
+}
+
+#root .authCard form {
+  gap: 14px;
+}
+
+#root .authBrand {
+  position: fixed;
+  z-index: 2;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 40px);
+  color: #303640 !important;
+  font-weight: 750;
+}
+
+#root .authMessage:empty {
+  display: none;
+}
+
+#root .welcomeSplash {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: clamp(12px, 3vh, 28px);
+}
+
+#root .welcomeCard {
+  width: min(560px, 100%);
+  max-height: calc(100svh - 32px);
+  overflow-y: auto;
+  padding: clamp(18px, 3vw, 28px);
+}
+
+#root .tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+#root .tableWrap table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+#root :where(.panel, .card, .actionCard, .quickAccessCard, .institutionModuleLauncher) h2,
+#root :where(.panel, .card, .actionCard, .quickAccessCard, .institutionModuleLauncher) h3,
+#root :where(.panel, .card, .actionCard, .quickAccessCard, .institutionModuleLauncher) p,
+#root :where(.panel, .card, .actionCard, .quickAccessCard, .institutionModuleLauncher) small {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  #root :where(.profileGrid, .dashboardGrid, .actionGrid, .collegeRequestList) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #root :where(.panel, .profilePanel, .statusPanel, .lockPanel) {
+    padding: 16px;
+  }
+
+  #root .authShell {
+    padding: 24px 16px;
+  }
+
+  #root .authCard {
+    padding: 22px 18px;
+  }
+
+  #root .authBrand {
+    position: static;
+    margin: 0 auto 18px;
+  }
+
+  #root .welcomeCard {
+    max-height: calc(100svh - 24px);
+    padding: 18px 16px;
+  }
+
+  #root .tableWrap table {
+    min-width: 520px;
+  }
+}
+
+@media (max-width: 420px) {
+  #root :where(.panel, .profilePanel, .statusPanel, .lockPanel) {
+    padding: 14px;
+  }
+
+  #root .authCard {
+    padding: 20px 16px;
+  }
+
+  #root .formActions > button,
+  #root .collegeReviewButtons > button {
+    flex: 1 1 100%;
+  }
+}

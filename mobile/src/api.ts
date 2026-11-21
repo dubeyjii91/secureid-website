@@ -8,6 +8,9 @@ const CLIENT_HEADER = "X-SecureID-Client";
 
 type ApiError = Error & { status?: number; payload?: any };
 export type SessionUser = { email: string; mfaVerified: boolean; trustedDevice?: boolean };
+export type InstitutionMembership = { institutionId: string; institutionName: string; role: string; baseRole?: string; status: string };
+export type StaffAttendanceSession = { id: string; title: string; status: "open" | "closed"; createdAt: string; expiresAt: string; closedAt?: string | null; checkInCount?: number };
+export type StaffAttendanceRecord = { id: string; sessionId: string; sessionTitle: string; checkedInAt: string; userId?: string; email?: string };
 export type DocumentRecord = { id: string; name: string; mimeType: string; sizeBytes: number; category?: string; expiryDate?: string | null; createdAt: number | string };
 export type ShareRecord = { id: string; type: "identity" | "document"; name?: string; contextLabel?: string; createdAt: string; expiresAt: string; revokedAt?: string | null; accessCount?: number };
 
@@ -122,6 +125,50 @@ export async function verifyMfa(code: string, challengeId: string, trustDevice =
 
 export async function getSession() {
   return request<{ success: boolean; user: SessionUser; wallet: any }>("/api/auth/session");
+}
+
+export async function listInstitutionMemberships() {
+  return request<{ success: boolean; memberships: InstitutionMembership[] }>("/api/institutions/memberships");
+}
+
+export async function startAttendanceSession(institutionId: string, title: string) {
+  return request<{ success: boolean; session: StaffAttendanceSession }>(`/api/institutions/${encodeURIComponent(institutionId)}/attendance/sessions`, {
+    method: "POST", body: JSON.stringify({ title }),
+  });
+}
+
+export async function getAttendanceSessions(institutionId: string) {
+  return request<{ success: boolean; sessions: StaffAttendanceSession[] }>(`/api/institutions/${encodeURIComponent(institutionId)}/attendance/sessions`);
+}
+
+export async function rotateAttendanceQr(institutionId: string, sessionId: string) {
+  return request<{ success: boolean; challenge: { qrValue: string; qrCodeDataUrl: string; expiresAt: string; sessionTitle: string } }>(
+    `/api/institutions/${encodeURIComponent(institutionId)}/attendance/sessions/${encodeURIComponent(sessionId)}/qr`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export async function checkInWithAttendanceQr(qrValue: string) {
+  return request<{ success: boolean; attendance: StaffAttendanceRecord }>("/api/institutions/attendance/check-in", {
+    method: "POST", body: JSON.stringify({ qrValue }),
+  });
+}
+
+export async function listMyStaffAttendance(institutionId: string) {
+  return request<{ success: boolean; attendance: StaffAttendanceRecord[] }>(`/api/institutions/${encodeURIComponent(institutionId)}/attendance/my`);
+}
+
+export async function getAttendanceRecords(institutionId: string, sessionId: string) {
+  return request<{ success: boolean; records: StaffAttendanceRecord[] }>(
+    `/api/institutions/${encodeURIComponent(institutionId)}/attendance/sessions/${encodeURIComponent(sessionId)}/records`,
+  );
+}
+
+export async function closeAttendanceSession(institutionId: string, sessionId: string) {
+  return request<{ success: boolean; status: "closed" }>(
+    `/api/institutions/${encodeURIComponent(institutionId)}/attendance/sessions/${encodeURIComponent(sessionId)}/close`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
 }
 
 export async function signOut() {

@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -29,10 +30,17 @@
     "expo-sharing": "~14.0.8",
     "expo-notifications": "~0.32.17",
     "expo-updates": "~29.0.20",
-    "expo-ai-kit": "~0.18.2"
+    "expo-ai-kit": "~0.18.2",
+    "expo-camera": "~17.0.8"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "patch-package": "^8.0.1"
+  },
+  "overrides": {
+    "decode-uri-component": "0.5.1",
+    "image-size": "2.0.3",
+    "postcss": "8.5.33"
   }
 }

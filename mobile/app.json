@@ -33,6 +33,14 @@
         }
       ],
       "expo-document-picker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SecureID uses the camera to scan live attendance QR codes.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-font",
       "expo-notifications",
       "expo-updates",

@@ -55,7 +55,7 @@ export default function DashboardScreen() {
   if (authChecking) {
     return <SafeAreaView style={styles.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><Ionicons name="shield-checkmark" size={34} color={colors.accent}/><Text style={{color:colors.muted,marginTop:12}}>Connecting securely…</Text></View></SafeAreaView>;
   }
-  const tabs: { label: string; icon: IconName; route: "/" | "/vault" | "/share" | "/security" }[] = [
+  const tabs: { label: string; icon: IconName; route: "/" | "/vault" | "/share" | "/security" | "/attendance" }[] = [
     { label: "Home", icon: "grid-outline", route: "/" },
     { label: "Vault", icon: "folder-outline", route: "/vault" },
     { label: "Share", icon: "share-social-outline", route: "/share" },
@@ -93,6 +93,7 @@ export default function DashboardScreen() {
         </View>
         <ActionCard icon="folder-open-outline" title="Document vault" description="Your private document space" onPress={() => router.push("/vault")} />
         <ActionCard icon="id-card-outline" title="Identity profile" description="Manage your identity details" onPress={() => router.push("/identity")} />
+        <ActionCard icon="scan-outline" title="Staff attendance" description="Start a session or scan a live QR code" onPress={() => router.push("/attendance")} />
         <ActionCard icon="share-social-outline" title="Secure sharing" description="Share only the details you select" onPress={() => router.push("/share")} />
         <ActionCard icon="shield-checkmark-outline" title="Security center" description="Account and device protection" onPress={() => router.push("/security")} />
         <ActionCard icon="information-circle-outline" title="About SecureID" description="Product information, features and account help" onPress={() => router.push("/about")} />
