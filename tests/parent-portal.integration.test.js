@@ -100,3 +100,24 @@ test("institution admin can revoke a parent link and access stops immediately",a
   response=await request("parent-a","/api/parent-portal/children/student-a?institutionId=school");
   assert.equal(response.status,404);
 });
+
+test("suspended students disappear from parent access and unsupported relationships are rejected",async t=>{
+  const {db,request}=await setup(t);
+  let response=await request("admin","/api/institutions/school/parent-links",{method:"POST",body:JSON.stringify({parentEmail:"parent-a@example.test",studentUserId:"student-a",relationship:"mother",consentConfirmed:true})});
+  assert.equal(response.status,201);
+
+  db.prepare("UPDATE institution_memberships SET status='suspended' WHERE institution_id='school' AND user_id='student-a' AND role='student'").run();
+
+  response=await request("parent-a","/api/parent-portal/children/student-a?institutionId=school");
+  assert.equal(response.status,404);
+  response=await request("parent-a","/api/parent-portal/children");
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).children,[]);
+  response=await request("admin","/api/institutions/school/parent-links");
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).links,[]);
+
+  response=await request("admin","/api/institutions/school/parent-links",{method:"POST",body:JSON.stringify({parentEmail:"parent-b@example.test",studentUserId:"student-b",relationship:"unsupported-value",consentConfirmed:true})});
+  assert.equal(response.status,400);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_parent_links WHERE parent_user_id='parent-b' AND student_user_id='student-b'").get().n,0);
+});
