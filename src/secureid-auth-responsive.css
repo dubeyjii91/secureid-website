@@ -318,3 +318,80 @@
 }
 body:has(#root .welcomeSplash),
 body:has(#root .modalBackdrop) { overflow: hidden !important; }
+
+
+/* Balanced content sizing refinement: slightly larger copy with roomier cards.
+   Content wraps inside each card; long text never forces horizontal overflow. */
+@media (min-width: 761px) {
+  #root .authCard {
+    width: min(660px, calc(100vw - 80px)) !important;
+    max-width: 660px !important;
+    padding: 52px 60px !important;
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+  #root .authCard > p { font-size: 17px !important; line-height: 1.72 !important; }
+  #root .authCard label { font-size: 16px !important; line-height: 1.5 !important; }
+  #root .authCard input { font-size: 17px !important; }
+  #root .authCard small,
+  #root .authCard .authMessage,
+  #root .authCard .textButton { font-size: 14px !important; line-height: 1.55 !important; }
+
+  #root .welcomeCard {
+    width: min(800px, calc(100vw - 80px)) !important;
+    max-width: 800px !important;
+    max-height: calc(100dvh - 56px) !important;
+    padding: 44px 58px !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overflow-wrap: anywhere !important;
+  }
+  #root .welcomeCard h2 { font-size: 36px !important; line-height: 1.24 !important; }
+  #root .welcomeCard > p { font-size: 17px !important; line-height: 1.72 !important; }
+  #root .welcomeCard .mfaChoices { gap: 12px !important; }
+  #root .welcomeCard .mfaChoices h3 { font-size: 16px !important; }
+  #root .welcomeCard .mfaChoice {
+    grid-template-columns: 44px minmax(0, 1fr) minmax(0, auto) !important;
+    min-height: 72px !important;
+    padding: 15px 18px !important;
+    gap: 15px !important;
+    min-width: 0 !important;
+  }
+  #root .welcomeCard .mfaChoice strong { font-size: 16px !important; line-height: 1.4 !important; }
+  #root .welcomeCard .mfaChoice small { font-size: 14px !important; line-height: 1.5 !important; overflow-wrap: anywhere !important; }
+  #root .welcomeCard .mfaChoice .mfaUnavailable { font-size: 13px !important; max-width: 125px !important; white-space: normal !important; }
+  #root .welcomeCard .mfaNote { font-size: 14px !important; line-height: 1.6 !important; }
+  #root .welcomeCard > .primary { font-size: 16px !important; min-height: 58px !important; }
+
+  #root .mfaModal {
+    width: min(660px, calc(100vw - 80px)) !important;
+    max-width: 660px !important;
+    max-height: calc(100dvh - 56px) !important;
+    padding: 50px 58px !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overflow-wrap: anywhere !important;
+  }
+  #root .mfaModal h2 { font-size: 32px !important; line-height: 1.24 !important; }
+  #root .mfaModal p { font-size: 16px !important; line-height: 1.72 !important; }
+  #root .mfaModal .trustDeviceRow { padding: 18px !important; gap: 14px !important; min-width: 0 !important; }
+  #root .mfaModal .trustDeviceRow strong { font-size: 15px !important; line-height: 1.45 !important; }
+  #root .mfaModal .trustDeviceRow small { font-size: 13px !important; line-height: 1.5 !important; overflow-wrap: anywhere !important; }
+  #root .mfaModal .textButton { font-size: 15px !important; }
+  #root .mfaModal .mfaMessage { font-size: 14px !important; line-height: 1.6 !important; }
+}
+@media (max-width: 760px) {
+  #root .authCard,
+  #root .welcomeCard,
+  #root .mfaModal {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    overflow-x: hidden !important;
+    overflow-wrap: anywhere !important;
+  }
+  #root .welcomeCard .mfaChoice { grid-template-columns: 36px minmax(0, 1fr) !important; }
+  #root .welcomeCard .mfaChoice .mfaUnavailable { grid-column: 2 !important; max-width: none !important; white-space: normal !important; }
+}
