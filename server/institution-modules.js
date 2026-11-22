@@ -10,23 +10,6 @@ export function registerInstitutionModules({
   app, database, requireAuth, requireMfaProduction, enforceSameOrigin,
   getInstitutionMembership, hasInstitutionFeature
 }) {
-  // Preserve older pilot attendance data while replacing an incompatible legacy shape.
-  const existingStaffAttendance = database.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='institution_staff_attendance'"
-  ).get();
-  if (existingStaffAttendance) {
-    const columns = database.prepare("PRAGMA table_info(institution_staff_attendance)").all();
-    const required = ["institution_id", "session_id", "user_id", "challenge_id", "checked_in_at"];
-    if (required.some(name => !columns.some(column => column.name === name))) {
-      let legacyTable = "institution_staff_attendance_legacy";
-      let suffix = 1;
-      while (database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(legacyTable)) {
-        legacyTable = `institution_staff_attendance_legacy_${suffix++}`;
-      }
-      database.exec(`ALTER TABLE institution_staff_attendance RENAME TO ${legacyTable}`);
-    }
-  }
-
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_student_profiles (
       institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -150,7 +133,7 @@ export function registerInstitutionModules({
     );
     CREATE INDEX IF NOT EXISTS idx_inst_attendance_qr_session
       ON institution_attendance_qr_challenges(session_id,expires_at);
-    CREATE TABLE IF NOT EXISTS institution_staff_attendance (
+    CREATE TABLE IF NOT EXISTS institution_staff_qr_attendance (
       id TEXT PRIMARY KEY,
       institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       session_id TEXT NOT NULL REFERENCES institution_attendance_sessions(id) ON DELETE CASCADE,
@@ -160,7 +143,7 @@ export function registerInstitutionModules({
       UNIQUE(session_id,user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_inst_staff_attendance_user
-      ON institution_staff_attendance(institution_id,user_id,checked_in_at DESC);
+      ON institution_staff_qr_attendance(institution_id,user_id,checked_in_at DESC);
     CREATE TABLE IF NOT EXISTS institution_assessments (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
       course_id TEXT NOT NULL REFERENCES institution_courses(id) ON DELETE CASCADE,
@@ -570,7 +553,7 @@ export function registerInstitutionModules({
         SELECT s.id,s.title,s.status,s.created_at AS createdAt,s.expires_at AS expiresAt,s.closed_at AS closedAt,
           COUNT(a.id) AS checkInCount
         FROM institution_attendance_sessions s
-        LEFT JOIN institution_staff_attendance a ON a.session_id=s.id
+        LEFT JOIN institution_staff_qr_attendance a ON a.session_id=s.id
         WHERE s.institution_id=?
         GROUP BY s.id
         ORDER BY s.created_at DESC LIMIT 50
@@ -595,7 +578,7 @@ export function registerInstitutionModules({
       const cleanupBefore = new Date(now - 24 * 60 * 60 * 1000).toISOString();
       database.prepare(`DELETE FROM institution_attendance_qr_challenges
         WHERE session_id=? AND expires_at<? AND id NOT IN (
-          SELECT challenge_id FROM institution_staff_attendance
+          SELECT challenge_id FROM institution_staff_qr_attendance
         )`).run(sessionId,cleanupBefore);
       database.prepare("UPDATE institution_attendance_qr_challenges SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL")
         .run(createdAt,sessionId);
@@ -625,11 +608,11 @@ export function registerInstitutionModules({
         return fail(res,410,"This attendance QR has expired or rotated. Scan the current code.","ATTENDANCE_QR_EXPIRED");
       }
       if (!attendanceMembership(req,res,challenge.institutionId,attendanceStaffRoles)) return;
-      const existing = database.prepare("SELECT checked_in_at AS checkedInAt FROM institution_staff_attendance WHERE session_id=? AND user_id=?")
+      const existing = database.prepare("SELECT checked_in_at AS checkedInAt FROM institution_staff_qr_attendance WHERE session_id=? AND user_id=?")
         .get(challenge.sessionId,req.user.id);
       if (existing) return fail(res,409,"Attendance is already recorded for this session.","ATTENDANCE_ALREADY_RECORDED");
       const checkedInAt = new Date(now).toISOString(), attendanceId = id();
-      database.prepare("INSERT INTO institution_staff_attendance(id,institution_id,session_id,user_id,challenge_id,checked_in_at) VALUES(?,?,?,?,?,?)")
+      database.prepare("INSERT INTO institution_staff_qr_attendance(id,institution_id,session_id,user_id,challenge_id,checked_in_at) VALUES(?,?,?,?,?,?)")
         .run(attendanceId,challenge.institutionId,challenge.sessionId,req.user.id,challenge.challengeId,checkedInAt);
       audit(challenge.institutionId,req.user.id,"staff_attendance_checked_in","staff_attendance",attendanceId,{sessionId:challenge.sessionId});
       res.setHeader("Cache-Control","private, no-store");
@@ -646,7 +629,7 @@ export function registerInstitutionModules({
       if (!attendanceMembership(req,res,institutionId,attendanceStaffRoles)) return;
       const attendance = database.prepare(`
         SELECT a.id,a.checked_in_at AS checkedInAt,s.id AS sessionId,s.title AS sessionTitle
-        FROM institution_staff_attendance a JOIN institution_attendance_sessions s ON s.id=a.session_id
+        FROM institution_staff_qr_attendance a JOIN institution_attendance_sessions s ON s.id=a.session_id
         WHERE a.institution_id=? AND a.user_id=? ORDER BY a.checked_in_at DESC LIMIT 100
       `).all(institutionId,req.user.id);
       res.setHeader("Cache-Control","private, no-store");
@@ -662,7 +645,7 @@ export function registerInstitutionModules({
       if (!session) return fail(res,404,"Attendance session was not found.");
       const records = database.prepare(`
         SELECT a.user_id AS userId,u.email,a.checked_in_at AS checkedInAt
-        FROM institution_staff_attendance a JOIN users u ON u.id=a.user_id
+        FROM institution_staff_qr_attendance a JOIN users u ON u.id=a.user_id
         WHERE a.session_id=? AND a.institution_id=? ORDER BY a.checked_in_at
       `).all(sessionId,institutionId);
       res.setHeader("Cache-Control","private, no-store");
