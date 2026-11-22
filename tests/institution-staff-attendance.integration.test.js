@@ -11,12 +11,14 @@ test("staff QR attendance is institution-scoped, short-lived, camera-token-only,
     CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT NOT NULL,created_at TEXT NOT NULL);
     CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,plan_key TEXT,status TEXT,features_json TEXT,starts_at TEXT,ends_at TEXT,updated_at TEXT);
     CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL,status TEXT NOT NULL);
+    CREATE TABLE institution_staff_attendance(id TEXT PRIMARY KEY,institution_id TEXT,staff_id TEXT,checked_in_at TEXT);
     INSERT INTO users VALUES('teacher-a','teacher@example.test'),('admin-a','admin@example.test'),('student-a','student@example.test'),('teacher-b','other@example.test');
     INSERT INTO institutions VALUES('college-a','Example College','2026-01-01'),('college-b','Other College','2026-01-01');
     INSERT INTO institution_memberships VALUES('member-teacher-a','college-a','teacher-a','reviewer','active');
     INSERT INTO institution_memberships VALUES('member-admin-a','college-a','admin-a','institution_admin','active');
     INSERT INTO institution_memberships VALUES('member-student-a','college-a','student-a','student','active');
     INSERT INTO institution_memberships VALUES('member-teacher-b','college-b','teacher-b','reviewer','active');
+    INSERT INTO institution_staff_attendance VALUES('legacy-attendance','college-a','legacy-staff','2025-01-01T00:00:00.000Z');
   `);
   const app = express();
   app.use(express.json());
@@ -35,6 +37,10 @@ test("staff QR attendance is institution-scoped, short-lived, camera-token-only,
     getInstitutionMembership,
     hasInstitutionFeature:() => true,
   });
+  assert.equal(database.prepare("SELECT staff_id FROM institution_staff_attendance WHERE id='legacy-attendance'").get().staff_id,"legacy-staff");
+  assert.deepEqual(database.prepare("PRAGMA table_info(institution_staff_qr_attendance)").all().map(column => column.name),[
+    "id","institution_id","session_id","user_id","challenge_id","checked_in_at"
+  ]);
   app.use((error,req,res,_next) => res.status(500).json({success:false,message:error.message}));
   const server = app.listen(0,"127.0.0.1");
   await new Promise((resolve,reject) => { server.once("listening",resolve); server.once("error",reject); });
