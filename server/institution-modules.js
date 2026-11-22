@@ -10,6 +10,47 @@ export function registerInstitutionModules({
   app, database, requireAuth, requireMfaProduction, enforceSameOrigin,
   getInstitutionMembership, hasInstitutionFeature
 }) {
+  const tableExists = (name) => Boolean(database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?"
+  ).get(name));
+  const columnNames = (name) => database.prepare(`PRAGMA table_info(${name})`).all().map(column => column.name);
+  const unusedTableName = (base) => {
+    let name = base, suffix = 1;
+    while (tableExists(name)) name = `${base}_${suffix++}`;
+    return name;
+  };
+
+  // Earlier releases used institution_staff_attendance for QR check-ins and
+  // renamed the original HR records to a *_legacy table. Restore HR's table
+  // name, while moving QR rows into their dedicated table without discarding
+  // either dataset.
+  if (tableExists("institution_staff_attendance")) {
+    const columns = columnNames("institution_staff_attendance");
+    const qrSchema = ["session_id", "user_id", "challenge_id", "checked_in_at"]
+      .every(name => columns.includes(name));
+    if (qrSchema) {
+      if (!tableExists("institution_staff_qr_attendance")) {
+        database.exec("ALTER TABLE institution_staff_attendance RENAME TO institution_staff_qr_attendance");
+      } else {
+        database.exec(`
+          INSERT OR IGNORE INTO institution_staff_qr_attendance
+            (id,institution_id,session_id,user_id,challenge_id,checked_in_at)
+          SELECT id,institution_id,session_id,user_id,challenge_id,checked_in_at
+          FROM institution_staff_attendance
+        `);
+        database.exec(`ALTER TABLE institution_staff_attendance RENAME TO ${unusedTableName("institution_staff_attendance_qr_legacy")}`);
+      }
+    } else if (!columns.includes("staff_id")) {
+      database.exec(`ALTER TABLE institution_staff_attendance RENAME TO ${unusedTableName("institution_staff_attendance_legacy")}`);
+    }
+  }
+  if (!tableExists("institution_staff_attendance") && tableExists("institution_staff_attendance_legacy")) {
+    const legacyColumns = columnNames("institution_staff_attendance_legacy");
+    if (legacyColumns.includes("staff_id") && legacyColumns.includes("attendance_date")) {
+      database.exec("ALTER TABLE institution_staff_attendance_legacy RENAME TO institution_staff_attendance");
+    }
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS institution_student_profiles (
       institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -142,7 +183,7 @@ export function registerInstitutionModules({
       checked_in_at TEXT NOT NULL,
       UNIQUE(session_id,user_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_inst_staff_attendance_user
+    CREATE INDEX IF NOT EXISTS idx_inst_staff_qr_attendance_user
       ON institution_staff_qr_attendance(institution_id,user_id,checked_in_at DESC);
     CREATE TABLE IF NOT EXISTS institution_assessments (
       id TEXT PRIMARY KEY, institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
