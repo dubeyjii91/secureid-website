@@ -3,6 +3,43 @@ import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
 import { registerInstitutionModules } from "../server/institution-modules.js";
+import { registerInstitutionHR } from "../server/institution-hr.js";
+
+test("attendance startup preserves QR check-ins and restores HR rows after the legacy rename migration", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec(`
+    CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE);
+    CREATE TABLE institutions(id TEXT PRIMARY KEY,name TEXT NOT NULL,created_at TEXT NOT NULL);
+    CREATE TABLE institution_subscriptions(institution_id TEXT PRIMARY KEY,plan_key TEXT,status TEXT,features_json TEXT,starts_at TEXT,ends_at TEXT,updated_at TEXT);
+    CREATE TABLE institution_memberships(id TEXT PRIMARY KEY,institution_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL,status TEXT NOT NULL);
+    CREATE TABLE institution_staff(id TEXT PRIMARY KEY,institution_id TEXT,user_id TEXT,full_name TEXT NOT NULL,email TEXT,employee_code TEXT,department TEXT,designation TEXT,status TEXT,created_by TEXT,created_at TEXT,updated_at TEXT);
+    CREATE TABLE institution_staff_qr_attendance(id TEXT PRIMARY KEY,institution_id TEXT,session_id TEXT,user_id TEXT,challenge_id TEXT,checked_in_at TEXT);
+    CREATE TABLE institution_staff_attendance(id TEXT PRIMARY KEY,institution_id TEXT,session_id TEXT,user_id TEXT,challenge_id TEXT,checked_in_at TEXT);
+    CREATE TABLE institution_staff_attendance_legacy(id TEXT PRIMARY KEY,institution_id TEXT,staff_id TEXT,attendance_date TEXT,status TEXT,marked_by TEXT,note TEXT,created_at TEXT,updated_at TEXT);
+    INSERT INTO institution_staff_attendance VALUES('qr-checkin','college-a','session-a','teacher-a','challenge-a','2026-11-22T08:00:00.000Z');
+    INSERT INTO institution_staff_attendance_legacy VALUES('hr-attendance','college-a','staff-a','2026-11-22','present','admin-a','On campus','2026-11-22T08:00:00.000Z','2026-11-22T08:00:00.000Z');
+    INSERT INTO users VALUES('teacher-a','teacher@example.test'),('admin-a','admin@example.test');
+    INSERT INTO institutions VALUES('college-a','Example College','2026-01-01');
+    INSERT INTO institution_memberships VALUES('member-admin-a','college-a','admin-a','institution_admin','active');
+  `);
+  const app = express();
+  const middleware = (_req,_res,next) => next();
+  const membership = () => null;
+  const feature = () => true;
+  registerInstitutionModules({
+    app,database,requireAuth:middleware,requireMfaProduction:middleware,
+    enforceSameOrigin:middleware,getInstitutionMembership:membership,hasInstitutionFeature:feature,
+  });
+  registerInstitutionHR({
+    app,database,requireAuth:middleware,requireMfaProduction:middleware,
+    enforceSameOrigin:middleware,getInstitutionMembership:membership,hasInstitutionFeature:feature,
+  });
+
+  assert.equal(database.prepare("SELECT user_id FROM institution_staff_qr_attendance WHERE id='qr-checkin'").get().user_id,"teacher-a");
+  assert.equal(database.prepare("SELECT staff_id FROM institution_staff_attendance WHERE id='hr-attendance'").get().staff_id,"staff-a");
+  assert.equal(database.prepare("SELECT session_id FROM institution_staff_attendance_qr_legacy WHERE id='qr-checkin'").get().session_id,"session-a");
+  database.close();
+});
 
 test("staff QR attendance is institution-scoped, short-lived, camera-token-only, and rejects repeats", async (t) => {
   const database = new DatabaseSync(":memory:");
