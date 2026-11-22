@@ -37,8 +37,8 @@ test("staff QR attendance is institution-scoped, short-lived, camera-token-only,
     getInstitutionMembership,
     hasInstitutionFeature:() => true,
   });
-  assert.equal(database.prepare("SELECT staff_id FROM institution_staff_attendance_legacy WHERE id='legacy-attendance'").get().staff_id,"legacy-staff");
-  assert.deepEqual(database.prepare("PRAGMA table_info(institution_staff_attendance)").all().map(column => column.name),[
+  assert.equal(database.prepare("SELECT staff_id FROM institution_staff_attendance WHERE id='legacy-attendance'").get().staff_id,"legacy-staff");
+  assert.deepEqual(database.prepare("PRAGMA table_info(institution_staff_qr_attendance)").all().map(column => column.name),[
     "id","institution_id","session_id","user_id","challenge_id","checked_in_at"
   ]);
   app.use((error,req,res,_next) => res.status(500).json({success:false,message:error.message}));
