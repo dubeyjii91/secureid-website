@@ -123,6 +123,35 @@ jobs:
                 const active = await page.locator('.sidebar .navItem.active').innerText();
                 if (!/Document vault/i.test(active)) failures.push('Dashboard Document Vault shortcut did not activate its matching navigation item.');
               }
+              // Exercise every available owner navigation page at both viewport sizes.
+              const navLabels = (await page.locator('.sidebar .navItem').allTextContents()).map(label => label.trim()).filter(Boolean);
+              for (const label of navLabels) {
+                await page.getByRole('button', { name: label, exact: true }).click();
+                await page.waitForTimeout(120);
+                const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
+                if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
+                const routeLayout = await page.evaluate(() => {
+                  const main = document.querySelector('.main');
+                  const controls = [...document.querySelectorAll('.main input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]), .main select, .main textarea')]
+                    .filter(element => element.getBoundingClientRect().width > 0)
+                    .map(element => ({
+                      fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+                      width: element.getBoundingClientRect().width,
+                      right: element.getBoundingClientRect().right,
+                      mainWidth: main?.getBoundingClientRect().width || window.innerWidth
+                    }));
+                  return {
+                    rootWidth: document.documentElement.scrollWidth,
+                    viewportWidth: window.innerWidth,
+                    mainWidth: main?.getBoundingClientRect().width || window.innerWidth,
+                    controls
+                  };
+                });
+                if (routeLayout.rootWidth > routeLayout.viewportWidth) failures.push(viewport.name + ': ' + label + ' page has horizontal overflow.');
+                if (routeLayout.controls.some(control => control.fontSize < 12 || control.width > routeLayout.mainWidth + 2 || control.right > routeLayout.viewportWidth + 1)) {
+                  failures.push(viewport.name + ': ' + label + ' page has a too-small or overflowing form control.');
+                }
+              }
               await page.close();
             }
 
