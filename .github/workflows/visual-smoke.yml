@@ -126,13 +126,8 @@ jobs:
               // Exercise every available owner navigation page at both viewport sizes.
               const navLabels = (await page.locator('.sidebar .navItem').allTextContents()).map(label => label.trim()).filter(Boolean);
               for (const label of navLabels) {
-                await page.evaluate(label => {
-                  const button = [...document.querySelectorAll('.sidebar .navItem')]
-                    .find(element => element.textContent.trim() === label);
-                  if (!button) throw new Error('Navigation item disappeared: ' + label);
-                  button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                }, label);
-                const navButton = page.getByRole('button', { name: label, exact: true });
+                const navButton = page.locator('.sidebar .navItem').filter({ hasText: label }).first();
+                await navButton.evaluate(element => element.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
                 await navButton.click({ force: true });
                 await page.waitForTimeout(160);
                 const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
