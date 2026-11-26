@@ -98,6 +98,37 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   });
   assert.equal(invalid.status, 400);
 
+  const prototypeInjection = await fetch(base + "/api/smartfill/data", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      fields: {
+        "custom.__proto__": "polluted",
+        "custom.constructor": "polluted",
+        "custom.nested.prototype": "polluted",
+      },
+    }),
+  });
+  assert.equal(prototypeInjection.status, 400);
+  assert.equal(Object.prototype.polluted, undefined);
+
+  // Upgrade a legacy object-shaped record without losing its existing values.
+  db.prepare("INSERT OR REPLACE INTO smartfill_private_data(user_id,encrypted_data,updated_at) VALUES(?,?,?)")
+    .run("u1", JSON.stringify({ "custom.legacy_note": "Preserved legacy value" }), Date.now());
+  const customSave = await fetch(base + "/api/smartfill/data", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ fields: { "custom.emergency_contact": "9876543210" } }),
+  });
+  assert.equal(customSave.status, 200);
+  const storedPrivateData = JSON.parse(
+    db.prepare("SELECT encrypted_data FROM smartfill_private_data WHERE user_id=?").get("u1").encrypted_data,
+  );
+  assert.ok(Array.isArray(storedPrivateData));
+  const storedPrivateMap = new Map(storedPrivateData);
+  assert.equal(storedPrivateMap.get("custom.legacy_note"), "Preserved legacy value");
+  assert.equal(storedPrivateMap.get("custom.emergency_contact"), "9876543210");
+
   const conflict = await (await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).json();
   assert.equal(conflict.suggestions[0].status, "ambiguous");
   assert.equal(conflict.suggestions[0].value, "");
@@ -181,6 +212,14 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     (await fetch(base + "/api/smartfill/schema", { headers: { "x-user": "u1", "x-mfa": "false" } })).status,
     403,
   );
+
+  let throttledStatus = 0;
+  for (let request = 0; request < 80 && throttledStatus !== 429; request += 1) {
+    throttledStatus = (
+      await fetch(base + "/api/smartfill/schema", { headers })
+    ).status;
+  }
+  assert.equal(throttledStatus, 429, "SmartFill routes must be rate limited per client IP");
 });
 
 test("SmartFill review acknowledgement guards active-page form submission", () => {
