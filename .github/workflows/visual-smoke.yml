@@ -128,6 +128,9 @@ jobs:
               // Exercise every available owner navigation page at both viewport sizes.
               const navLabels = (await page.locator('.sidebar .navItem').allTextContents()).map(label => label.trim()).filter(Boolean);
               for (const [navIndex, label] of navLabels.entries()) {
+                // Owner/Admin workspace is covered by the dedicated owner-console browser workflow.
+                // It intentionally switches the owner route and remounts the protected admin workspace.
+                if (label === 'Owner / Admin') continue;
                 const navButton = page.locator('.sidebar .navItem').nth(navIndex);
                 await navButton.scrollIntoViewIfNeeded();
                 const navDiagnostic = await navButton.evaluate(element => {
