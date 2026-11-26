@@ -537,8 +537,11 @@ export function registerSmartFill({
       }
 
       const reviewedKeys = JSON.parse(reviewSession.fields_json);
-      if (fieldKeys.some((fieldKey) => !reviewedKeys.includes(fieldKey))) {
-        return res.status(400).json({ success: false, message: "Review contains fields that were not suggested." });
+      if (
+        fieldKeys.length !== reviewedKeys.length ||
+        fieldKeys.some((fieldKey) => !reviewedKeys.includes(fieldKey))
+      ) {
+        return res.status(400).json({ success: false, message: "Review must acknowledge every current suggestion." });
       }
 
       const reviewToken = crypto.randomBytes(32).toString("base64url");
