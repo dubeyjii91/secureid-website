@@ -6,12 +6,49 @@ import path from "node:path";
 
 const executeFile = promisify(execFile);
 const MIME_EXTENSIONS = Object.freeze({
+  "application/pdf": ".pdf",
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
 });
 const MAX_OCR_BYTES = 10 * 1024 * 1024;
 const MAX_OCR_CHARACTERS = 20_000;
+const MAX_PDF_PAGES = 5;
+
+function commandError(cause) {
+  const error = new Error(
+    cause?.code === "ETIMEDOUT"
+      ? "Document text extraction took too long. Try a smaller or clearer file."
+      : cause?.code === "ENOENT"
+        ? "The SecureID OCR tools are not installed on this server."
+        : "The document could not be processed by the SecureID OCR tools.",
+  );
+  error.code = cause?.code === "ETIMEDOUT"
+    ? "OCR_TIMEOUT"
+    : cause?.code === "ENOENT"
+      ? "OCR_ENGINE_UNAVAILABLE"
+      : "OCR_PROCESSING_FAILED";
+  return error;
+}
+
+async function runCommand(execute, command, args, timeoutMs, maxBuffer = 128 * 1024) {
+  try {
+    return await execute(command, args, {
+      timeout: timeoutMs,
+      maxBuffer,
+      windowsHide: true,
+    });
+  } catch (cause) {
+    throw commandError(cause);
+  }
+}
+
+function cleanText(value) {
+  return String(value || "")
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, MAX_OCR_CHARACTERS);
+}
 
 export async function extractDocumentText(
   buffer,
@@ -24,56 +61,109 @@ export async function extractDocumentText(
 ) {
   const extension = MIME_EXTENSIONS[mimeType];
   if (!extension) {
-    const error = new Error("OCR currently supports JPEG, PNG and WebP images only.");
+    const error = new Error("OCR supports PDF, JPEG, PNG and WebP documents only.");
     error.code = "OCR_UNSUPPORTED_MEDIA";
     throw error;
   }
   if (!Buffer.isBuffer(buffer) || buffer.length === 0 || buffer.length > MAX_OCR_BYTES) {
-    const error = new Error("The image must contain between 1 byte and 10 MB of data.");
+    const error = new Error("The document must contain between 1 byte and 10 MB of data.");
     error.code = "OCR_INVALID_IMAGE";
     throw error;
   }
 
   const workingDirectory = await fs.mkdtemp(path.join(tempDirectory, "secureid-ocr-"));
-  let imagePath = "";
   try {
     await fs.chmod(workingDirectory, 0o700);
-    imagePath = path.join(workingDirectory, `source${extension}`);
-    await fs.writeFile(imagePath, buffer, { mode: 0o600, flag: "wx" });
+    const sourcePath = path.join(workingDirectory, `source${extension}`);
+    await fs.writeFile(sourcePath, buffer, { mode: 0o600, flag: "wx" });
 
-    let output;
-    try {
-      output = await execute(
-        "tesseract",
-        [imagePath, "stdout", "-l", "eng+hin", "--psm", "6"],
-        {
-          timeout: timeoutMs,
-          maxBuffer: 128 * 1024,
-          windowsHide: true,
-        },
+    if (mimeType === "application/pdf") {
+      const info = await runCommand(execute, "pdfinfo", [sourcePath], timeoutMs);
+      const pageMatch = String(info.stdout || "").match(/^Pages:\s*(\d+)\s*$/mi);
+      const pagesTotal = pageMatch ? Number(pageMatch[1]) : 0;
+      if (!Number.isInteger(pagesTotal) || pagesTotal < 1) {
+        const error = new Error("The PDF did not contain any readable pages.");
+        error.code = "OCR_INVALID_DOCUMENT";
+        throw error;
+      }
+
+      const pagesToProcess = Math.min(pagesTotal, MAX_PDF_PAGES);
+      const nativeText = await runCommand(
+        execute,
+        "pdftotext",
+        ["-f", "1", "-l", String(pagesToProcess), "-layout", sourcePath, "-"],
+        timeoutMs,
       );
-    } catch (cause) {
-      const error = new Error(
-        cause?.code === "ETIMEDOUT"
-          ? "Image text extraction took too long. Try a clearer or smaller image."
-          : cause?.code === "ENOENT"
-            ? "The SecureID OCR engine is not installed on this server."
-            : "The image could not be processed by the OCR engine.",
+      const extractedNativeText = cleanText(nativeText.stdout);
+      if (extractedNativeText) {
+        return {
+          text: extractedNativeText,
+          pagesProcessed: pagesToProcess,
+          pagesTotal,
+          pageLimit: MAX_PDF_PAGES,
+          truncated: pagesTotal > MAX_PDF_PAGES,
+          method: "pdf_text",
+        };
+      }
+
+      const imagePrefix = path.join(workingDirectory, "page");
+      await runCommand(
+        execute,
+        "pdftoppm",
+        ["-f", "1", "-l", String(pagesToProcess), "-r", "150", "-png", sourcePath, imagePrefix],
+        timeoutMs,
       );
-      error.code = cause?.code === "ETIMEDOUT"
-        ? "OCR_TIMEOUT"
-        : cause?.code === "ENOENT"
-          ? "OCR_ENGINE_UNAVAILABLE"
-          : "OCR_PROCESSING_FAILED";
-      throw error;
+      const pageFiles = (await fs.readdir(workingDirectory))
+        .filter((name) => /^page-\d+\.png$/i.test(name))
+        .sort((left, right) => Number(left.match(/\d+/)?.[0]) - Number(right.match(/\d+/)?.[0]))
+        .slice(0, MAX_PDF_PAGES);
+
+      if (!pageFiles.length) {
+        const error = new Error("The PDF pages could not be rendered for OCR.");
+        error.code = "OCR_INVALID_DOCUMENT";
+        throw error;
+      }
+
+      const pageTexts = [];
+      for (let index = 0; index < pageFiles.length; index += 1) {
+        const pagePath = path.join(workingDirectory, pageFiles[index]);
+        await fs.chmod(pagePath, 0o600);
+        const result = await runCommand(
+          execute,
+          "tesseract",
+          [pagePath, "stdout", "-l", "eng+hin", "--psm", "6"],
+          timeoutMs,
+        );
+        const pageText = cleanText(result.stdout);
+        if (pageText) pageTexts.push(`Page ${index + 1}\n${pageText}`);
+      }
+
+      return {
+        text: cleanText(pageTexts.join("\n\n")),
+        pagesProcessed: pageFiles.length,
+        pagesTotal,
+        pageLimit: MAX_PDF_PAGES,
+        truncated: pagesTotal > MAX_PDF_PAGES,
+        method: "pdf_ocr",
+      };
     }
 
-    return String(output?.stdout || "")
-      .replace(/\u0000/g, "")
-      .trim()
-      .slice(0, MAX_OCR_CHARACTERS);
+    const output = await runCommand(
+      execute,
+      "tesseract",
+      [sourcePath, "stdout", "-l", "eng+hin", "--psm", "6"],
+      timeoutMs,
+    );
+    return {
+      text: cleanText(output.stdout),
+      pagesProcessed: 1,
+      pagesTotal: 1,
+      pageLimit: 1,
+      truncated: false,
+      method: "image_ocr",
+    };
   } finally {
-    // The plaintext source image and any OCR scratch files never survive a request.
+    // The plaintext source document and every rendered page are removed on success and failure.
     await fs.rm(workingDirectory, { recursive: true, force: true });
   }
 }
