@@ -79,7 +79,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     headers,
     body: JSON.stringify({
       formId: "admission",
-      fields: ["personal.full_name", "identity.identity_id", "identity.government_id", "identity.student_id"],
+      fields: ["personal.full_name", "identity.identity_id", "identity.government_id", "identity.student_id", "education.course"],
       sources: ["identity", "manual", "vault_ocr"],
       consent: true,
     }),
