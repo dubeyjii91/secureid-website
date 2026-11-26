@@ -216,3 +216,7 @@ body::before { content: none !important; display: none !important; }
   #root .scholarshipOfficialLinks { grid-template-columns:minmax(0,1fr); }
   #root .scholarshipOfficialLink { padding:12px; }
 }
+
+@media (max-width:760px) {
+  #root .shell { display:flex; flex-direction:column; }
+}
