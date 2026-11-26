@@ -255,6 +255,8 @@ export default function SmartFill({ page }) {
       setFields((current) => [...new Set([...current, ...Object.keys(selectedFields)])]);
       setSources((current) => current.includes("vault_ocr") ? current : [...current, "vault_ocr"]);
       setOcrReviewConfirmed(false);
+      clearOcrReview();
+      setOcrConsent(false);
       setStatus("Your selected, reviewed OCR fields were encrypted. Select Vault OCR as a source and prepare suggestions when ready.");
     } catch (error) {
       setStatus(error.message);
@@ -268,6 +270,8 @@ export default function SmartFill({ page }) {
     setOcrSaving(true);
     try {
       const result = await api("/api/smartfill/document-data/" + encodeURIComponent(ocrDocumentId), { method: "DELETE" });
+      clearOcrReview();
+      setOcrConsent(false);
       setStatus(result.removed ? "Saved OCR fields removed from this document." : "No saved OCR fields were found for this document.");
     } catch (error) {
       setStatus(error.message);
@@ -282,6 +286,12 @@ export default function SmartFill({ page }) {
     setOcrCandidates({});
     setOcrSelected([]);
     setOcrReviewConfirmed(false);
+  }
+
+  function closePanel() {
+    setOpen(false);
+    clearOcrReview();
+    setOcrConsent(false);
   }
 
   const toggle = (setValue, key) => {
@@ -438,7 +448,7 @@ export default function SmartFill({ page }) {
 
   return (
     <section className="smartfillDock">
-      <button className="smartfillLauncher" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+      <button className="smartfillLauncher" type="button" onClick={() => open ? closePanel() : setOpen(true)} aria-expanded={open}>
         ✦ SmartFill <span>Universal form assistant</span>
       </button>
 
@@ -450,7 +460,7 @@ export default function SmartFill({ page }) {
               <h2>Fill with your approved data</h2>
               <p>Choose exactly what this form may use. Nothing is submitted automatically.</p>
             </div>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close SmartFill">×</button>
+            <button type="button" onClick={closePanel} aria-label="Close SmartFill">×</button>
           </header>
 
           <label className="smartfillContext">
@@ -490,7 +500,7 @@ export default function SmartFill({ page }) {
             </div>
             <label>
               Stored image
-              <select value={ocrDocumentId} onChange={(event) => { setOcrDocumentId(event.target.value); clearOcrReview(); }}>
+              <select value={ocrDocumentId} onChange={(event) => { setOcrDocumentId(event.target.value); setOcrConsent(false); clearOcrReview(); }}>
                 <option value="">Choose a Vault document…</option>
                 {vaultDocuments.filter((item) => ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(item.mimeType)).map((item) => (
                   <option key={item.id} value={item.id}>{item.name} · {item.mimeType}</option>
@@ -546,7 +556,7 @@ export default function SmartFill({ page }) {
                     </button>
                   </div>
                 ) : <small>No supported field patterns were detected. You can copy text to review it manually, but it is not saved automatically.</small>}
-                <button type="button" disabled={ocrSaving} onClick={removeSavedOcr}>Remove saved OCR fields for this image</button>
+                <button type="button" disabled={ocrSaving} onClick={removeSavedOcr}>Remove saved OCR fields for this document</button>
                 <button type="button" onClick={clearOcrReview}>Clear temporary OCR preview</button>
               </div>
             )}
@@ -645,7 +655,7 @@ export default function SmartFill({ page }) {
 
           {status && <p className="smartfillStatus" role="status">{status}</p>}
           <small className="smartfillFoot">
-            OCR is available for your stored JPEG, PNG and WebP images only. Server-side temporary files are deleted after processing. Only fields you edit, select and confirm are stored encrypted; OCR is not identity verification.
+            OCR supports Vault PDFs, JPEG, PNG and WebP. Scanned PDFs process at most five pages. Temporary previews clear when you close SmartFill or change documents; only fields you edit, select and confirm are stored encrypted. OCR is not identity verification.
           </small>
         </div>
       )}
