@@ -50,6 +50,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     assertWalletUnlocked: () => {},
   });
   app.post("/api/test-submit", auth, (_req, res) => res.json({ success: true }));
+  app.post("/api/test-submit-fail", auth, (_req, res) => res.status(400).json({ success: false }));
 
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -156,6 +157,17 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     body: JSON.stringify({}),
   });
   assert.equal(allowedAfterReview.status, 200);
+
+  const rejectedAfterReview = await fetch(base + "/api/test-submit-fail", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "x-secureid-smartfill-form": "admission",
+      "x-secureid-smartfill-review": review.reviewToken,
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(rejectedAfterReview.status, 400);
 
   const auditRows = db.prepare("SELECT * FROM smartfill_audit").all();
   const audit = JSON.stringify(auditRows);
