@@ -2,10 +2,10 @@
    Imported last from main.jsx to neutralize accumulated legacy theme overrides. */
 :root {
   color-scheme: light;
-  --sid-page: #f6f7fb;
+  --sid-page: #f7f8fa;
   --sid-surface: #ffffff;
   --sid-surface-soft: #f8f9fc;
-  --sid-ink: #1b2230;
+  --sid-ink: #17191c;
   --sid-muted: #596579;
   --sid-subtle: #727e91;
   --sid-line: #e1e5ed;
@@ -23,7 +23,7 @@
   --sid-shadow: 0 1px 2px rgba(24,32,52,.04), 0 8px 24px rgba(24,32,52,.045);
   --sid-space: clamp(14px, 1.6vw, 22px);
 }
-html { min-width: 320px; background: var(--sid-page) !important; color: var(--sid-ink) !important; color-scheme: light !important; }
+html { min-width: 320px; background: var(--sid-page) !important; color: #17191c !important; color-scheme: light !important; }
 body, #root {
   min-width: 320px; min-height: 100%; margin: 0;
   background: var(--sid-page) !important; color: var(--sid-ink) !important;
