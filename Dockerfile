@@ -1,8 +1,10 @@
 FROM node:24-alpine3.22
 WORKDIR /app
-RUN apk add --no-cache su-exec tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-hin \
+RUN apk add --no-cache su-exec poppler-utils tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-hin \
     && tesseract --list-langs 2>/dev/null | grep -qx eng \
     && tesseract --list-langs 2>/dev/null | grep -qx hin \
+    && pdftotext -v >/dev/null 2>&1 \
+    && pdftoppm -v >/dev/null 2>&1 \
     && chown node:node /app
 USER node
 COPY --chown=node:node package*.json ./
