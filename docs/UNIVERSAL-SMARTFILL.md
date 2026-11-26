@@ -1,6 +1,6 @@
 # Universal SmartFill
 
-SmartFill is a consent-scoped form assistant. It currently reads encrypted My Identity profile fields and encrypted manual fields. Each form has its own consent record with stable field keys and allowed sources.
+SmartFill is a consent-scoped form assistant. It currently reads encrypted My Identity profile fields and encrypted manual fields. Each form has its own consent record with stable field keys and allowed sources. The shared UI supplies a page-specific default context and lets the user choose a distinct context ID for nested scholarship, parent, admissions, institution, or future custom forms.
 
 ## Security
 - All routes require an authenticated session and MFA.
