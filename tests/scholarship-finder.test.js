@@ -12,7 +12,7 @@ test("Scholarship Finder is available as a first-class authenticated workspace",
   assert.ok(app.includes('lazy(() => import("./ScholarshipFinder.jsx"))'));
   assert.ok(app.includes('["scholarships", "Scholarship finder", "graduation"]'));
   assert.ok(app.includes('page === "scholarships"'));
-  assert.ok(main.trim().endsWith('import "./secureid-global-product-ui.css"'));
+  assert.ok(main.indexOf('import "./secureid-global-product-ui.css"') > main.indexOf('import "./secureid-consistent-sizing.css"'));
 });
 
 test("government scholarship applications always open the official portal", () => {
