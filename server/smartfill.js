@@ -450,7 +450,7 @@ export function registerSmartFill({
       if (!document) {
         return res.status(404).json({ success: false, message: "The selected Vault document was not found." });
       }
-      if (!["image/jpeg", "image/png", "image/webp"].includes(document.mime_type)) {
+      if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(document.mime_type)) {
         return res.status(415).json({
           success: false,
           message: "Reviewed OCR fields can only be saved from a supported image document.",
