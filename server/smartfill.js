@@ -1,9 +1,21 @@
 import crypto from "node:crypto";
+import { rateLimit } from "express-rate-limit";
 
 const id = () => crypto.randomUUID();
 const now = () => Date.now();
 const CONFIDENCE_THRESHOLD = 0.85;
 const REVIEW_TOKEN_TTL_MS = 15 * 60 * 1000;
+const smartFillRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    code: "SMARTFILL_RATE_LIMITED",
+    message: "Too many SmartFill requests. Try again in a few minutes.",
+  },
+});
 
 const FIELDS = new Set([
   "personal.full_name",
@@ -49,8 +61,35 @@ const PROFILE = {
 };
 
 const clean = (value, max = 160) => String(value ?? "").trim().slice(0, max);
-const allowedField = (fieldKey) =>
-  FIELDS.has(fieldKey) || /^custom\.[a-z0-9_.-]{1,70}$/i.test(String(fieldKey));
+const RESERVED_CUSTOM_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
+function allowedField(fieldKey) {
+  if (typeof fieldKey !== "string") return false;
+  if (FIELDS.has(fieldKey)) return true;
+  if (!/^custom\.[a-z0-9_.-]{1,70}$/i.test(fieldKey)) return false;
+  return fieldKey
+    .slice("custom.".length)
+    .split(".")
+    .every((segment) => segment && !RESERVED_CUSTOM_SEGMENTS.has(segment.toLowerCase()));
+}
+
+function readPrivateData(value) {
+  // Older records used a JSON object. New records use key/value tuples so a
+  // supplied field name is never assigned as a JavaScript object property.
+  const entries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? Object.entries(value)
+      : [];
+  const safeEntries = [];
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const [fieldKey, fieldValue] = entry;
+    if (allowedField(fieldKey) && typeof fieldValue === "string") {
+      safeEntries.push([fieldKey, fieldValue]);
+    }
+  }
+  return new Map(safeEntries);
+}
 
 function validateValue(fieldKey, value) {
   const valueText = String(value ?? "").trim();
@@ -159,6 +198,9 @@ export function registerSmartFill({
     CREATE INDEX IF NOT EXISTS idx_smartfill_review_user_form
       ON smartfill_review_sessions(user_id, form_id, created_at DESC);
   `);
+
+  // Bound all SmartFill reads and writes before request-specific handlers run.
+  app.use("/api/smartfill", smartFillRateLimit);
 
   const mfa = (req, res, next) =>
     req.user?.mfaVerified
@@ -331,7 +373,8 @@ export function registerSmartFill({
       const existing = database
         .prepare("SELECT encrypted_data FROM smartfill_private_data WHERE user_id=?")
         .get(req.user.id);
-      const data = existing ? decryptValue(JSON.parse(existing.encrypted_data)) : {};
+      const decrypted = existing ? decryptValue(JSON.parse(existing.encrypted_data)) : [];
+      const data = readPrivateData(decrypted);
 
       for (const [fieldKey, value] of Object.entries(input)) {
         if (!allowedField(fieldKey) || typeof value !== "string" || value.length > 500) {
@@ -341,7 +384,7 @@ export function registerSmartFill({
         if (validationError) {
           return res.status(400).json({ success: false, fieldKey, message: validationError });
         }
-        data[fieldKey] = value.trim();
+        data.set(fieldKey, value.trim());
       }
 
       database
@@ -352,7 +395,7 @@ export function registerSmartFill({
             encrypted_data=excluded.encrypted_data,
             updated_at=excluded.updated_at
         `)
-        .run(req.user.id, JSON.stringify(encryptValue(data)), now());
+        .run(req.user.id, JSON.stringify(encryptValue([...data.entries()])), now());
 
       audit(req.user.id, "private-vault", "manual_data_saved", Object.keys(input), ["manual"]);
       return res.json({ success: true, fieldKeys: Object.keys(input) });
@@ -420,9 +463,9 @@ export function registerSmartFill({
           .prepare("SELECT encrypted_data FROM smartfill_private_data WHERE user_id=?")
           .get(req.user.id);
         if (row) {
-          const data = decryptValue(JSON.parse(row.encrypted_data));
+          const data = readPrivateData(decryptValue(JSON.parse(row.encrypted_data)));
           for (const fieldKey of keys) {
-            const value = data[fieldKey];
+            const value = data.get(fieldKey);
             if (typeof value === "string" && value.trim()) {
               const validationError = validateValue(fieldKey, value);
               const prior = suggestions.find((item) => item.fieldKey === fieldKey);
