@@ -4,7 +4,7 @@ import express from "express";
 import {DatabaseSync} from "node:sqlite";
 import {registerSmartFill} from "../server/smartfill.js";
 test("SmartFill requires consent, limits suggestions to consented stable keys and audits no values",async t=>{
- const db=new DatabaseSync(":memory:");db.exec("CREATE TABLE identity_profiles(user_id TEXT PRIMARY KEY,encrypted_data TEXT,updated_at INTEGER);CREATE TABLE wallet_settings(user_id TEXT PRIMARY KEY,locked INTEGER DEFAULT 0);INSERT INTO identity_profiles VALUES('u1','{\\"name\\":\\"Private Test\\",\\"email\\":\\"test@example.test\\"}',1)");
+ const db=new DatabaseSync(":memory:");db.exec("CREATE TABLE identity_profiles(user_id TEXT PRIMARY KEY,encrypted_data TEXT,updated_at INTEGER);CREATE TABLE wallet_settings(user_id TEXT PRIMARY KEY,locked INTEGER DEFAULT 0);");db.prepare("INSERT INTO identity_profiles VALUES(?,?,?)").run("u1",JSON.stringify({name:"Private Test",email:"test@example.test"}),1);
  const app=express();app.use(express.json());app.use((req,res,next)=>{req.user={id:req.get("x-user")||"",mfaVerified:req.get("x-mfa")!=="false"};next();});const auth=(req,res,next)=>req.user.id?next():res.sendStatus(401);
  registerSmartFill({app,database:db,requireAuth:auth,enforceSameOrigin:(req,res,next)=>next(),encryptValue:x=>x,decryptValue:x=>x,assertWalletUnlocked:()=>{}});
  const server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));t.after(async()=>{await new Promise(r=>server.close(r));db.close();});
