@@ -146,7 +146,7 @@ export default function ScholarshipManagement() {
   return <section className="panel collegeReviewPanel hostelPanel scholarshipPanel">
     <div className="eyebrow dark">SCHOLARSHIP SUPPORT</div>
     <h2>Government guidance & institution scholarships</h2>
-    <p className="lead">Use the official government portals below for government schemes. Applications in the SecureID workspace are only for scholarships published by a connected college, school, trust or sponsor; SecureID does not submit government scholarship forms.</p>
+    <p className="lead">Use the official government portals below for government schemes. Applications in the SecureID workspace are only for scholarships published by an institution with an active SecureID partnership (college, school, trust or sponsor); SecureID does not submit government scholarship forms.</p>
     <section className="scholarshipOfficialHub" aria-labelledby="scholarship-official-hub-title">
       <div className="scholarshipOfficialHubHead">
         <div>
