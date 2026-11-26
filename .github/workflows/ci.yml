@@ -54,6 +54,8 @@ jobs:
         run: npm run lint
       - name: Run security unit tests
         run: npm test
+      - name: Build production Docker image and validate server OCR packages
+        run: docker build --pull --tag secureid-ci:ocr .
       - name: Install native Android dependencies and generate lockfile
         run: npm install --package-lock-only --prefix mobile --ignore-scripts --no-audit --no-fund && npm ci --prefix mobile --no-audit --no-fund
       - name: Run native Android app TypeScript checks
