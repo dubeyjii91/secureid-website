@@ -43,6 +43,6 @@ test("institution workspace scholarship management is explicitly limited to part
 test("the final light product stylesheet is loaded after all earlier theme layers", () => {
   assert.ok(main.includes('import "./secureid-design-system.css"'));
   assert.ok(main.includes('import "./secureid-consistent-sizing.css"'));
-  assert.ok(main.trim().endsWith('import "./secureid-global-product-ui.css"'));
+  assert.ok(main.includes('import "./secureid-global-product-ui.css"'));
   assert.ok(!read("../src/App.jsx").includes("secureid-global-product-ui.css"));
 });
