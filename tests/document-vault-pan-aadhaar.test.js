@@ -93,13 +93,14 @@ test("Vault OCR is private, rate-limited, temporary and limited to supported sto
   assert.match(route, /WHERE id=\? AND user_id=\? AND deleted_at IS NULL/);
   assert.match(route, /await fileTypeFromBuffer\(plaintext\)/);
   assert.match(route, /persisted:false/);
-  assert.match(backend, /const DOCUMENT_OCR_MIME = new Set\(\["image\/jpeg","image\/png","image\/webp"\]\)/);
+  assert.match(backend, /const DOCUMENT_OCR_MIME = new Set\(\["application\/pdf","image\/jpeg","image\/png","image\/webp"\]\)/);
   assert.match(ocrHelper, /mkdtemp/);
   assert.match(ocrHelper, /await fs\.rm\(workingDirectory, \{ recursive: true, force: true \}\)/);
   assert.match(ocrHelper, /maxBuffer: 128 \* 1024/);
   assert.match(smartFill, /CREATE TABLE IF NOT EXISTS smartfill_document_data/);
   assert.match(smartFill, /sources\.includes\("vault_ocr"\)/);
   assert.match(smartFill, /encryptValue\(\{ value: value\.trim\(\) \}\)/);
+  assert.match(dockerfile, /poppler-utils/);
   assert.match(dockerfile, /tesseract-ocr-data-eng/);
   assert.match(dockerfile, /tesseract-ocr-data-hin/);
   assert.match(backend, /DELETE FROM smartfill_document_data WHERE user_id=\? AND document_id=\?/);
