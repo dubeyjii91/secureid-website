@@ -144,9 +144,9 @@ export default function ScholarshipManagement() {
   }
 
   return <section className="panel collegeReviewPanel hostelPanel scholarshipPanel">
-    <div className="eyebrow dark">SCHOLARSHIP MANAGEMENT</div>
-    <h2>Scholarship programs & applications</h2>
-    <p className="lead">Institutions publish scholarship opportunities, students apply using references to documents in their SecureID Vault, and authorized reviewers record decisions. Document files are not shared with staff through this workflow.</p>
+    <div className="eyebrow dark">PARTNER SCHOLARSHIP WORKSPACE</div>
+    <h2>Institution-funded scholarship programs</h2>
+    <p className="lead">This workspace is only for scholarship programs published by an institution that has an active SecureID partnership. Students apply here only to those partner-funded programs. Government schemes such as Bihar PMS, Jharkhand e-Kalyan and NSP remain on their own official portals; SecureID does not submit or approve those government applications. Document files are not shared with staff through this workflow.</p>
     {loading ? <p>Loading scholarship workspace…</p> : memberships.length === 0 ? <div className="hostelApplications"><h3>Connect your college account</h3><p className="lead">An active student, reviewer or institution administrator membership is required to use Scholarship Management.</p></div> : <>
       {admins.length > 0 && <div className="hostelApplications">
         <h3>Publish a scholarship program</h3>
