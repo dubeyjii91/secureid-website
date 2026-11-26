@@ -287,4 +287,9 @@ test("SmartFill review acknowledgement guards active-page form submission", () =
   assert.match(ui, /setReviewAcknowledged\(false\)/);
   assert.match(api, /X-SecureID-SmartFill-Form/);
   assert.match(api, /X-SecureID-SmartFill-Review/);
+  assert.match(ui, /function closePanel\(\)[\s\S]*?clearOcrReview\(\)[\s\S]*?setOcrConsent\(false\)/);
+  assert.match(ui, /onClick=\{\(\) => open \? closePanel\(\) : setOpen\(true\)\}/);
+  assert.match(ui, /setOcrDocumentId\(event\.target\.value\); setOcrConsent\(false\); clearOcrReview\(\);/);
+  assert.match(ui, /OCR supports Vault PDFs, JPEG, PNG and WebP/);
+  assert.match(ui, /Temporary previews clear when you close SmartFill or change documents/);
 });
