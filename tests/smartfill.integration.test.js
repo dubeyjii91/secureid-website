@@ -7,7 +7,7 @@ import { registerSmartFill } from "../server/smartfill.js";
 
 test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free audit", async (t) => {
   const db = new DatabaseSync(":memory:");
-  db.exec(\`
+  db.exec(`
     CREATE TABLE identity_profiles (
       user_id TEXT PRIMARY KEY,
       encrypted_data TEXT NOT NULL,
@@ -17,7 +17,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
       user_id TEXT PRIMARY KEY,
       locked INTEGER DEFAULT 0
     );
-  \`);
+  `);
   db.prepare("INSERT INTO identity_profiles VALUES (?, ?, ?)").run(
     "u1",
     JSON.stringify({
