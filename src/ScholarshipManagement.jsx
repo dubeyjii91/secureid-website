@@ -147,6 +147,34 @@ export default function ScholarshipManagement() {
     <div className="eyebrow dark">SCHOLARSHIP MANAGEMENT</div>
     <h2>Scholarship programs & applications</h2>
     <p className="lead">Institutions publish scholarship opportunities, students apply using references to documents in their SecureID Vault, and authorized reviewers record decisions. Document files are not shared with staff through this workflow.</p>
+    <section className="scholarshipOfficialHub" aria-labelledby="scholarship-official-hub-title">
+      <div className="scholarshipOfficialHubHead">
+        <div>
+          <div className="eyebrow dark">GOVERNMENT SCHOLARSHIP ASSISTANT</div>
+          <h3 id="scholarship-official-hub-title">Find and apply on the official portal</h3>
+          <p>SecureID helps you keep documents ready and find the correct application site. Government scholarship forms are submitted on the official portal—not on SecureID.</p>
+        </div>
+        <span className="scholarshipOfficialHubBadge">Official submission</span>
+      </div>
+      <div className="scholarshipOfficialLinks">
+        <a className="scholarshipOfficialLink" href="https://ekalyan.cgg.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>Jharkhand e-Kalyan</strong><small>Pre-matric and post-matric scholarship services</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+        <a className="scholarshipOfficialLink" href="https://pmsonline.bihar.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>Bihar Post-Matric Scholarship</strong><small>BC/EBC and related student application portal</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+        <a className="scholarshipOfficialLink" href="https://scholarships.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>National Scholarship Portal</strong><small>Central schemes, eligibility, OTR and application status</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+      </div>
+      <p className="scholarshipOfficialHubNote"><strong>Before you apply:</strong> Check your domicile, scheme eligibility, current opening/closing dates and required documents on the official site. SecureID does not claim government approval, submit these forms, or guarantee a scholarship. You will upload Vault files yourself on the external portal; cross-site file auto-upload is not supported by the browser.</p>
+    </section>
     {loading ? <p>Loading scholarship workspace…</p> : memberships.length === 0 ? <div className="hostelApplications"><h3>Connect your college account</h3><p className="lead">An active student, reviewer or institution administrator membership is required to use Scholarship Management.</p></div> : <>
       {admins.length > 0 && <div className="hostelApplications">
         <h3>Publish a scholarship program</h3>
