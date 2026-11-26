@@ -262,3 +262,7 @@ body::before { content: none !important; display: none !important; }
   #root .collegeRequestList { grid-template-columns:minmax(0,1fr); }
   #root .collegeReviewButtons button { flex:1 1 auto; }
 }
+
+/* Keep the complete desktop navigation reachable when the menu exceeds viewport height. */
+#root .sidebar { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#cbd2df transparent; }
+#root .sidebar nav { min-height:0; }
