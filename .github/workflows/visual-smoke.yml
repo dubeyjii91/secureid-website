@@ -131,10 +131,12 @@ jobs:
                     .find(element => element.textContent.trim() === label);
                   if (!button) throw new Error('Navigation item disappeared: ' + label);
                   button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                  button.click();
                 }, label);
-                await page.waitForTimeout(120);
+                const navButton = page.getByRole('button', { name: label, exact: true });
+                await navButton.click({ force: true });
+                await page.waitForTimeout(160);
                 const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
+                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel }));
                 if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
                 const routeLayout = await page.evaluate(() => {
                   const main = document.querySelector('.main');
