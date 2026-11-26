@@ -183,6 +183,26 @@ jobs:
             if (shareLayout.pageWidth > shareLayout.viewportWidth) failures.push('Share ID has horizontal overflow on desktop.');
             if (shareLayout.claimCount !== 11 || shareLayout.checkboxWidth < 17 || shareLayout.checkboxHeight < 17 || shareLayout.claimFontSize < 13) failures.push('Share ID claim checkboxes or labels have unusable sizing.');
             await studentPage.screenshot({ path: 'artifacts/secureid-share-id.png', fullPage: true, animations: 'disabled' });
+
+            for (const pageName of [
+              'Safety check',
+              'Emergency lock/unlock',
+              'Security activity',
+              'Active sessions',
+              'Share management',
+              'Parent Portal',
+              'Account security',
+              'Privacy & Terms'
+            ]) {
+              const navigationButton = studentPage.locator('.sidebar .navItem').filter({ hasText: pageName }).last();
+              await navigationButton.click();
+              await studentPage.locator('.topbar h1').waitFor({ state: 'visible', timeout: 10000 });
+              const heading = (await studentPage.locator('.topbar h1').innerText()).trim();
+              if (heading !== pageName) failures.push(pageName + ': navigation did not open the expected page heading (got "' + heading + '").');
+              const pageBounds = await studentPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+              if (pageBounds.page > pageBounds.viewport) failures.push(pageName + ': desktop page has horizontal overflow.');
+            }
+
             await studentPage.close();
 
             const mobileScholarshipPage = await openDashboard({ width: 390, height: 844 }, 'user');
@@ -200,6 +220,24 @@ jobs:
             await mobileScholarshipPage.locator('.claimGrid').waitFor({ state: 'visible', timeout: 10000 });
             const shareMobileWidth = await mobileScholarshipPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
             if (shareMobileWidth.page > shareMobileWidth.viewport) failures.push('Share ID has horizontal overflow on a mobile viewport.');
+
+            for (const pageName of [
+              'Safety check',
+              'Emergency lock/unlock',
+              'Security activity',
+              'Active sessions',
+              'Share management',
+              'Parent Portal',
+              'Account security',
+              'Privacy & Terms'
+            ]) {
+              const navigationButton = mobileScholarshipPage.locator('.sidebar .navItem').filter({ hasText: pageName }).last();
+              await navigationButton.click();
+              const heading = (await mobileScholarshipPage.locator('.topbar h1').innerText()).trim();
+              if (heading !== pageName) failures.push(pageName + ': mobile navigation did not open the expected page.');
+              const pageBounds = await mobileScholarshipPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+              if (pageBounds.page > pageBounds.viewport) failures.push(pageName + ': mobile page has horizontal overflow.');
+            }
             await mobileScholarshipPage.close();
           } finally {
             await browser.close();
