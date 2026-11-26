@@ -73,6 +73,8 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     body: JSON.stringify({ fields: { "personal.full_name": "Different Person" } }),
   });
   assert.equal(save.status, 200);
+  const invalid = await fetch(`${base}/api/smartfill/data`, { method: "PUT", headers, body: JSON.stringify({ fields: { "contact.email": "not-an-email" } }) });
+  assert.equal(invalid.status, 400);
   const conflict = await (await fetch(`${base}/api/smartfill/suggestions?formId=admission`, { headers })).json();
   assert.equal(conflict.suggestions[0].status, "ambiguous");
   assert.equal(conflict.suggestions[0].value, "");
