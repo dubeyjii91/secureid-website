@@ -77,6 +77,13 @@ test("parent can only view children explicitly linked by the school",async t=>{
   assert.equal(child.homework.length,1);
   response=await request("parent-a","/api/parent-portal/children/student-b?institutionId=school");
   assert.equal(response.status,404);
+  db.prepare("UPDATE institution_memberships SET status='suspended' WHERE user_id='student-a' AND institution_id='school'").run();
+  response=await request("parent-a","/api/parent-portal/children");
+  assert.equal((await response.json()).children.length,0);
+  response=await request("parent-a","/api/parent-portal/children/student-a?institutionId=school");
+  assert.equal(response.status,404);
+  response=await request("admin","/api/institutions/school/parent-links");
+  assert.equal((await response.json()).links.length,0);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM institution_parent_portal_audit WHERE action='parent_child_records_viewed'").get().n,1);
 });
 

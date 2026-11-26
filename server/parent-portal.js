@@ -37,6 +37,7 @@ export function registerParentPortal({ app, database, requireAuth, requireMfaPro
       u.email AS parentEmail,i.name AS institutionName,l.relationship,l.created_at AS linkedAt
       FROM institution_parent_links l JOIN users u ON u.id=l.parent_user_id
       JOIN institutions i ON i.id=l.institution_id
+      JOIN institution_memberships m ON m.institution_id=l.institution_id AND m.user_id=l.student_user_id AND m.role='student' AND m.status='active'
       WHERE l.institution_id=? AND l.parent_user_id=? AND l.student_user_id=? AND l.status='active'`)
       .get(institutionId, req.user.id, studentUserId);
   }
