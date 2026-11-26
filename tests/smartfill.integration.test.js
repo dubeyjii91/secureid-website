@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
@@ -86,4 +87,13 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   await fetch(`${base}/api/smartfill/consent/admission`, { method: "DELETE", headers });
   assert.equal((await fetch(`${base}/api/smartfill/suggestions?formId=admission`, { headers })).status, 403);
   assert.equal((await fetch(`${base}/api/smartfill/schema`, { headers: { "x-user": "u1", "x-mfa": "false" } })).status, 403);
+});
+
+test("SmartFill review acknowledgement guards active-page form submission", () => {
+  const ui = readFileSync(new URL("../src/SmartFill.jsx", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /data-smartfill-page=\{page\}/);
+  assert.match(ui, /addEventListener\("submit",guard,true\)/);
+  assert.match(ui, /stopImmediatePropagation\(\)/);
+  assert.match(ui, /setReviewAcknowledged\(false\)/);
 });
