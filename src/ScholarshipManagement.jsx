@@ -144,9 +144,37 @@ export default function ScholarshipManagement() {
   }
 
   return <section className="panel collegeReviewPanel hostelPanel scholarshipPanel">
-    <div className="eyebrow dark">PARTNER SCHOLARSHIP WORKSPACE</div>
-    <h2>Institution-funded scholarship programs</h2>
-    <p className="lead">This workspace is only for scholarship programs published by an institution that has an active SecureID partnership. Students apply here only to those partner-funded programs. Government schemes such as Bihar PMS, Jharkhand e-Kalyan and NSP remain on their own official portals; SecureID does not submit or approve those government applications. Document files are not shared with staff through this workflow.</p>
+    <div className="eyebrow dark">SCHOLARSHIP SUPPORT</div>
+    <h2>Government guidance & institution scholarships</h2>
+    <p className="lead">Use the official government portals below for government schemes. Applications in the SecureID workspace are only for scholarships published by a connected college, school, trust or sponsor; SecureID does not submit government scholarship forms.</p>
+    <section className="scholarshipOfficialHub" aria-labelledby="scholarship-official-hub-title">
+      <div className="scholarshipOfficialHubHead">
+        <div>
+          <div className="eyebrow dark">GOVERNMENT SCHOLARSHIP ASSISTANT</div>
+          <h3 id="scholarship-official-hub-title">Official government scholarship portals</h3>
+          <p>Open the official site for scheme details, eligibility, current dates and application status. SecureID keeps your Vault documents organized; you complete and submit the government form on that site.</p>
+        </div>
+        <span className="scholarshipOfficialHubBadge">Official submission</span>
+      </div>
+      <div className="scholarshipOfficialLinks">
+        <a className="scholarshipOfficialLink" href="https://ekalyan.cgg.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>Jharkhand e-Kalyan</strong><small>Pre-matric and post-matric scholarship services</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+        <a className="scholarshipOfficialLink" href="https://pmsonline.bihar.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>Bihar Post-Matric Scholarship</strong><small>BC/EBC and related student application portal</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+        <a className="scholarshipOfficialLink" href="https://scholarships.gov.in/" target="_blank" rel="noopener noreferrer">
+          <span className="scholarshipOfficialLinkIcon" aria-hidden="true">↗</span>
+          <span><strong>National Scholarship Portal</strong><small>Central schemes, eligibility, OTR and application status</small></span>
+          <span className="scholarshipOfficialLinkArrow" aria-hidden="true">↗</span>
+        </a>
+      </div>
+      <p className="scholarshipOfficialHubNote"><strong>Before you apply:</strong> Check your domicile, scheme eligibility, current opening/closing dates and required documents on the official site. SecureID does not claim government approval, submit these forms, or guarantee a scholarship. You will upload Vault files yourself on the external portal; cross-site file auto-upload is not supported by the browser.</p>
+    </section>
     {loading ? <p>Loading scholarship workspace…</p> : memberships.length === 0 ? <div className="hostelApplications"><h3>Connect your college account</h3><p className="lead">An active student, reviewer or institution administrator membership is required to use Scholarship Management.</p></div> : <>
       {admins.length > 0 && <div className="hostelApplications">
         <h3>Publish a scholarship program</h3>
@@ -163,7 +191,7 @@ export default function ScholarshipManagement() {
       </div>}
 
       <div className="hostelApplications">
-        <h3>Available scholarship programs</h3>
+        <h3>Scholarships published by your institution</h3>
         {programs.length === 0 ? <p className="lead">No scholarship programs have been published for your institution yet.</p> : <div className="collegeRequestList">{programs.map(program => <article className="collegeRequest" key={program.id}>
           <strong>{program.title}</strong><span className="collegeStatus">{program.status}</span>
           <small>{program.institutionName} · Award ₹{(program.awardAmountPaise / 100).toFixed(2)} · Deadline {program.deadline}</small>
@@ -173,7 +201,7 @@ export default function ScholarshipManagement() {
       </div>
 
       {students.length > 0 && <div className="hostelApplications">
-        <h3>Apply for a scholarship</h3>
+        <h3>Apply to an institution scholarship</h3>
         <p className="collegePrivacyNote">Choose only documents relevant to this application. SecureID sends document references and metadata; the institution does not receive permission to download the files. Do not enter Aadhaar numbers, bank details, OTPs or passwords in the note.</p>
         <form className="collegeSubmissionForm" onSubmit={apply}>
           <label>Scholarship program<select required value={applicationDraft.programId} onChange={event => setApplicationDraft(value => ({ ...value, programId: event.target.value }))}><option value="">Choose an active scholarship</option>{programs.filter(program => program.status === "active" && program.deadline >= new Date().toISOString().slice(0, 10) && students.some(item => item.institutionId === program.institutionId)).map(program => <option key={program.id} value={program.id}>{program.institutionName} · {program.title} · ₹{(program.awardAmountPaise / 100).toFixed(2)}</option>)}</select><button type="button" className="secondary clearFieldButton" onClick={() => setApplicationDraft(value => ({ ...value, programId: "" }))} disabled={!applicationDraft.programId}>Clear value</button></label>
