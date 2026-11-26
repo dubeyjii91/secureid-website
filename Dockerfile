@@ -1,6 +1,9 @@
-FROM node:24-alpine
+FROM node:24-alpine3.22
 WORKDIR /app
-RUN apk add --no-cache su-exec && chown node:node /app
+RUN apk add --no-cache su-exec tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-hin \
+    && tesseract --list-langs 2>/dev/null | grep -qx eng \
+    && tesseract --list-langs 2>/dev/null | grep -qx hin \
+    && chown node:node /app
 USER node
 COPY --chown=node:node package*.json ./
 RUN npm install --include=dev --no-audit --no-fund
