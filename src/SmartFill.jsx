@@ -75,6 +75,7 @@ export default function SmartFill({ page }) {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrSaving, setOcrSaving] = useState(false);
   const [ocrText, setOcrText] = useState("");
+  const [ocrMeta, setOcrMeta] = useState(null);
   const [ocrCandidates, setOcrCandidates] = useState({});
   const [ocrSelected, setOcrSelected] = useState([]);
   const [ocrReviewConfirmed, setOcrReviewConfirmed] = useState(false);
@@ -210,6 +211,7 @@ export default function SmartFill({ page }) {
     }
     setOcrBusy(true);
     setOcrText("");
+    setOcrMeta(null);
     setOcrCandidates({});
     setOcrSelected([]);
     setOcrReviewConfirmed(false);
@@ -217,6 +219,12 @@ export default function SmartFill({ page }) {
       const result = await api("/api/documents/" + encodeURIComponent(ocrDocumentId) + "/ocr", { method: "POST" });
       const extracted = String(result.text || "");
       setOcrText(extracted);
+      setOcrMeta({
+        method: result.method || "image_ocr",
+        pagesProcessed: Number(result.pagesProcessed || 1),
+        pagesTotal: Number(result.pagesTotal || 1),
+        truncated: Boolean(result.truncated),
+      });
       setOcrCandidates(parseOcrCandidates(extracted));
       setStatus(extracted.trim()
         ? "Text extracted temporarily. Review and correct every field before saving."
@@ -270,6 +278,7 @@ export default function SmartFill({ page }) {
 
   function clearOcrReview() {
     setOcrText("");
+    setOcrMeta(null);
     setOcrCandidates({});
     setOcrSelected([]);
     setOcrReviewConfirmed(false);
@@ -477,24 +486,27 @@ export default function SmartFill({ page }) {
           <section className="smartfillOcr">
             <div>
               <b>Extract fields from your SecureID Vault</b>
-              <p>Process one stored image using SecureID's on-server English and Hindi OCR. PDF OCR is not enabled.</p>
+              <p>Process one stored image or PDF using SecureID's on-server English and Hindi OCR. Text PDFs are read directly; scanned PDFs render at most five pages for OCR.</p>
             </div>
             <label>
               Stored image
               <select value={ocrDocumentId} onChange={(event) => { setOcrDocumentId(event.target.value); clearOcrReview(); }}>
-                <option value="">Choose a Vault image…</option>
-                {vaultDocuments.filter((item) => ["image/jpeg", "image/png", "image/webp"].includes(item.mimeType)).map((item) => (
+                <option value="">Choose a Vault document…</option>
+                {vaultDocuments.filter((item) => ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(item.mimeType)).map((item) => (
                   <option key={item.id} value={item.id}>{item.name} · {item.mimeType}</option>
                 ))}
               </select>
             </label>
-            {vaultLoading && <small>Loading your private Vault images…</small>}
+            {vaultLoading && <small>Loading your private Vault documents…</small>}
+            {!vaultLoading && !vaultDocuments.some((item) => ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(item.mimeType)) && (
+              <small>No PDF or supported image is stored yet. Upload a PDF, JPEG, PNG or WebP document to use OCR.</small>
+            )}
             <label className="smartfillOcrConsent">
               <input type="checkbox" checked={ocrConsent} onChange={(event) => setOcrConsent(event.target.checked)} />
               I consent to temporarily decrypt and process this image on the SecureID server for OCR. Temporary plaintext files will be deleted after processing; extracted text will not be saved unless I select and confirm fields below.
             </label>
             <button type="button" disabled={ocrBusy || !ocrConsent || !ocrDocumentId} onClick={runDocumentOcr}>
-              {ocrBusy ? "Extracting text securely…" : "Extract text from image"}
+              {ocrBusy ? "Extracting text securely…" : "Extract text from document"}
             </button>
             {ocrText && (
               <div className="smartfillOcrReview">
@@ -502,7 +514,14 @@ export default function SmartFill({ page }) {
                   Temporary OCR text — review carefully
                   <textarea rows={6} maxLength={20000} readOnly value={ocrText} />
                 </label>
-                <small>OCR may misread names, numbers and dates. Nothing here is government-verified.</small>
+                {ocrMeta && (
+                  <small>
+                    {ocrMeta.method === "pdf_text" ? "Text extracted from PDF text layer." : "Image text extracted with OCR."}
+                    {ocrMeta.pagesTotal > 1 ? ` Pages processed: ${ocrMeta.pagesProcessed} of ${ocrMeta.pagesTotal}.` : ""}
+                    {ocrMeta.truncated ? " Only the first five PDF pages were processed." : ""}
+                    {" "}OCR may misread names, numbers and dates. Nothing here is government-verified.
+                  </small>
+                )}
                 {Object.entries(ocrCandidates).length > 0 ? (
                   <div className="smartfillOcrFields">
                     <b>Detected fields — edit, then select only what you want to save</b>
