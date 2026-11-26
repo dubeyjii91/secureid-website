@@ -3,7 +3,7 @@ const id=()=>crypto.randomUUID(), now=()=>Date.now();
 const FIELDS=new Set(["personal.full_name","personal.date_of_birth","personal.age","contact.email","contact.phone","address.full","address.line1","address.line2","address.city","address.state","address.postal_code","address.country","identity.aadhaar","identity.pan","identity.passport","identity.student_id","education.institution","education.course","education.department","education.roll_number","education.admission_year","education.graduation_year","professional.job_title","professional.employer","professional.experience"]);
 const PROFILE={"personal.full_name":"name","personal.date_of_birth":"dateOfBirth","personal.age":"age","contact.email":"email","contact.phone":"phone","address.full":"address","education.institution":"college","education.roll_number":"studentId"};
 const clean=(v,n=160)=>String(v??"").trim().slice(0,n);
-const allowedField=(key)=>FIELDS.has(key)||/^custom\\.[a-z0-9_.-]{1,70}$/i.test(String(key));
+const allowedField=(key)=>FIELDS.has(key)||/^custom\.[a-z0-9_.-]{1,70}$/i.test(String(key));
 export function registerSmartFill({app,database,requireAuth,enforceSameOrigin,encryptValue,decryptValue,assertWalletUnlocked}){
  database.exec(`
  CREATE TABLE IF NOT EXISTS smartfill_consents(user_id TEXT NOT NULL,form_id TEXT NOT NULL,fields_json TEXT NOT NULL,sources_json TEXT NOT NULL,consent_version TEXT NOT NULL,consented_at INTEGER NOT NULL,revoked_at INTEGER,PRIMARY KEY(user_id,form_id));
