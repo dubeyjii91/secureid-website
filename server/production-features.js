@@ -28,7 +28,7 @@ import { registerInstitutionPartnership } from "./institution-partnership.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
-const DOCUMENT_OCR_MIME = new Set(["image/jpeg","image/png","image/webp"]);
+const DOCUMENT_OCR_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
 const documentOcrRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -740,7 +740,7 @@ export function registerProductionFeatures({
           return res.status(415).json({
             success:false,
             code:"OCR_UNSUPPORTED_MEDIA",
-            message:"SecureID OCR currently supports JPEG, PNG and WebP images. PDF OCR is not enabled.",
+            message:"SecureID OCR supports PDF, JPEG, PNG and WebP files.",
           });
         }
         if (!fs.existsSync(row.encrypted_path)) {
@@ -770,16 +770,26 @@ export function registerProductionFeatures({
           });
         }
 
-        const text = await extractDocumentText(plaintext,row.mime_type);
-        logEvent(req.user.id,"DOCUMENT_OCR_PROCESSED",req,{mimeType:row.mime_type,characterCount:text.length});
+        const extraction = await extractDocumentText(plaintext,row.mime_type);
+        logEvent(req.user.id,"DOCUMENT_OCR_PROCESSED",req,{
+          mimeType:row.mime_type,
+          characterCount:extraction.text.length,
+          pagesProcessed:extraction.pagesProcessed,
+          method:extraction.method
+        });
         return res.json({
           success:true,
           documentId:row.id,
-          text,
+          text:extraction.text,
           language:"eng+hin",
+          pagesProcessed:extraction.pagesProcessed,
+          pagesTotal:extraction.pagesTotal,
+          pageLimit:extraction.pageLimit,
+          truncated:extraction.truncated,
+          method:extraction.method,
           persisted:false,
           authenticityStatus:"not_verified",
-          message:"OCR text is temporary, may contain mistakes and is not proof of identity.",
+          message:"Extracted text is temporary, may contain mistakes and is not proof of identity.",
         });
       } catch(error) {
         if (error?.code === "OCR_UNSUPPORTED_MEDIA") {
