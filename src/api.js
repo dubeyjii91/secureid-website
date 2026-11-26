@@ -42,6 +42,13 @@ export async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (hasBodyContentType(options.body) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     if (mutating && csrf) headers.set("X-CSRF-Token", csrf);
+    if (mutating && typeof document !== "undefined") {
+      const activeForm = document.activeElement?.closest?.("form[data-smartfill-form-id]");
+      const formId = activeForm?.dataset.smartfillFormId;
+      const reviewToken = activeForm?.dataset.smartfillReviewToken;
+      if (formId) headers.set("X-SecureID-SmartFill-Form", formId);
+      if (reviewToken) headers.set("X-SecureID-SmartFill-Review", reviewToken);
+    }
     return fetch(path, { credentials: "include", ...options, headers });
   };
 
