@@ -143,7 +143,46 @@ jobs:
             await studentPage.getByRole('heading', { name: 'Documents & Identity' }).waitFor({ state: 'visible', timeout: 10000 });
             const scholarshipHandoff = await studentPage.locator('.sidebar .navItem.active').innerText();
             if (!/Document vault/i.test(scholarshipHandoff)) failures.push('Scholarship checklist did not navigate to the Document Vault.');
+            const vaultLayout = await studentPage.evaluate(() => ({
+              pageWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+              formInputHeight: document.querySelector('.documentVault .identityForm input')?.getBoundingClientRect().height || 0,
+              documentCardCount: document.querySelectorAll('.documentVault .documentItem').length
+            }));
+            if (vaultLayout.pageWidth > vaultLayout.viewportWidth) failures.push('Document Vault has horizontal overflow on desktop.');
+            if (vaultLayout.formInputHeight && vaultLayout.formInputHeight < 44) failures.push('Document Vault form controls are too short to use comfortably.');
+            await studentPage.screenshot({ path: 'artifacts/secureid-document-vault.png', fullPage: true, animations: 'disabled' });
 
+            await studentPage.getByRole('button', { name: /My identity/i }).click();
+            await studentPage.locator('.identityProfileFields').waitFor({ state: 'visible', timeout: 10000 });
+            const identityLayout = await studentPage.evaluate(() => ({
+              pageWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+              fieldCount: document.querySelectorAll('.identityProfileFields input').length,
+              minInputHeight: Math.min(...Array.from(document.querySelectorAll('.identityProfileFields input'), input => input.getBoundingClientRect().height)),
+              labelFontSize: parseFloat(getComputedStyle(document.querySelector('.identityProfileFields label')).fontSize),
+              detailsGridColumns: getComputedStyle(document.querySelector('.profileGrid .details')).gridTemplateColumns
+            }));
+            if (identityLayout.pageWidth > identityLayout.viewportWidth) failures.push('My Identity has horizontal overflow on desktop.');
+            if (identityLayout.fieldCount !== 10 || identityLayout.minInputHeight < 44 || identityLayout.labelFontSize < 13) failures.push('My Identity labels or input fields are too small or missing.');
+            await studentPage.screenshot({ path: 'artifacts/secureid-identity.png', fullPage: true, animations: 'disabled' });
+
+            await studentPage.getByRole('button', { name: /Share ID/i }).click();
+            await studentPage.locator('.claimGrid').waitFor({ state: 'visible', timeout: 10000 });
+            const shareLayout = await studentPage.evaluate(() => {
+              const checkbox = document.querySelector('.claimGrid input[type="checkbox"]');
+              return {
+                pageWidth: document.documentElement.scrollWidth,
+                viewportWidth: window.innerWidth,
+                claimCount: document.querySelectorAll('.claimGrid .claim').length,
+                checkboxWidth: checkbox?.getBoundingClientRect().width || 0,
+                checkboxHeight: checkbox?.getBoundingClientRect().height || 0,
+                claimFontSize: parseFloat(getComputedStyle(document.querySelector('.claim span')).fontSize)
+              };
+            });
+            if (shareLayout.pageWidth > shareLayout.viewportWidth) failures.push('Share ID has horizontal overflow on desktop.');
+            if (shareLayout.claimCount !== 11 || shareLayout.checkboxWidth < 17 || shareLayout.checkboxHeight < 17 || shareLayout.claimFontSize < 13) failures.push('Share ID claim checkboxes or labels have unusable sizing.');
+            await studentPage.screenshot({ path: 'artifacts/secureid-share-id.png', fullPage: true, animations: 'disabled' });
             await studentPage.close();
 
             const mobileScholarshipPage = await openDashboard({ width: 390, height: 844 }, 'user');
@@ -152,6 +191,15 @@ jobs:
             const scholarshipMobileWidth = await mobileScholarshipPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
             if (scholarshipMobileWidth.page > scholarshipMobileWidth.viewport) failures.push('Scholarship Finder causes horizontal overflow on a mobile viewport.');
             await mobileScholarshipPage.screenshot({ path: 'artifacts/secureid-scholarships-mobile.png', fullPage: true, animations: 'disabled' });
+
+            await mobileScholarshipPage.getByRole('button', { name: /My identity/i }).click();
+            await mobileScholarshipPage.locator('.identityProfileFields').waitFor({ state: 'visible', timeout: 10000 });
+            const identityMobileWidth = await mobileScholarshipPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+            if (identityMobileWidth.page > identityMobileWidth.viewport) failures.push('My Identity has horizontal overflow on a mobile viewport.');
+            await mobileScholarshipPage.getByRole('button', { name: /Share ID/i }).click();
+            await mobileScholarshipPage.locator('.claimGrid').waitFor({ state: 'visible', timeout: 10000 });
+            const shareMobileWidth = await mobileScholarshipPage.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+            if (shareMobileWidth.page > shareMobileWidth.viewport) failures.push('Share ID has horizontal overflow on a mobile viewport.');
             await mobileScholarshipPage.close();
           } finally {
             await browser.close();
