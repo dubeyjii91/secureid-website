@@ -220,3 +220,45 @@ body::before { content: none !important; display: none !important; }
 @media (max-width:760px) {
   #root .shell { display:flex; flex-direction:column; }
 }
+
+/* Reusable form action, clear-value and status components. */
+#root .content > * + * { margin-top:clamp(20px,2.4vw,32px); }
+#root .functionHero { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 24px; }
+#root .functionHero > * { min-width:0; }
+#root .sectionTitle { margin:30px 0 18px; }
+#root .hostelApplications { min-width:0; margin-top:22px; padding:clamp(16px,2vw,24px); background:#fff !important; border:1px solid var(--sid-line) !important; border-radius:12px !important; }
+#root .hostelApplications h3 { margin:0 0 10px; }
+#root .collegeRequestList { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+#root .collegeRequest { min-width:0; padding:16px; background:#fff !important; border:1px solid var(--sid-line) !important; border-radius:11px !important; overflow-wrap:anywhere; }
+#root .collegeRequest > strong { color:var(--sid-ink) !important; font-size:15px; line-height:1.4; }
+#root .collegeRequest > small { display:block; margin:7px 0; color:var(--sid-muted) !important; font-size:12px; line-height:1.5; }
+#root .collegeReviewActions, #root .collegeReviewButtons, #root .formActions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
+#root .clearFieldButton { align-self:flex-start; min-height:30px !important; padding:5px 9px !important; color:#475467 !important; background:#f7f8fb !important; border:1px solid #dce1ea !important; border-radius:7px !important; font-size:11.5px !important; font-weight:650 !important; box-shadow:none !important; }
+#root .clearFieldButton:hover:not(:disabled) { background:#eef1f7 !important; border-color:#c8cfdd !important; }
+#root button.secondary, #root a.secondary {
+  min-height:38px; padding:8px 12px; color:#344054 !important;
+  background:#fff !important; border:1px solid var(--sid-line-strong) !important;
+  border-radius:9px !important; box-shadow:none !important;
+}
+#root button.secondary:hover:not(:disabled) { background:#f7f8fb !important; border-color:#b8c0d0 !important; }
+#root button.dangerButton, #root .dangerButton {
+  min-height:38px; padding:8px 12px; color:#a92f43 !important;
+  background:#fff5f6 !important; border:1px solid #efc7ce !important;
+  border-radius:9px !important; box-shadow:none !important;
+}
+#root .collegeAlert, #root .studentProofMessage, #root .smartfillStatus, #root .vaultMessage {
+  margin-top:12px; padding:12px 14px; color:#475467 !important;
+  background:#f5f7fb !important; border:1px solid #e1e5ed !important;
+  border-radius:10px !important; font-size:13px; line-height:1.55;
+}
+#root .collegeAlert.error, #root .studentProofMessage.error, #root .smartfillStatus.error {
+  color:var(--sid-danger) !important; background:var(--sid-danger-bg) !important; border-color:#f0c2ca !important;
+}
+#root .statusBadge.success, #root .collegeStatus.success {
+  color:var(--sid-positive) !important; background:var(--sid-positive-bg) !important; border-color:#b9e5cf !important;
+}
+@media(max-width:760px) {
+  #root .functionHero { align-items:flex-start; }
+  #root .collegeRequestList { grid-template-columns:minmax(0,1fr); }
+  #root .collegeReviewButtons button { flex:1 1 auto; }
+}
