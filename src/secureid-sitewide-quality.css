@@ -265,7 +265,7 @@ body::before { content: none !important; display: none !important; }
 
 /* Keep the complete desktop navigation reachable when the menu exceeds viewport height. */
 #root .sidebar { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#cbd2df transparent; }
-#root .sidebar nav { min-height:0; }
+#root .sidebar nav { min-height:0; max-height:calc(100vh - 150px); overflow-y:auto; overscroll-behavior:contain; }
 
 /* Specificity guard for page-level CSS chunks loaded after the entry bundle. */
 #root:is(#root) .sidebar { color:#293244 !important; background:#fff !important; border-color:var(--sid-line) !important; }
