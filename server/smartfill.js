@@ -223,8 +223,13 @@ export function registerSmartFill({
         });
       }
 
-      audit(req.user.id, formId, "submitted", JSON.parse(session.fields_json), ["reviewed_suggestions"]);
+      const submittedFields = JSON.parse(session.fields_json);
       res.setHeader("Cache-Control", "private, no-store, max-age=0");
+      res.once("finish", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          audit(req.user.id, formId, "submitted", submittedFields, ["reviewed_suggestions"]);
+        }
+      });
       return next();
     });
   });
