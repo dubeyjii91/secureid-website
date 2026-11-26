@@ -30,7 +30,7 @@ jobs:
           mkdir -p /tmp/secureid-browser-deps
           npm install --prefix /tmp/secureid-browser-deps --no-audit --no-fund playwright
           ln -s /tmp/secureid-browser-deps/node_modules/playwright node_modules/playwright
-          npx --no-install playwright install --with-deps chromium
+          /tmp/secureid-browser-deps/node_modules/.bin/playwright install --with-deps chromium
       - name: Build the exact pull-request frontend
         run: npm run build
       - name: Start isolated production preview
