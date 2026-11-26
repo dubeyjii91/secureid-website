@@ -110,7 +110,7 @@ export async function extractDocumentText(
       await runCommand(
         execute,
         "pdftoppm",
-        ["-f", "1", "-l", String(pagesToProcess), "-r", "150", "-png", sourcePath, imagePrefix],
+        ["-f", "1", "-l", String(pagesToProcess), "-scale-to", "1800", "-png", sourcePath, imagePrefix],
         timeoutMs,
       );
       const pageFiles = (await fs.readdir(workingDirectory))
