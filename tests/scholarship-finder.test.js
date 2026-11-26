@@ -32,6 +32,7 @@ test("Scholarship Finder provides local filters and a non-submitting document ch
   assert.match(finder, /setLevel/);
   assert.match(finder, /checklistItems/);
   assert.match(finder, /stays only in this open page/);
+  assert.ok(finder.includes('new CustomEvent("secureid:navigate", { detail: "documents" })'));
   assert.doesNotMatch(finder, /\bfetch\s*\(|\bapi\s*\(/);
 });
 
@@ -40,9 +41,20 @@ test("institution workspace scholarship management is explicitly limited to part
   assert.match(collegeScholarships, /not e-Kalyan|not.*government/i);
 });
 
-test("the final light product stylesheet is loaded after all earlier theme layers", () => {
+test("global layout fixes load before the final premium-neutral theme and shared sizing layer", () => {
   assert.ok(main.includes('import "./secureid-design-system.css"'));
+  assert.ok(main.includes('import "./secureid-dashboard-workspaces.css"'));
   assert.ok(main.includes('import "./secureid-consistent-sizing.css"'));
-  assert.ok(main.includes('import "./secureid-global-product-ui.css"'));
+  assert.ok(main.includes('import "./scholarship-finder.css"'));
   assert.ok(!read("../src/App.jsx").includes("secureid-global-product-ui.css"));
+
+  const appModule = main.indexOf("import App from './App.jsx'");
+  const layoutLayer = main.indexOf('import "./secureid-global-product-ui.css"');
+  const premiumTheme = main.indexOf('import "./secureid-premium-neutral.css"');
+  const sizingLayer = main.indexOf('import "./secureid-consistent-sizing.css"');
+  const finderLayer = main.indexOf('import "./scholarship-finder.css"');
+  assert.ok(appModule >= 0 && appModule < layoutLayer);
+  assert.ok(layoutLayer < premiumTheme);
+  assert.ok(premiumTheme < sizingLayer);
+  assert.ok(sizingLayer < finderLayer);
 });
