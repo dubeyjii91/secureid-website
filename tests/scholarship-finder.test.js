@@ -32,7 +32,7 @@ test("Scholarship Finder provides local filters and a non-submitting document ch
   assert.match(finder, /setLevel/);
   assert.match(finder, /checklistItems/);
   assert.match(finder, /stays only in this open page/);
-  assert.doesNotMatch(finder, /fetch\\(|api\\(/);
+  assert.doesNotMatch(finder, /\bfetch\s*\(|\bapi\s*\(/);
 });
 
 test("institution workspace scholarship management is explicitly limited to partner programs", () => {
@@ -44,5 +44,5 @@ test("the final light product stylesheet is loaded after all earlier theme layer
   assert.ok(main.includes('import "./secureid-design-system.css"'));
   assert.ok(main.includes('import "./secureid-consistent-sizing.css"'));
   assert.ok(main.trim().endsWith('import "./secureid-global-product-ui.css"'));
-  assert.doesNotMatch(read("../src/App.jsx"), /import "\\.\\/secureid-global-product-ui\\.css"/);
+  assert.ok(!read("../src/App.jsx").includes("secureid-global-product-ui.css"));
 });
