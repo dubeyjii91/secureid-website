@@ -10,8 +10,8 @@ test("SmartFill requires consent, limits suggestions to consented stable keys an
  const server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));t.after(async()=>{await new Promise(r=>server.close(r));db.close();});
  const base=`http://127.0.0.1:${server.address().port}`,headers={"x-user":"u1","content-type":"application/json"};
  assert.equal((await fetch(base+"/api/smartfill/suggestions?formId=admission",{headers})).status,403);
- const grant=await fetch(base+"/api/smartfill/consent",{method:"POST",headers,body:JSON.stringify({formId:"admission",fields:["personal.full_name"],sources:["identity"],consent:true})});assert.equal(grant.status,200);
+ const grant=await fetch(base+"/api/smartfill/consent",{method:"POST",headers,body:JSON.stringify({formId:"admission",fields:["personal.full_name"],sources:["identity","manual"],consent:true})});assert.equal(grant.status,200);
  const result=await (await fetch(base+"/api/smartfill/suggestions?formId=admission",{headers})).json();assert.deepEqual(result.suggestions.map(x=>x.fieldKey),["personal.full_name"]);assert.equal(result.suggestions[0].status,"unverified");
- const audit=JSON.stringify(db.prepare("SELECT * FROM smartfill_audit").all());assert.equal(audit.includes("Private Test"),false);
+ const save=await fetch(base+"/api/smartfill/data",{method:"PUT",headers,body:JSON.stringify({fields:{"personal.full_name":"Different Person"}})});assert.equal(save.status,200);const conflict=await (await fetch(base+"/api/smartfill/suggestions?formId=admission",{headers})).json();assert.equal(conflict.suggestions[0].status,"ambiguous");assert.equal(conflict.suggestions[0].value,"");const audit=JSON.stringify(db.prepare("SELECT * FROM smartfill_audit").all());assert.equal(audit.includes("Private Test"),false);assert.equal(audit.includes("Different Person"),false);await fetch(base+"/api/smartfill/consent/admission",{method:"DELETE",headers});assert.equal((await fetch(base+"/api/smartfill/suggestions?formId=admission",{headers})).status,403);
  assert.equal((await fetch(base+"/api/smartfill/schema",{headers:{"x-user":"u1","x-mfa":"false"}})).status,403);
 });

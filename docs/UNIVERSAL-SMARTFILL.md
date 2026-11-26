@@ -7,7 +7,7 @@ SmartFill is a consent-scoped form assistant. It currently reads encrypted My Id
 - The wallet must be unlocked before consent, private data writes, or suggestion retrieval.
 - Values use the existing server-side encryption key.
 - Audit rows contain form IDs, stable field keys, source identifiers and timestamps only; never field values.
-- My Identity suggestions are unverified; manually saved values are user-confirmed.
+- My Identity suggestions are unverified; manually saved values are user-confirmed. Suggestions below the 0.85 confidence threshold are withheld. Conflicting values across selected sources are marked ambiguous and cannot be applied until the user resolves the conflict.
 - SmartFill never submits forms or claims OCR is government verification.
 
 ## Limitations
