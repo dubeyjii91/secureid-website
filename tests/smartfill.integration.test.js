@@ -17,6 +17,12 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
       user_id TEXT PRIMARY KEY,
       locked INTEGER DEFAULT 0
     );
+    CREATE TABLE secure_documents (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      deleted_at INTEGER
+    );
   `);
   db.prepare("INSERT INTO identity_profiles VALUES (?, ?, ?)").run(
     "u1",
@@ -29,6 +35,8 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     }),
     1,
   );
+
+  db.prepare("INSERT INTO secure_documents VALUES(?,?,?,NULL)").run("doc-image-1", "u1", "image/jpeg");
 
   const app = express();
   app.use(express.json());
@@ -72,7 +80,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
     body: JSON.stringify({
       formId: "admission",
       fields: ["personal.full_name", "identity.identity_id", "identity.government_id", "identity.student_id"],
-      sources: ["identity", "manual"],
+      sources: ["identity", "manual", "vault_ocr"],
       consent: true,
     }),
   });
@@ -129,11 +137,49 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   assert.equal(storedPrivateMap.get("custom.legacy_note"), "Preserved legacy value");
   assert.equal(storedPrivateMap.get("custom.emergency_contact"), "9876543210");
 
-  const conflict = await (await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).json();
+  let conflict = await (await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).json();
   assert.equal(conflict.suggestions[0].status, "ambiguous");
   assert.equal(conflict.suggestions[0].value, "");
   assert.ok(conflict.suggestions.some((item) => item.fieldKey === "identity.identity_id"));
   assert.ok(conflict.suggestions.some((item) => item.fieldKey === "identity.government_id"));
+
+  const saveOcrFields = await fetch(base + "/api/smartfill/document-data", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      documentId: "doc-image-1",
+      fields: { "education.course": "B.Tech AIML" },
+    }),
+  });
+  assert.equal(saveOcrFields.status, 200);
+  assert.deepEqual((await saveOcrFields.json()).fieldKeys, ["education.course"]);
+
+  const unownedOcrDocument = await fetch(base + "/api/smartfill/document-data", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      documentId: "another-users-document",
+      fields: { "education.course": "B.Tech AIML" },
+    }),
+  });
+  assert.equal(unownedOcrDocument.status, 404);
+
+  const unsupportedOcrDocument = await fetch(base + "/api/smartfill/document-data", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      documentId: "doc-image-1",
+      fields: { "custom.__proto__": "unsafe" },
+    }),
+  });
+  assert.equal(unsupportedOcrDocument.status, 400);
+
+  conflict = await (await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).json();
+  const ocrSuggestion = conflict.suggestions.find((item) => item.fieldKey === "education.course");
+  assert.equal(ocrSuggestion.value, "B.Tech AIML");
+  assert.equal(ocrSuggestion.source, "vault_ocr");
+  assert.equal(ocrSuggestion.status, "user_confirmed");
+  assert.match(ocrSuggestion.note, /OCR can be wrong/);
 
   const deniedWithoutToken = await fetch(base + "/api/test-submit", {
     method: "POST",
@@ -205,6 +251,13 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   assert.equal(audit.includes("Private Test"), false);
   assert.equal(audit.includes("Different Person"), false);
   assert.equal(auditRows.filter((row) => row.action === "submitted").length, 1);
+
+  const removedOcrFields = await fetch(base + "/api/smartfill/document-data/doc-image-1", {
+    method: "DELETE",
+    headers,
+  });
+  assert.equal(removedOcrFields.status, 200);
+  assert.equal((await removedOcrFields.json()).removed, 1);
 
   await fetch(base + "/api/smartfill/consent/admission", { method: "DELETE", headers });
   assert.equal((await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).status, 403);
