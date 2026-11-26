@@ -148,7 +148,9 @@ jobs:
                 await page.waitForTimeout(160);
                 const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
                 const activePage = await page.locator('.main').getAttribute('data-smartfill-page');
-                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage }));
+                const clickReceived = await navButton.getAttribute('data-smoke-click');
+                const currentPath = await page.evaluate(() => window.location.pathname);
+                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage, path: currentPath, clickReceived }));
                 if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
                 const routeLayout = await page.evaluate(() => {
                   const main = document.querySelector('.main');
