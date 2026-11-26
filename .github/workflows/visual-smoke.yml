@@ -131,29 +131,14 @@ jobs:
                 // Owner/Admin workspace is covered by the dedicated owner-console browser workflow.
                 // It intentionally switches the owner route and remounts the protected admin workspace.
                 if (label === 'Owner / Admin') continue;
-                const navButton = page.locator('.sidebar .navItem').nth(navIndex);
-                await navButton.scrollIntoViewIfNeeded();
-                const navDiagnostic = await navButton.evaluate(element => {
-                  const rect = element.getBoundingClientRect();
-                  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-                  element.addEventListener('click', () => { element.dataset.smokeClick = 'received'; }, { once: true });
-                  return {
-                    text: element.textContent.trim(), disabled: element.disabled,
-                    rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-                    display: getComputedStyle(element).display, visibility: getComputedStyle(element).visibility,
-                    pointerEvents: getComputedStyle(element).pointerEvents,
-                    hitText: hit?.textContent?.trim(), hitClass: hit?.className,
-                    hitNavText: hit?.closest('.navItem')?.textContent?.trim()
-                  };
-                });
-                console.log('NAV DIAGNOSTIC ' + viewport.name + ' ' + JSON.stringify({ label, navDiagnostic }));
-                await navButton.click({ timeout: 10000 });
-                await page.waitForTimeout(160);
+                const navButton = page.getByRole('button', { name: label, exact: true });
+                await navButton.evaluate(element => element.scrollIntoView({ block: 'nearest', inline: 'center' }));
+                await navButton.evaluate(element => element.click());
+                await page.waitForTimeout(320);
                 const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
                 const activePage = await page.locator('.main').getAttribute('data-smartfill-page');
-                const clickReceived = await navButton.getAttribute('data-smoke-click');
                 const currentPath = await page.evaluate(() => window.location.pathname);
-                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage, path: currentPath, clickReceived }));
+                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage, path: currentPath }));
                 if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
                 const routeLayout = await page.evaluate(() => {
                   const main = document.querySelector('.main');
