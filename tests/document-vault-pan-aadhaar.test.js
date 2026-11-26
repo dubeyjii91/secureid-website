@@ -96,7 +96,8 @@ test("Vault OCR is private, rate-limited, temporary and limited to supported sto
   assert.match(backend, /const DOCUMENT_OCR_MIME = new Set\(\["application\/pdf","image\/jpeg","image\/png","image\/webp"\]\)/);
   assert.match(ocrHelper, /mkdtemp/);
   assert.match(ocrHelper, /await fs\.rm\(workingDirectory, \{ recursive: true, force: true \}\)/);
-  assert.match(ocrHelper, /maxBuffer: 128 \* 1024/);
+  assert.match(ocrHelper, /maxBuffer = 128 \* 1024/);
+  assert.match(ocrHelper, /maxBuffer,/);
   assert.match(smartFill, /CREATE TABLE IF NOT EXISTS smartfill_document_data/);
   assert.match(smartFill, /sources\.includes\("vault_ocr"\)/);
   assert.match(smartFill, /encryptValue\(\{ value: value\.trim\(\) \}\)/);
