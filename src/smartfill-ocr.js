@@ -30,8 +30,8 @@ function parseOcrCandidates(text) {
     }
   }
 
-  const fullName = source.match(/(?:full name|applicant name|name|नाम)\s*[:\-]\s*([^\r\n]{2,70})/i);
-  if (fullName) add("personal.full_name", fullName[1]);
+  const fullName = source.match(/(?:full name|applicant name|name|नाम)\s*[:\-]\s*([^\r\n]+)/i);
+  if (fullName && fullName[1].trim().length <= 70) add("personal.full_name", fullName[1]);
 
   const studentId = source.match(/(?:student id|roll number|enrollment (?:no|number)|registration (?:no|number))\s*[:\-]\s*([A-Z0-9/-]{3,30})/i);
   if (studentId) add("education.roll_number", studentId[1]);
