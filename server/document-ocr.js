@@ -69,7 +69,7 @@ export async function extractDocumentText(
     }
 
     return String(output?.stdout || "")
-      .replace(/\\u0000/g, "")
+      .replace(/\u0000/g, "")
       .trim()
       .slice(0, MAX_OCR_CHARACTERS);
   } finally {
