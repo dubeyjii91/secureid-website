@@ -240,6 +240,7 @@ export default function ScholarshipFinder() {
           </div>
         )}
         <div className="scholarshipChecklistActions">
+          <button type="button" className="secondary scholarshipVaultLink" onClick={() => window.dispatchEvent(new CustomEvent("secureid:navigate", { detail: "documents" }))}>Open Document Vault</button>
           <button type="button" className="secondary" onClick={() => setChecked([])} disabled={checked.length === 0}>Clear checklist</button>
           <span>Only upload or share documents when the official scheme asks for them and you understand why they are needed.</span>
         </div>
