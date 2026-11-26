@@ -223,7 +223,7 @@ body::before { content: none !important; display: none !important; }
 
 /* Reusable form action, clear-value and status components. */
 #root .content > * + * { margin-top:clamp(20px,2.4vw,32px); }
-#root .functionHero { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 24px; }
+#root .functionHero { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; margin:0 0 24px; }
 #root .functionHero > * { min-width:0; }
 #root .sectionTitle { margin:30px 0 18px; }
 #root .hostelApplications { min-width:0; margin-top:22px; padding:clamp(16px,2vw,24px); background:#fff !important; border:1px solid var(--sid-line) !important; border-radius:12px !important; }
