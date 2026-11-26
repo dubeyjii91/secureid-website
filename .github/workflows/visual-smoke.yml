@@ -128,12 +128,11 @@ jobs:
               for (const [navIndex, label] of navLabels.entries()) {
                 const navButton = page.locator('.sidebar .navItem').nth(navIndex);
                 await navButton.scrollIntoViewIfNeeded();
-                const box = await navButton.boundingBox();
-                if (!box) throw new Error('Navigation item has no visible box: ' + label);
-                await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+                await navButton.click({ timeout: 10000 });
                 await page.waitForTimeout(160);
                 const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
-                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, bounds: box }));
+                const activePage = await page.locator('.main').getAttribute('data-smartfill-page');
+                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage }));
                 if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
                 const routeLayout = await page.evaluate(() => {
                   const main = document.querySelector('.main');
