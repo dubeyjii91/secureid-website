@@ -18,8 +18,8 @@ SmartFill is a consent-scoped form assistant available in the authenticated Secu
 
 - All SmartFill API reads/writes require authentication and MFA. Sensitive read/write operations also require the wallet to be unlocked.
 - Values are encrypted with SecureID's existing server-side document encryption key before being stored. Vault OCR values are encrypted per user, source document and field key. Raw OCR text and field values are never written to the SmartFill audit log.
-- Server-side image OCR is rate-limited, requires authentication, MFA, an unlocked wallet and ownership of the source document. The encrypted stored image is decrypted only for the request; a private temporary directory/file is removed in a `finally` cleanup. OCR output is returned with `Cache-Control: no-store` and is not persisted automatically.
-- OCR currently supports JPEG, PNG and WebP images with English and Hindi Tesseract models. PDF OCR is not enabled. Only fields explicitly selected, edited and confirmed by the user are encrypted for later SmartFill suggestions.
+- Server-side PDF/image text extraction is rate-limited, requires authentication, MFA, an unlocked wallet and ownership of the source document. The encrypted stored image is decrypted only for the request; a private temporary directory/file is removed in a `finally` cleanup. OCR output is returned with `Cache-Control: no-store` and is not persisted automatically.
+- OCR supports PDF, JPEG, PNG and WebP. Text-based PDFs use the PDF text layer; scanned PDFs render only the first five pages for English/Hindi Tesseract OCR. Only fields explicitly selected, edited and confirmed by the user are encrypted for later SmartFill suggestions.
 - Audit records contain only user/form identifiers, stable field keys, source identifiers and timestamps.
 - Aadhaar and government ID values are masked in the suggestion UI. The full value is used in the selected browser form only when the user explicitly selects and applies that field.
 - Invalid email, phone, date, age, Aadhaar, PAN, passport, postal-code and year values are rejected or marked invalid.
@@ -40,7 +40,7 @@ SmartFill is a consent-scoped form assistant available in the authenticated Secu
 - `POST /api/smartfill/review` returns a short-lived `reviewToken`
 - `PUT /api/smartfill/document-data` saves only explicitly reviewed, corrected Vault OCR fields as encrypted values
 - `DELETE /api/smartfill/document-data/:documentId` removes the saved OCR fields for that source image
-- `POST /api/documents/:id/ocr` temporarily extracts image text after checking ownership, MFA, wallet unlock, content signature and size
+- `POST /api/documents/:id/ocr` temporarily extracts PDF/image text after checking ownership, MFA, wallet unlock, content signature and size
 - `DELETE /api/smartfill/consent/:formId` revokes consent and associated review sessions
 
 Mutating requests use SecureID same-origin/CSRF protection. The client attaches review headers only when the active form has been tagged by applying SmartFill data.
