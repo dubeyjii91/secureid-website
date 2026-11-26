@@ -2,3 +2,5 @@
 .smartfillManual{display:grid;gap:8px;margin:14px 0}.smartfillManual>div{display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,2fr) auto;gap:8px}.smartfillManual input,.smartfillManual select{min-width:0;padding:9px;border:1px solid #ccd6e2;border-radius:8px}.smartfillManual button{border:1px solid #b9cbe0;background:#f4f8fd;color:#174b83;border-radius:8px;padding:8px 12px;cursor:pointer}@media(max-width:650px){.smartfillManual>div{grid-template-columns:1fr}}
 
 .smartfillCustom{display:grid;gap:8px;margin:12px 0}.smartfillCustom>div{display:flex;gap:8px}.smartfillCustom input{flex:1;min-width:0;padding:9px;border:1px solid #ccd6e2;border-radius:8px}.smartfillCustom button{border:1px solid #b9cbe0;background:#f4f8fd;color:#174b83;border-radius:8px;padding:8px 12px;cursor:pointer}
+
+.smartfillContext{display:grid;gap:5px;margin:12px 0;font-size:13px;font-weight:650}.smartfillContext input{width:100%;max-width:380px;padding:9px;border:1px solid #ccd6e2;border-radius:8px;font:inherit;font-weight:400}.smartfillContext small{font-size:11px;font-weight:400;color:#718096}
