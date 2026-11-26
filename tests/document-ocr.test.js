@@ -73,6 +73,10 @@ test("scanned PDFs render a bounded number of pages, OCR them and delete rendere
         if (command === "pdfinfo") return { stdout: "Pages: 2\n" };
         if (command === "pdftotext") return { stdout: "\f\n" };
         if (command === "pdftoppm") {
+          assert.ok(args.includes("-scale-to"));
+          assert.ok(args.includes("1800"));
+          assert.ok(args.includes("-l"));
+          assert.ok(args.includes("5") || args.includes("2"));
           const prefix = args.at(-1);
           await writeFile(prefix + "-1.png", "rendered-page-one");
           await writeFile(prefix + "-2.png", "rendered-page-two");
