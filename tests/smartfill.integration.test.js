@@ -173,7 +173,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   const audit = JSON.stringify(auditRows);
   assert.equal(audit.includes("Private Test"), false);
   assert.equal(audit.includes("Different Person"), false);
-  assert.ok(auditRows.some((row) => row.action === "submitted"));
+  assert.equal(auditRows.filter((row) => row.action === "submitted").length, 1);
 
   await fetch(base + "/api/smartfill/consent/admission", { method: "DELETE", headers });
   assert.equal((await fetch(base + "/api/smartfill/suggestions?formId=admission", { headers })).status, 403);
