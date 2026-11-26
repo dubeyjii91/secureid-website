@@ -1,0 +1,95 @@
+name: SecureID scheduled encrypted off-site backup
+
+on:
+  schedule:
+    - cron: "35 3 * * *" # 09:05 Asia/Kolkata (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: secureid-scheduled-backup
+  cancel-in-progress: false
+
+jobs:
+  encrypted-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Trigger encrypted backup on SecureID
+        id: trigger
+        env:
+          BACKUP_TRIGGER_TOKEN: ${{ secrets.SECUREID_BACKUP_TRIGGER_TOKEN }}
+          BACKUP_TRIGGER_URL: https://secureid-production-b732.up.railway.app/api/internal/backup/run
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_TRIGGER_TOKEN:-}" ]; then
+            echo "::warning::SECUREID_BACKUP_TRIGGER_TOKEN is not configured. Backup was not run."
+            exit 0
+          fi
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            --connect-timeout 15 --max-time 180 --request POST \
+            --header "Authorization: Bearer $BACKUP_TRIGGER_TOKEN" "$BACKUP_TRIGGER_URL" || true)"
+          if [ "$status" != "200" ]; then
+            echo "::error::SecureID backup trigger failed (HTTP $status)."
+            exit 1
+          fi
+          node - "$response_file" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const response = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (response.success !== true ||
+              !/^secureid-[A-Za-z0-9T._-]+\\.backup\\.json$/.test(response.fileName || '') ||
+              !/^[a-f0-9]{64}$/i.test(response.sha256 || '') ||
+              !response.completedAt) {
+            throw new Error('SecureID did not confirm a valid encrypted backup artifact.');
+          }
+          fs.appendFileSync(process.argv[3],
+            'ready=true\\nfile_name=' + response.fileName + '\\nsha256=' + response.sha256 + '\\ncompleted_at=' + response.completedAt + '\\n');
+          console.log('Encrypted backup confirmed: ' + response.fileName + ' at ' + response.completedAt);
+          NODE
+
+      - name: Download and verify encrypted backup
+        if: steps.trigger.outputs.ready == 'true'
+        env:
+          BACKUP_TRIGGER_TOKEN: ${{ secrets.SECUREID_BACKUP_TRIGGER_TOKEN }}
+          BACKUP_DOWNLOAD_URL: https://secureid-production-b732.up.railway.app/api/internal/backup/download
+          BACKUP_FILE_NAME: ${{ steps.trigger.outputs.file_name }}
+          EXPECTED_SHA256: ${{ steps.trigger.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p offsite-backup
+          curl --fail --silent --show-error --connect-timeout 15 --max-time 600 \
+            --header "Authorization: Bearer $BACKUP_TRIGGER_TOKEN" \
+            "$BACKUP_DOWNLOAD_URL?filename=$BACKUP_FILE_NAME" \
+            --output "offsite-backup/$BACKUP_FILE_NAME"
+          actual_sha256="$(sha256sum "offsite-backup/$BACKUP_FILE_NAME" | awk '{print $1}')"
+          if [ "$actual_sha256" != "$EXPECTED_SHA256" ]; then
+            echo "::error::Downloaded backup digest does not match the server-confirmed encrypted artifact."
+            exit 1
+          fi
+          node - "offsite-backup/$BACKUP_FILE_NAME" <<'NODE'
+          const fs = require('node:fs');
+          const envelope = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (envelope.version !== 2 || !envelope.iv || !envelope.tag || !envelope.data ||
+              !/^[a-f0-9]{64}$/i.test(envelope.sha256 || '')) {
+            throw new Error('Downloaded file is not a valid encrypted SecureID backup envelope.');
+          }
+          NODE
+          printf '%s  %s\\n' "$actual_sha256" "$BACKUP_FILE_NAME" > offsite-backup/SHA256SUMS
+          echo "Verified encrypted backup size: $(wc -c < "offsite-backup/$BACKUP_FILE_NAME") bytes"
+
+      - name: Store private encrypted backup artifact for 7 days
+        if: steps.trigger.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: secureid-encrypted-backup-${{ github.run_id }}
+          path: offsite-backup/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
