@@ -75,3 +75,32 @@ test("PAN/Aadhaar file-check action is transparent and its results are persisted
   assert.match(backend, /CREATE TABLE IF NOT EXISTS identity_document_checks/);
   assert.match(backend, /verificationCheck: document\.verificationCheck \? JSON\.parse/);
 });
+
+
+test("Vault OCR is private, rate-limited, temporary and limited to supported stored images", () => {
+  const ocrHelper = readFileSync(new URL("../server/document-ocr.js", import.meta.url), "utf8");
+  const smartFill = readFileSync(new URL("../server/smartfill.js", import.meta.url), "utf8");
+  const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+  const routeStart = backend.indexOf('"/api/documents/:id/ocr"');
+  assert.notEqual(routeStart, -1);
+  const routeEnd = backend.indexOf("/*", routeStart);
+  const route = backend.slice(routeStart, routeEnd === -1 ? undefined : routeEnd);
+  assert.match(route, /documentOcrRateLimit/);
+  assert.match(route, /enforceSameOrigin/);
+  assert.match(route, /requireAuth/);
+  assert.match(route, /requireMfaProduction/);
+  assert.match(route, /assertWalletUnlocked\(req\.user\.id\)/);
+  assert.match(route, /WHERE id=\? AND user_id=\? AND deleted_at IS NULL/);
+  assert.match(route, /await fileTypeFromBuffer\(plaintext\)/);
+  assert.match(route, /persisted:false/);
+  assert.match(route, /image\/jpeg.*image\/png.*image\/webp/s);
+  assert.match(ocrHelper, /mkdtemp/);
+  assert.match(ocrHelper, /await fs\.rm\(workingDirectory, \{ recursive: true, force: true \}\)/);
+  assert.match(ocrHelper, /maxBuffer: 128 \* 1024/);
+  assert.match(smartFill, /CREATE TABLE IF NOT EXISTS smartfill_document_data/);
+  assert.match(smartFill, /sources\.includes\("vault_ocr"\)/);
+  assert.match(smartFill, /encryptValue\(\{ value: value\.trim\(\) \}\)/);
+  assert.match(dockerfile, /tesseract-ocr-data-eng/);
+  assert.match(dockerfile, /tesseract-ocr-data-hin/);
+  assert.match(backend, /DELETE FROM smartfill_document_data WHERE user_id=\? AND document_id=\?/);
+});
