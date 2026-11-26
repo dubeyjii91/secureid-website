@@ -4,10 +4,10 @@ import './index.css'
 import App from './App.jsx'
 import "./secureid-design-system.css"
 import "./secureid-dashboard-workspaces.css"
+import "./secureid-global-product-ui.css"
 import "./secureid-premium-neutral.css"
 import "./secureid-consistent-sizing.css"
 import "./scholarship-finder.css"
-import "./secureid-global-product-ui.css"
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
