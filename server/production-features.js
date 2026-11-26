@@ -1,6 +1,7 @@
 ﻿import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { registerSmartFill } from "./smartfill.js";
 import multer from "multer";
 import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
@@ -104,6 +105,7 @@ export function registerProductionFeatures({
   });
 
   const key=createCryptoKey(isProduction);
+  registerSmartFill({ app, database, requireAuth, enforceSameOrigin, encryptValue: (value) => jsonEncrypt(value,key), decryptValue: (value) => jsonDecrypt(value,key), assertWalletUnlocked });
 
   const dataRoot=process.env.DOCUMENT_STORAGE_PATH || (
     isProduction ? "/data/secureid-documents" : path.join(process.cwd(),"data","secureid-documents")
