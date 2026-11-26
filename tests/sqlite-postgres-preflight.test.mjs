@@ -50,7 +50,7 @@ test("PostgreSQL preflight inventories schema and counts without exporting perso
     assert.equal(report.integrity.foreignKeyViolationCount, 0);
     assert.equal(report.summary.tableCount, 3);
     assert.equal(report.summary.rowCount, 3);
-    assert.equal(report.summary.indexCount, 3);
+    assert.equal(report.summary.indexCount, 5); // Includes SQLite autoindexes and both explicit indexes.
     assert.equal(report.summary.viewCount, 1);
     assert.equal(report.summary.triggerCount, 1);
     assert.deepEqual(report.insertionOrder, ["users", "activity", "documents"]);
