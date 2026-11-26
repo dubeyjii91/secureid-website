@@ -266,3 +266,19 @@ body::before { content: none !important; display: none !important; }
 /* Keep the complete desktop navigation reachable when the menu exceeds viewport height. */
 #root .sidebar { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#cbd2df transparent; }
 #root .sidebar nav { min-height:0; }
+
+/* Specificity guard for page-level CSS chunks loaded after the entry bundle. */
+#root:is(#root) .sidebar { color:#293244 !important; background:#fff !important; border-color:var(--sid-line) !important; }
+#root:is(#root) .topbar, #root:is(#root) header.topbar { color:var(--sid-ink) !important; background:#fff !important; border-color:var(--sid-line) !important; }
+#root:is(#root) :where(.panel,.card,.actionCard,.profilePanel,.statusPanel,.securityCard,.identityCard,.shareCard,.documentVault,.documentItem,.functionHero,.systemHealthPanel,.scorePanel,.lockPanel,.shareResult,.identityProfileEditor,.settingsPanel,.tableWrap,.verificationStatusCard,.studentProofPanel,.managedShare,.activityEmpty,.authCard,.mfaModal,.welcomeCard,.smartfillPanel,.collegeRequest,.hostelApplications,.quickAccessCard) {
+  color:var(--sid-ink) !important; background:#fff !important; border-color:var(--sid-line) !important; box-shadow:var(--sid-shadow) !important;
+}
+#root:is(#root) :where(h1,h2,h3,h4,h5,h6,.panelHead h2,.sectionTitle h2,.functionHero h2,.quickAccessCopy strong) { color:var(--sid-ink) !important; }
+#root:is(#root) :where(p,small,li,dt,dd,figcaption,.lead,.muted,.description,.subtitle,.helperText,.fieldHint,.emptyState,.empty-state,.secondaryText,.shareHint,.shareExpiry,.collegePrivacyNote,.privacy p,.documentItem small) { color:var(--sid-muted) !important; opacity:1 !important; }
+#root:is(#root) input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=submit]):not([type=button]),
+#root:is(#root) select, #root:is(#root) textarea {
+  color:#1d2939 !important; background:#fff !important; border-color:#cbd2df !important; opacity:1 !important;
+}
+#root:is(#root) input::placeholder, #root:is(#root) textarea::placeholder { color:#7c8799 !important; opacity:1 !important; }
+#root:is(#root) .navItem { color:#4e596b !important; background:transparent !important; }
+#root:is(#root) .navItem.active { color:var(--sid-accent-strong) !important; background:var(--sid-accent-soft) !important; border-color:#e2dfff !important; }
