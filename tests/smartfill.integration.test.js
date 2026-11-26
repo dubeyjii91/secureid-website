@@ -114,7 +114,7 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
 
   // Upgrade a legacy object-shaped record without losing its existing values.
   db.prepare("INSERT OR REPLACE INTO smartfill_private_data(user_id,encrypted_data,updated_at) VALUES(?,?,?)")
-    .run("u1", JSON.stringify({ "custom.legacy_note": "Preserved legacy value" }), Date.now());
+    .run("u1", JSON.stringify({ "personal.full_name": "Different Person", "custom.legacy_note": "Preserved legacy value" }), Date.now());
   const customSave = await fetch(base + "/api/smartfill/data", {
     method: "PUT",
     headers,
