@@ -46,6 +46,7 @@ test("global layout fixes load before the final premium-neutral theme and shared
   assert.ok(main.includes('import "./secureid-dashboard-workspaces.css"'));
   assert.ok(main.includes('import "./secureid-consistent-sizing.css"'));
   assert.ok(main.includes('import "./scholarship-finder.css"'));
+  assert.ok(main.includes('import "./secureid-final-polish.css"'));
   assert.ok(!read("../src/App.jsx").includes("secureid-global-product-ui.css"));
 
   const appModule = main.indexOf("import App from './App.jsx'");
@@ -53,8 +54,10 @@ test("global layout fixes load before the final premium-neutral theme and shared
   const premiumTheme = main.indexOf('import "./secureid-premium-neutral.css"');
   const sizingLayer = main.indexOf('import "./secureid-consistent-sizing.css"');
   const finderLayer = main.indexOf('import "./scholarship-finder.css"');
+  const finalPolishLayer = main.indexOf('import "./secureid-final-polish.css"');
   assert.ok(appModule >= 0 && appModule < layoutLayer);
   assert.ok(layoutLayer < premiumTheme);
   assert.ok(premiumTheme < sizingLayer);
   assert.ok(sizingLayer < finderLayer);
+  assert.ok(finderLayer < finalPolishLayer);
 });
