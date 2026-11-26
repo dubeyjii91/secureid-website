@@ -7,15 +7,15 @@ const validateValue=(key,value)=>{
  const v=String(value??"").trim();
  if(!v)return "Enter a value.";
  if(v.length>500)return "Value is too long.";
- if(key==="contact.email"&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v))return "Enter a valid email address.";
- if(key==="contact.phone"&&!/^\\+?[0-9\\s()-]{7,20}$/.test(v))return "Enter a valid phone number.";
- if(key==="personal.date_of_birth"){const d=new Date(v);if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(v)||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==v)return "Use a valid date in YYYY-MM-DD format.";}
- if(key==="personal.age"&&!/^\\d{1,3}$/.test(v))return "Enter age in whole years.";
- if(key==="identity.aadhaar"&&!/^\\d{12}$/.test(v))return "Aadhaar must contain exactly 12 digits.";
- if(key==="identity.pan"&&!/^[A-Z]{5}\\d{4}[A-Z]$/i.test(v))return "Enter a valid PAN format.";
+ if(key==="contact.email"&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))return "Enter a valid email address.";
+ if(key==="contact.phone"&&!/^\+?[0-9\s()-]{7,20}$/.test(v))return "Enter a valid phone number.";
+ if(key==="personal.date_of_birth"){const d=new Date(v);if(!/^\d{4}-\d{2}-\d{2}$/.test(v)||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==v)return "Use a valid date in YYYY-MM-DD format.";}
+ if(key==="personal.age"&&!/^\d{1,3}$/.test(v))return "Enter age in whole years.";
+ if(key==="identity.aadhaar"&&!/^\d{12}$/.test(v))return "Aadhaar must contain exactly 12 digits.";
+ if(key==="identity.pan"&&!/^[A-Z]{5}\d{4}[A-Z]$/i.test(v))return "Enter a valid PAN format.";
  if(key==="identity.passport"&&!/^[A-Z0-9]{6,12}$/i.test(v))return "Enter a valid passport identifier.";
- if(key==="address.postal_code"&&!/^\\d{5,10}$/.test(v))return "Enter a valid postal code.";
- if(["education.admission_year","education.graduation_year"].includes(key)&&!/^\\d{4}$/.test(v))return "Enter a four-digit year.";
+ if(key==="address.postal_code"&&!/^\d{5,10}$/.test(v))return "Enter a valid postal code.";
+ if(["education.admission_year","education.graduation_year"].includes(key)&&!/^\d{4}$/.test(v))return "Enter a four-digit year.";
  return null;
 };
 const allowedField=(key)=>FIELDS.has(key)||/^custom\.[a-z0-9_.-]{1,70}$/i.test(String(key));
