@@ -131,7 +131,7 @@ jobs:
                 // Owner/Admin workspace is covered by the dedicated owner-console browser workflow.
                 // It intentionally switches the owner route and remounts the protected admin workspace.
                 if (label === 'Owner / Admin') continue;
-                const navButton = page.getByRole('button', { name: label, exact: true });
+                const navButton = page.locator('.sidebar').getByRole('button', { name: label, exact: true });
                 await navButton.evaluate(element => element.scrollIntoView({ block: 'nearest', inline: 'center' }));
                 await navButton.evaluate(element => element.click());
                 await page.waitForTimeout(320);
