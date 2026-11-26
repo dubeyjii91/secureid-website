@@ -171,6 +171,16 @@ export function registerSmartFill({
       encrypted_data TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS smartfill_document_data (
+      user_id TEXT NOT NULL,
+      document_id TEXT NOT NULL,
+      field_key TEXT NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY(user_id, document_id, field_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_smartfill_document_data_user
+      ON smartfill_document_data(user_id, updated_at DESC);
     CREATE TABLE IF NOT EXISTS smartfill_audit (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -292,7 +302,7 @@ export function registerSmartFill({
       ? [...new Set(req.body.fields.filter(allowedField))]
       : [];
     const sources = Array.isArray(req.body?.sources)
-      ? [...new Set(req.body.sources.filter((source) => ["identity", "manual"].includes(source)))]
+      ? [...new Set(req.body.sources.filter((source) => ["identity", "manual", "vault_ocr"].includes(source)))]
       : [];
 
     if (!formId || !fields.length || !sources.length || req.body?.consent !== true) {
@@ -409,6 +419,115 @@ export function registerSmartFill({
     }
   });
 
+
+
+  app.put("/api/smartfill/document-data", enforceSameOrigin, requireAuth, mfa, (req, res) => {
+    try {
+      assertWalletUnlocked(req.user.id);
+      const documentId = clean(req.body?.documentId, 100);
+      const input = req.body?.fields;
+      if (
+        !documentId ||
+        !input ||
+        typeof input !== "object" ||
+        Array.isArray(input) ||
+        Object.keys(input).length < 1 ||
+        Object.keys(input).length > 40
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Choose a Vault image and between 1 and 40 reviewed fields.",
+        });
+      }
+
+      const document = database
+        .prepare(`
+          SELECT id,mime_type
+          FROM secure_documents
+          WHERE id=? AND user_id=? AND deleted_at IS NULL
+        `)
+        .get(documentId, req.user.id);
+      if (!document) {
+        return res.status(404).json({ success: false, message: "The selected Vault document was not found." });
+      }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(document.mime_type)) {
+        return res.status(415).json({
+          success: false,
+          message: "Reviewed OCR fields can only be saved from a supported image document.",
+        });
+      }
+
+      const entries = Object.entries(input);
+      for (const [fieldKey, value] of entries) {
+        if (!allowedField(fieldKey) || typeof value !== "string" || value.length > 500) {
+          return res.status(400).json({ success: false, message: "A reviewed OCR field is invalid or too long." });
+        }
+        const validationError = validateValue(fieldKey, value);
+        if (validationError) {
+          return res.status(400).json({ success: false, fieldKey, message: validationError });
+        }
+      }
+
+      const save = database.prepare(`
+        INSERT INTO smartfill_document_data(user_id,document_id,field_key,encrypted_value,updated_at)
+        VALUES(?,?,?,?,?)
+        ON CONFLICT(user_id,document_id,field_key) DO UPDATE SET
+          encrypted_value=excluded.encrypted_value,
+          updated_at=excluded.updated_at
+      `);
+      const timestamp = now();
+      database.exec("BEGIN");
+      try {
+        for (const [fieldKey, value] of entries) {
+          save.run(
+            req.user.id,
+            documentId,
+            fieldKey,
+            JSON.stringify(encryptValue({ value: value.trim() })),
+            timestamp,
+          );
+        }
+        database.exec("COMMIT");
+      } catch (error) {
+        try { database.exec("ROLLBACK"); } catch {}
+        throw error;
+      }
+
+      audit(req.user.id, "document:" + documentId, "manual_data_saved", entries.map(([key]) => key), ["vault_ocr"]);
+      return res.json({
+        success: true,
+        documentId,
+        fieldKeys: entries.map(([key]) => key),
+        source: "vault_ocr",
+        encryptedAtRest: true,
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.statusCode ? error.message : "Could not save the reviewed OCR fields.",
+      });
+    }
+  });
+
+  app.delete("/api/smartfill/document-data/:documentId", enforceSameOrigin, requireAuth, mfa, (req, res) => {
+    try {
+      assertWalletUnlocked(req.user.id);
+      const documentId = clean(req.params.documentId, 100);
+      const result = database
+        .prepare("DELETE FROM smartfill_document_data WHERE user_id=? AND document_id=?")
+        .run(req.user.id, documentId);
+      if (result.changes) {
+        audit(req.user.id, "document:" + documentId, "manual_data_saved", [], ["vault_ocr"]);
+      }
+      return res.json({ success: true, removed: result.changes });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.statusCode ? error.message : "Could not remove the saved OCR fields.",
+      });
+    }
+  });
+
   app.get("/api/smartfill/suggestions", requireAuth, mfa, (req, res) => {
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
     const formId = clean(req.query.formId, 100);
@@ -488,6 +607,50 @@ export function registerSmartFill({
                 });
               }
             }
+          }
+        }
+      }
+
+      if (sources.includes("vault_ocr")) {
+        const allowedKeys = new Set(keys);
+        const rows = database.prepare(`
+          SELECT o.document_id,o.field_key,o.encrypted_value
+          FROM smartfill_document_data o
+          JOIN secure_documents d
+            ON d.id=o.document_id AND d.user_id=o.user_id
+          WHERE o.user_id=? AND d.deleted_at IS NULL
+          ORDER BY o.updated_at DESC
+          LIMIT 400
+        `).all(req.user.id);
+
+        for (const row of rows) {
+          if (!allowedKeys.has(row.field_key)) continue;
+          const saved = decryptValue(JSON.parse(row.encrypted_value));
+          const value = typeof saved?.value === "string" ? saved.value : "";
+          if (!value.trim()) continue;
+
+          const validationError = validateValue(row.field_key, value);
+          const prior = suggestions.find((item) => item.fieldKey === row.field_key);
+          if (prior && prior.value !== value) {
+            prior.value = "";
+            prior.source = "ambiguous";
+            prior.status = "ambiguous";
+            prior.confidence = 0;
+            prior.eligible = false;
+            prior.note = "Conflicting approved sources, including reviewed Vault OCR data. Update the saved values, then prepare suggestions again.";
+          } else if (!prior) {
+            suggestions.push({
+              fieldKey: row.field_key,
+              value,
+              source: "vault_ocr",
+              status: validationError ? "invalid" : "user_confirmed",
+              confidence: validationError ? 0 : 1,
+              eligible: !validationError,
+              note: validationError || "Extracted from a Vault image, then edited and saved by you. OCR can be wrong; this is not identity verification.",
+              documentId: row.document_id,
+            });
+          } else if (prior.source !== "ambiguous") {
+            prior.note = (prior.note || "") + " The same value is also saved from a reviewed Vault image.";
           }
         }
       }
