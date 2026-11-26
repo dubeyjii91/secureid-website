@@ -2,6 +2,51 @@ import { useEffect, useMemo, useState } from "react";
 import api from "./api.js";
 import "./smartfill.css";
 
+function parseOcrCandidates(text) {
+  const source = String(text || "").replace(/\u0000/g, "");
+  const candidates = {};
+  const add = (key, value) => {
+    const cleaned = String(value || "").replace(/\s+/g, " ").trim().replace(/[|;]+$/, "");
+    if (cleaned && cleaned.length <= 500 && !candidates[key]) candidates[key] = cleaned;
+  };
+
+  const email = source.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (email) add("contact.email", email[0]);
+
+  const pan = source.match(/\b[A-Z]{5}\d{4}[A-Z]\b/i);
+  if (pan) add("identity.pan", pan[0].toUpperCase());
+
+  const aadhaar = source.match(/(?:aadhaar|aadhar|uid(?:ai)?)\D{0,24}(\d{4}[ -]?\d{4}[ -]?\d{4})/i);
+  if (aadhaar) add("identity.aadhaar", aadhaar[1].replace(/\D/g, ""));
+
+  const phone = source.replace(aadhaar?.[1] || "", "").match(/\b(?:\+91[ -]?)?([6-9]\d{9})\b/);
+  if (phone) add("contact.phone", phone[1]);
+
+  const birth = source.match(/(?:dob|date of birth|birth date|जन्म तिथि)\s*[:\-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2})/i);
+  if (birth) {
+    const raw = birth[1];
+    const normalized = raw.includes("-") && /^\d{4}-/.test(raw)
+      ? raw
+      : raw.split(/[/-]/).map(part => part.padStart(2, "0")).reverse().join("-");
+    const date = new Date(normalized + "T00:00:00.000Z");
+    if (!Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === normalized) {
+      add("personal.date_of_birth", normalized);
+    }
+  }
+
+  const fullName = source.match(/(?:full name|applicant name|name|नाम)\s*[:\-]\s*([^\r\n]{2,70})/i);
+  if (fullName) add("personal.full_name", fullName[1]);
+
+  const studentId = source.match(/(?:student id|roll number|enrollment (?:no|number)|registration (?:no|number))\s*[:\-]\s*([A-Z0-9/-]{3,30})/i);
+  if (studentId) add("education.roll_number", studentId[1]);
+
+  const address = source.match(/(?:address|पता)\s*[:\-]\s*([^\r\n]{4,120})/i);
+  if (address) add("address.full", address[1]);
+
+  return candidates;
+}
+
+
 const labels = {
   "personal.full_name": "Full name",
   "personal.date_of_birth": "Date of birth",
@@ -67,6 +112,16 @@ export default function SmartFill({ page }) {
   const [targets, setTargets] = useState({});
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [vaultDocuments, setVaultDocuments] = useState([]);
+  const [vaultLoading, setVaultLoading] = useState(false);
+  const [ocrDocumentId, setOcrDocumentId] = useState("");
+  const [ocrConsent, setOcrConsent] = useState(false);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrSaving, setOcrSaving] = useState(false);
+  const [ocrText, setOcrText] = useState("");
+  const [ocrCandidates, setOcrCandidates] = useState({});
+  const [ocrSelected, setOcrSelected] = useState([]);
+  const [ocrReviewConfirmed, setOcrReviewConfirmed] = useState(false);
 
   const defaultFormId = pageFormIds[page] || ("custom-" + String(page || "workspace"));
   const formId = formContext.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 100) || defaultFormId;
@@ -170,6 +225,99 @@ export default function SmartFill({ page }) {
       patchedForms.forEach((restore) => restore());
     };
   }, [page]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let active = true;
+    setVaultLoading(true);
+    api("/api/documents")
+      .then((result) => {
+        if (active) setVaultDocuments(result.documents || []);
+      })
+      .catch(() => {
+        if (active) setVaultDocuments([]);
+      })
+      .finally(() => {
+        if (active) setVaultLoading(false);
+      });
+    return () => { active = false; };
+  }, [open]);
+
+  async function runDocumentOcr() {
+    if (!ocrConsent) {
+      setStatus("Confirm the temporary server OCR consent before processing this image.");
+      return;
+    }
+    if (!ocrDocumentId) {
+      setStatus("Choose one of your stored Vault images first.");
+      return;
+    }
+    setOcrBusy(true);
+    setOcrText("");
+    setOcrCandidates({});
+    setOcrSelected([]);
+    setOcrReviewConfirmed(false);
+    try {
+      const result = await api("/api/documents/" + encodeURIComponent(ocrDocumentId) + "/ocr", { method: "POST" });
+      const extracted = String(result.text || "");
+      setOcrText(extracted);
+      setOcrCandidates(parseOcrCandidates(extracted));
+      setStatus(extracted.trim()
+        ? "Text extracted temporarily. Review and correct every field before saving."
+        : "No readable text was found. Try a clearer, well-lit image.");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setOcrBusy(false);
+    }
+  }
+
+  async function saveReviewedOcr() {
+    const selectedFields = Object.fromEntries(
+      ocrSelected
+        .filter((key) => typeof ocrCandidates[key] === "string" && ocrCandidates[key].trim())
+        .map((key) => [key, ocrCandidates[key].trim()]),
+    );
+    if (!ocrDocumentId || !Object.keys(selectedFields).length || !ocrReviewConfirmed) {
+      setStatus("Select at least one field, correct its value and confirm that you reviewed it.");
+      return;
+    }
+    setOcrSaving(true);
+    try {
+      await api("/api/smartfill/document-data", {
+        method: "PUT",
+        body: JSON.stringify({ documentId: ocrDocumentId, fields: selectedFields }),
+      });
+      setFields((current) => [...new Set([...current, ...Object.keys(selectedFields)])]);
+      setSources((current) => current.includes("vault_ocr") ? current : [...current, "vault_ocr"]);
+      setOcrReviewConfirmed(false);
+      setStatus("Your selected, reviewed OCR fields were encrypted. Select Vault OCR as a source and prepare suggestions when ready.");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setOcrSaving(false);
+    }
+  }
+
+  async function removeSavedOcr() {
+    if (!ocrDocumentId) return;
+    setOcrSaving(true);
+    try {
+      const result = await api("/api/smartfill/document-data/" + encodeURIComponent(ocrDocumentId), { method: "DELETE" });
+      setStatus(result.removed ? "Saved OCR fields removed from this document." : "No saved OCR fields were found for this document.");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setOcrSaving(false);
+    }
+  }
+
+  function clearOcrReview() {
+    setOcrText("");
+    setOcrCandidates({});
+    setOcrSelected([]);
+    setOcrReviewConfirmed(false);
+  }
 
   const toggle = (setValue, key) => {
     setValue((current) => current.includes(key)
@@ -353,7 +501,7 @@ export default function SmartFill({ page }) {
 
           <div className="smartfillSources">
             <b>Allowed sources</b>
-            {[["identity", "My Identity"], ["manual", "Your saved manual details"]].map(([key, label]) => (
+            {[["identity", "My Identity"], ["manual", "Your saved manual details"], ["vault_ocr", "Reviewed Vault OCR fields"]].map(([key, label]) => (
               <label key={key}>
                 <input type="checkbox" checked={sources.includes(key)} onChange={() => toggle(setSources, key)} />
                 {label}
@@ -369,6 +517,65 @@ export default function SmartFill({ page }) {
               <button type="button" onClick={saveManual}>Save securely</button>
             </div>
           </div>
+
+          <section className="smartfillOcr">
+            <div>
+              <b>Extract fields from your SecureID Vault</b>
+              <p>Process one stored image using SecureID's on-server English and Hindi OCR. PDF OCR is not enabled.</p>
+            </div>
+            <label>
+              Stored image
+              <select value={ocrDocumentId} onChange={(event) => { setOcrDocumentId(event.target.value); clearOcrReview(); }}>
+                <option value="">Choose a Vault image…</option>
+                {vaultDocuments.filter((item) => ["image/jpeg", "image/png", "image/webp"].includes(item.mimeType)).map((item) => (
+                  <option key={item.id} value={item.id}>{item.name} · {item.mimeType}</option>
+                ))}
+              </select>
+            </label>
+            {vaultLoading && <small>Loading your private Vault images…</small>}
+            <label className="smartfillOcrConsent">
+              <input type="checkbox" checked={ocrConsent} onChange={(event) => setOcrConsent(event.target.checked)} />
+              I consent to temporarily decrypt and process this image on the SecureID server for OCR. Temporary plaintext files will be deleted after processing; extracted text will not be saved unless I select and confirm fields below.
+            </label>
+            <button type="button" disabled={ocrBusy || !ocrConsent || !ocrDocumentId} onClick={runDocumentOcr}>
+              {ocrBusy ? "Extracting text securely…" : "Extract text from image"}
+            </button>
+            {ocrText && (
+              <div className="smartfillOcrReview">
+                <label>
+                  Temporary OCR text — review carefully
+                  <textarea rows={6} maxLength={20000} readOnly value={ocrText} />
+                </label>
+                <small>OCR may misread names, numbers and dates. Nothing here is government-verified.</small>
+                {Object.entries(ocrCandidates).length > 0 ? (
+                  <div className="smartfillOcrFields">
+                    <b>Detected fields — edit, then select only what you want to save</b>
+                    {Object.entries(ocrCandidates).map(([key, value]) => (
+                      <label key={key} className="smartfillOcrField">
+                        <input type="checkbox" checked={ocrSelected.includes(key)} onChange={() => toggle(setOcrSelected, key)} />
+                        <span>{labels[key] || key}</span>
+                        <input
+                          aria-label={`Reviewed OCR value for ${key}`}
+                          value={value}
+                          maxLength={500}
+                          onChange={(event) => setOcrCandidates((current) => ({ ...current, [key]: event.target.value }))}
+                        />
+                      </label>
+                    ))}
+                    <label className="smartfillOcrConsent">
+                      <input type="checkbox" checked={ocrReviewConfirmed} onChange={(event) => setOcrReviewConfirmed(event.target.checked)} />
+                      I checked and corrected the selected values. Save only these fields encrypted for future SmartFill suggestions.
+                    </label>
+                    <button type="button" disabled={ocrSaving || !ocrSelected.length || !ocrReviewConfirmed} onClick={saveReviewedOcr}>
+                      {ocrSaving ? "Saving encrypted fields…" : "Save selected reviewed fields"}
+                    </button>
+                  </div>
+                ) : <small>No supported field patterns were detected. You can copy text to review it manually, but it is not saved automatically.</small>}
+                <button type="button" disabled={ocrSaving} onClick={removeSavedOcr}>Remove saved OCR fields for this image</button>
+                <button type="button" onClick={clearOcrReview}>Clear temporary OCR preview</button>
+              </div>
+            )}
+          </section>
 
           <div className="smartfillCustom">
             <b>Custom field key</b>
@@ -463,7 +670,7 @@ export default function SmartFill({ page }) {
 
           {status && <p className="smartfillStatus" role="status">{status}</p>}
           <small className="smartfillFoot">
-            Document OCR suggestions are not enabled until SecureID has a user-scoped extraction and review service.
+            OCR is available for your stored JPEG, PNG and WebP images only. Server-side temporary files are deleted after processing. Only fields you edit, select and confirm are stored encrypted; OCR is not identity verification.
           </small>
         </div>
       )}
