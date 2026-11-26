@@ -74,6 +74,8 @@ jobs:
             await page.locator('.quickAccessGrid').waitFor({ state: 'visible', timeout: 20000 });
             const welcome = page.getByRole('button', { name: 'Continue securely' });
             if (await welcome.isVisible().catch(() => false)) await welcome.click();
+            await page.locator('.welcomeSplash').waitFor({ state: 'hidden', timeout: 5000 });
+            await page.waitForTimeout(400);
             await page.locator('.quickAccessGrid').waitFor({ state: 'visible' });
             return page;
           }
@@ -122,6 +124,43 @@ jobs:
                 await page.getByRole('heading', { name: 'Documents & Identity' }).waitFor({ state: 'visible', timeout: 10000 });
                 const active = await page.locator('.sidebar .navItem.active').innerText();
                 if (!/Document vault/i.test(active)) failures.push('Dashboard Document Vault shortcut did not activate its matching navigation item.');
+              }
+              // Exercise every available owner navigation page at both viewport sizes.
+              const navLabels = (await page.locator('.sidebar .navItem').allTextContents()).map(label => label.trim()).filter(Boolean);
+              for (const [navIndex, label] of navLabels.entries()) {
+                // Owner/Admin workspace is covered by the dedicated owner-console browser workflow.
+                // It intentionally switches the owner route and remounts the protected admin workspace.
+                if (label === 'Owner / Admin') continue;
+                const navButton = page.locator('.sidebar').getByRole('button', { name: label, exact: true });
+                await navButton.evaluate(element => element.scrollIntoView({ block: 'nearest', inline: 'center' }));
+                await navButton.evaluate(element => element.click());
+                await page.waitForTimeout(320);
+                const activeLabel = (await page.locator('.sidebar .navItem.active').innerText()).trim();
+                const activePage = await page.locator('.main').getAttribute('data-smartfill-page');
+                const currentPath = await page.evaluate(() => window.location.pathname);
+                console.log('NAVIGATION ' + viewport.name + ' ' + JSON.stringify({ requested: label, active: activeLabel, page: activePage, path: currentPath }));
+                if (!activeLabel.includes(label)) failures.push(viewport.name + ': navigation did not activate ' + label + '.');
+                const routeLayout = await page.evaluate(() => {
+                  const main = document.querySelector('.main');
+                  const controls = [...document.querySelectorAll('.main input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]), .main select, .main textarea')]
+                    .filter(element => element.getBoundingClientRect().width > 0)
+                    .map(element => ({
+                      fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+                      width: element.getBoundingClientRect().width,
+                      right: element.getBoundingClientRect().right,
+                      mainWidth: main?.getBoundingClientRect().width || window.innerWidth
+                    }));
+                  return {
+                    rootWidth: document.documentElement.scrollWidth,
+                    viewportWidth: window.innerWidth,
+                    mainWidth: main?.getBoundingClientRect().width || window.innerWidth,
+                    controls
+                  };
+                });
+                if (routeLayout.rootWidth > routeLayout.viewportWidth) failures.push(viewport.name + ': ' + label + ' page has horizontal overflow.');
+                if (routeLayout.controls.some(control => control.fontSize < 12 || control.width > routeLayout.mainWidth + 2 || control.right > routeLayout.viewportWidth + 1)) {
+                  failures.push(viewport.name + ': ' + label + ' page has a too-small or overflowing form control.');
+                }
               }
               await page.close();
             }

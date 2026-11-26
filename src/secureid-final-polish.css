@@ -1,0 +1,34 @@
+/* Final interaction polish after the shared layout and neutral theme layers. */
+#root .clearFieldButton:disabled {
+  display: none !important;
+}
+#root .identityProfileFields .clearFieldButton:not(:disabled),
+#root .documentVault .clearFieldButton:not(:disabled) {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  width: auto !important;
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  border: 1px solid #d8d4ff !important;
+  border-radius: 8px !important;
+  color: #5145d8 !important;
+  background: #f7f6ff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+#root .note {
+  color: #475467 !important;
+  background: #f5f9fb !important;
+  border-color: #dce7ee !important;
+}
+#root .note span {
+  color: #475467 !important;
+  opacity: 1 !important;
+  font-size: 13px;
+  line-height: 1.55;
+}
+#root .note strong {
+  color: #24364a !important;
+}

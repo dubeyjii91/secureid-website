@@ -12,6 +12,7 @@ const SecurityDashboard = lazy(() => import("./SecurityDashboard.jsx"));
 const OwnerAdminDashboard = lazy(() => import("./OwnerAdminDashboard.jsx"));
 const AdminDocumentVault = lazy(() => import("./AdminDocumentVault.jsx"));
 const SecureShareQR = lazy(() => import("./SecureShareQR.jsx"));
+const ScholarshipFinder = lazy(() => import("./ScholarshipFinder.jsx"));
 import api from "./api.js";
 import SmartFill from "./SmartFill.jsx";
 import SecureIcon from "./SecureIcon.jsx";
@@ -112,6 +113,7 @@ const navItems = [
   ["admin-documents", "All user documents", "files"],
   ["identity", "My identity", "id"],
   ["documents", "Document vault", "files"],
+  ["scholarships", "Scholarship finder", "graduation"],
   ["share", "Share ID", "share"],
   ["safety", "Safety check", "scan"],
   ["lock", "Emergency lock/unlock", "lock"],
@@ -900,8 +902,8 @@ function App() {
   }
 
   return <div className="shell">
-    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => (!["admin", "admin-documents"].includes(id) || sessionRole === "owner") && (sessionRole !== "owner" || !["college", "parent"].includes(id))).map(([id, label, icon]) => <button key={id} className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span className="navIcon"><SecureIcon name={icon} size={18} /></span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
-    <main className="main" data-smartfill-page={page}><SmartFill page={page} /><header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span><span className={sessionRole === "owner" ? "verifiedBadge ownerRoleBadge" : "verifiedBadge"}>{sessionRole === "owner" ? "Owner" : "User"}</span></div><button type="button" className="signOut topbarSignOut" onClick={signOut}>Sign out</button></div></header>
+    <aside className="sidebar"><div className="brand"><span className="shield">S</span><div><strong>SecureID</strong><small>Identity wallet</small></div></div><div className="navLabel">YOUR WALLET</div><nav>{navItems.filter(([id]) => (!["admin", "admin-documents"].includes(id) || sessionRole === "owner") && (sessionRole !== "owner" || !["college", "parent"].includes(id))).map(([id, label, icon]) => <button key={id} type="button" className={page === id ? "navItem active" : "navItem"} onClick={() => { setPage(id); const targetPath = id === "admin" ? "/admin" : "/"; if (window.location.pathname !== targetPath) window.history.pushState({ page: id }, "", targetPath); }}><span className="navIcon"><SecureIcon name={icon} size={18} /></span>{label}</button>)}</nav><div className="sideBottom"><div className="privacy"><span>✓</span><div><strong>Privacy first</strong><p>Only share the claims you choose.</p></div></div></div></aside>
+    <main className="main" data-smartfill-page={page}>{page !== "scholarships" && <SmartFill page={page} />}<header className="topbar"><div><div className="breadcrumb">SECUREID / {navItems.find(([id]) => id === page)?.[1].toUpperCase()}</div><h1>{page === "identity" ? "My SecureID" : navItems.find(([id]) => id === page)?.[1]}</h1></div><div className="topbarActions"><InstallSecureIDButton /><div className="textSizeControls" role="group" aria-label="Text size controls"><button type="button" className="textSizeButton" aria-label="Decrease text size" disabled={textScale <= 85} onClick={() => setTextScale((size) => Math.max(85, size - 5))}>A−</button><span aria-live="polite">{textScale}%</span><button type="button" className="textSizeButton" aria-label="Increase text size" disabled={textScale >= 125} onClick={() => setTextScale((size) => Math.min(125, size + 5))}>A+</button></div><div className="account"><span className="online" />{sessionUser}<span className="verifiedBadge">{mfaVerified ? "MFA verified" : "MFA pending"}</span><span className={sessionRole === "owner" ? "verifiedBadge ownerRoleBadge" : "verifiedBadge"}>{sessionRole === "owner" ? "Owner" : "User"}</span></div><button type="button" className="signOut topbarSignOut" onClick={signOut}>Sign out</button></div></header>
 
       {page === "dashboard" && <SecurityDashboard sessionRole={sessionRole} />}
       {page === "admin" && sessionRole === "owner" && <OwnerAdminDashboard />}
@@ -910,6 +912,7 @@ function App() {
       {page === "admin-documents" && sessionRole !== "owner" && <section className="content"><div className="panel">Owner permissions are required.</div></section>}
 
       {page === "documents" && <section className="content documentWorkspace"><DocumentVault /></section>}
+      {page === "scholarships" && <ScholarshipFinder />}
 
       {page === "identity" && <section className="content"><div className="functionHero"><div><div className="eyebrow dark">SECUREID SECURITY CENTER</div><h2>Privacy-first identity, protected by design.</h2><p>Keep control of your identity while every important action stays protected.</p></div><FunctionVisual label="SecureID identity protection" /></div><div className="profileGrid"><section className="panel profilePanel"><div className="panelHead"><div><div className="eyebrow dark">IDENTITY PROFILE</div><h2>Your identity profile</h2></div><span className="statusBadge success">✓ Account active</span></div><div className="profile"><div className="avatar">{sessionUser.slice(0, 1).toUpperCase()}</div><div><h3>{sessionUser.split("@")[0]}</h3><p>{sessionUser}</p></div></div><div className="details"><div><span>Identity ID</span><strong>SID-{sessionUser.slice(0, 4).toUpperCase()}-••••</strong></div><div><span>Authentication</span><strong>{mfaVerified ? "MFA verified" : "Verification required"}</strong></div><div><span>Wallet status</span><strong>{wallet.locked ? "Locked" : "Active"}</strong></div></div></section><section className="panel statusPanel"><div className="eyebrow dark">ACCOUNT SECURITY</div><h2>{riskState.label}</h2><div className={`securityIcon ${riskState.tone}`}>{riskState.tone === "success" ? "✓" : riskState.tone === "warning" ? "!" : "!"}</div><p>{riskState.detail}</p><div className="securityRow"><span>MFA</span><strong>{mfaVerified ? "Enabled" : "Required"}</strong></div><div className="securityRow"><span>Wallet</span><strong>{wallet.locked ? "Locked" : "Protected"}</strong></div></section></div><IdentityProfileEditor/><div className="note"><strong>Privacy note</strong><span>Your SecureID wallet keeps sharing selective. A share only includes the claims you explicitly select.</span></div></section>}
 
@@ -978,4 +981,3 @@ export default function SecureIDApp() {
 
 
 
-import "./secureid-global-product-ui.css";
