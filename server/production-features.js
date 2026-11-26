@@ -1,6 +1,8 @@
 ﻿import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { registerSmartFill } from "./smartfill.js";
+import { extractDocumentText } from "./document-ocr.js";
 import multer from "multer";
 import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
@@ -26,6 +28,18 @@ import { registerInstitutionPartnership } from "./institution-partnership.js";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
+const DOCUMENT_OCR_MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
+const documentOcrRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    code: "DOCUMENT_OCR_RATE_LIMITED",
+    message: "Too many OCR requests. Try again in a few minutes.",
+  },
+});
 const ALLOWED_DOCUMENT_CATEGORIES = new Set(["general","aadhaar","pan","passport","voter_id","driving_licence","student_id","institution_proof"]);
 const COLLEGE_REVIEW_CONSENT_VERSION = "college-review-v1";
 
@@ -104,6 +118,7 @@ export function registerProductionFeatures({
   });
 
   const key=createCryptoKey(isProduction);
+  registerSmartFill({ app, database, requireAuth, enforceSameOrigin, encryptValue: (value) => jsonEncrypt(value,key), decryptValue: (value) => jsonDecrypt(value,key), assertWalletUnlocked });
 
   const dataRoot=process.env.DOCUMENT_STORAGE_PATH || (
     isProduction ? "/data/secureid-documents" : path.join(process.cwd(),"data","secureid-documents")
@@ -696,6 +711,105 @@ export function registerProductionFeatures({
   });
 
   /*
+   * PRIVATE DOCUMENT OCR
+   * Only the authenticated owner's stored image is decrypted for a short-lived
+   * server-side OCR pass. The OCR helper removes its plaintext temporary files.
+   * Extracted text is returned only for review and is never persisted here.
+   */
+  app.post(
+    "/api/documents/:id/ocr",
+    documentOcrRateLimit,
+    enforceSameOrigin,
+    requireAuth,
+    requireMfaProduction,
+    async (req,res,next) => {
+      res.setHeader("Cache-Control","private, no-store, max-age=0");
+      res.setHeader("Pragma","no-cache");
+      try {
+        assertWalletUnlocked(req.user.id);
+        const row = database.prepare(`
+          SELECT id,mime_type,size_bytes,encrypted_path
+          FROM secure_documents
+          WHERE id=? AND user_id=? AND deleted_at IS NULL
+        `).get(String(req.params.id || ""), req.user.id);
+
+        if (!row) {
+          return res.status(404).json({success:false,message:"Document not found."});
+        }
+        if (!DOCUMENT_OCR_MIME.has(row.mime_type)) {
+          return res.status(415).json({
+            success:false,
+            code:"OCR_UNSUPPORTED_MEDIA",
+            message:"SecureID OCR supports PDF, JPEG, PNG and WebP files.",
+          });
+        }
+        if (!fs.existsSync(row.encrypted_path)) {
+          return res.status(404).json({success:false,message:"Document storage object is unavailable."});
+        }
+
+        const encrypted = JSON.parse(fs.readFileSync(row.encrypted_path,"utf8"));
+        const plaintext = decryptBuffer(encrypted,key);
+        if (
+          plaintext.length !== Number(row.size_bytes) ||
+          plaintext.length === 0 ||
+          plaintext.length > MAX_DOCUMENT_BYTES
+        ) {
+          return res.status(422).json({
+            success:false,
+            code:"OCR_DOCUMENT_INTEGRITY_FAILED",
+            message:"The stored image failed its size and integrity checks.",
+          });
+        }
+
+        const detected = await fileTypeFromBuffer(plaintext);
+        if (!detected || detected.mime !== row.mime_type || !DOCUMENT_OCR_MIME.has(detected.mime)) {
+          return res.status(422).json({
+            success:false,
+            code:"OCR_DOCUMENT_TYPE_MISMATCH",
+            message:"The stored image content does not match its recorded image type.",
+          });
+        }
+
+        const extraction = await extractDocumentText(plaintext,row.mime_type);
+        logEvent(req.user.id,"DOCUMENT_OCR_PROCESSED",req,{
+          mimeType:row.mime_type,
+          characterCount:extraction.text.length,
+          pagesProcessed:extraction.pagesProcessed,
+          method:extraction.method
+        });
+        return res.json({
+          success:true,
+          documentId:row.id,
+          text:extraction.text,
+          language:"eng+hin",
+          pagesProcessed:extraction.pagesProcessed,
+          pagesTotal:extraction.pagesTotal,
+          pageLimit:extraction.pageLimit,
+          truncated:extraction.truncated,
+          method:extraction.method,
+          persisted:false,
+          authenticityStatus:"not_verified",
+          message:"Extracted text is temporary, may contain mistakes and is not proof of identity.",
+        });
+      } catch(error) {
+        if (error?.code === "OCR_UNSUPPORTED_MEDIA") {
+          return res.status(415).json({success:false,code:error.code,message:error.message});
+        }
+        if (error?.code === "OCR_TIMEOUT") {
+          return res.status(504).json({success:false,code:error.code,message:error.message});
+        }
+        if (error?.code === "OCR_ENGINE_UNAVAILABLE") {
+          return res.status(503).json({success:false,code:error.code,message:"SecureID OCR is temporarily unavailable on this server."});
+        }
+        if (error?.code?.startsWith("OCR_")) {
+          return res.status(422).json({success:false,code:error.code,message:error.message});
+        }
+        return next(error);
+      }
+    }
+  );
+
+  /*
    * DOCUMENT UPLOAD
    */
   app.post(
@@ -869,7 +983,10 @@ export function registerProductionFeatures({
           throw error;
         }
         // Remove superseded encrypted files only after the DB commit succeeds.
-        for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
+        for(const old of previous){
+          database.prepare("DELETE FROM smartfill_document_data WHERE user_id=? AND document_id=?").run(req.user.id,old.id);
+          try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{}
+        }
         logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED",req);
         res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
       }catch(error){ next(error); }
@@ -1083,6 +1200,9 @@ export function registerProductionFeatures({
           WHERE id = ?
             AND user_id = ?
         `).run(now,req.params.id,req.user.id);
+        // Remove encrypted OCR-derived fields when the source Vault document is deleted.
+        database.prepare("DELETE FROM smartfill_document_data WHERE user_id=? AND document_id=?")
+          .run(req.user.id,req.params.id);
 
         const affectedReviews = database.prepare(`
           SELECT id, institution_id AS institutionId, status

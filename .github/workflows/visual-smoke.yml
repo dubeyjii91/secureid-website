@@ -26,9 +26,11 @@ jobs:
           node-version: 24
       - name: Install application and browser-test dependencies
         run: |
-          npm install --no-audit --no-fund
-          npm install --no-save --no-package-lock playwright
-          npx playwright install --with-deps chromium
+          npm ci --no-audit --no-fund
+          mkdir -p /tmp/secureid-browser-deps
+          npm install --prefix /tmp/secureid-browser-deps --no-audit --no-fund playwright
+          ln -s /tmp/secureid-browser-deps/node_modules/playwright node_modules/playwright
+          /tmp/secureid-browser-deps/node_modules/.bin/playwright install --with-deps chromium
       - name: Build the exact pull-request frontend
         run: npm run build
       - name: Start isolated production preview

@@ -21,13 +21,15 @@ jobs:
         with:
           node-version: 24
       - name: Install application dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Build production frontend
         run: npm run build
       - name: Install Playwright Chromium
         run: |
-          npm install --no-save --no-package-lock playwright
-          npx playwright install --with-deps chromium
+          mkdir -p /tmp/secureid-browser-deps
+          npm install --prefix /tmp/secureid-browser-deps --no-audit --no-fund playwright
+          ln -s /tmp/secureid-browser-deps/node_modules/playwright node_modules/playwright
+          /tmp/secureid-browser-deps/node_modules/.bin/playwright install --with-deps chromium
       - name: Start isolated local preview
         run: |
           npm run preview -- --host 127.0.0.1 > /tmp/secureid-preview.log 2>&1 &
