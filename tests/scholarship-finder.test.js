@@ -36,7 +36,7 @@ test("Scholarship Finder provides local filters and a non-submitting document ch
 });
 
 test("institution workspace scholarship management is explicitly limited to partner programs", () => {
-  assert.match(collegeScholarships, /institution (itself )?publishes/i);
+  assert.match(collegeScholarships, /published by an institution/i);
   assert.match(collegeScholarships, /not e-Kalyan|not.*government/i);
 });
 
