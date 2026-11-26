@@ -11,7 +11,7 @@
   --sid-line: #e1e5ed;
   --sid-line-strong: #c8cfdd;
   --sid-accent: #6257d9;
-  --sid-accent-strong: #4f45c5;
+  --sid-accent-strong: #5145d8;
   --sid-accent-soft: #f0efff;
   --sid-positive: #176b4d;
   --sid-positive-bg: #eaf7f0;
@@ -52,7 +52,7 @@ body::before { content: none !important; display: none !important; }
 #root .sidebar nav { display:grid; gap:6px; }
 #root .navItem {
   display:flex; align-items:center; gap:11px; min-height:44px; padding:10px 12px;
-  color:#4e596b !important; background:transparent !important; border:1px solid transparent !important;
+  color:#474d57 !important; background:transparent !important; border:1px solid transparent !important;
   border-radius:10px !important; font-size:13.5px; font-weight:600; line-height:1.4; text-align:left;
 }
 #root .navItem:hover { color:var(--sid-ink) !important; background:#f5f6fa !important; }
@@ -280,5 +280,5 @@ body::before { content: none !important; display: none !important; }
   color:#1d2939 !important; background:#fff !important; border-color:#cbd2df !important; opacity:1 !important;
 }
 #root:is(#root) input::placeholder, #root:is(#root) textarea::placeholder { color:#7c8799 !important; opacity:1 !important; }
-#root:is(#root) .navItem { color:#4e596b !important; background:transparent !important; }
+#root:is(#root) .navItem { color:#474d57 !important; background:transparent !important; }
 #root:is(#root) .navItem.active { color:var(--sid-accent-strong) !important; background:var(--sid-accent-soft) !important; border-color:#e2dfff !important; }
