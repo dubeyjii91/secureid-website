@@ -122,6 +122,16 @@ test("SmartFill enforces consent, stable keys, ambiguity, MFA and value-free aud
   });
   assert.equal(deniedWithWrongToken.status, 409);
 
+  const partialReview = await fetch(base + "/api/smartfill/review", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      formId: "admission",
+      fieldKeys: [conflict.suggestions[0].fieldKey],
+    }),
+  });
+  assert.equal(partialReview.status, 400);
+
   const reviewResponse = await fetch(base + "/api/smartfill/review", {
     method: "POST",
     headers,
