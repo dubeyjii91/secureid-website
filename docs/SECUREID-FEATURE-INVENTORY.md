@@ -34,6 +34,7 @@ These require the appropriate active institution membership/role; they are not a
 - Institution Management modules in the current source: Students, Staff, Academics, Finance/Fees, Homework/Assignments, Notices, Service Queue, Library, Academic Calendar, Examinations, Grievances/Helpdesk, Certificates, Reports/Exports, HR and School Posts.
 - Hostel/Warden inventory and occupancy/history workflows.
 - Parent Portal with authorized linked-child access to published attendance, fee, homework and result records. Parent access is read-only and requires an active link/membership.
+- Student-facing Scholarship Finder: domicile/study-level filters, official Bihar PMS/Jharkhand e-Kalyan/NSP links, and a local document-readiness checklist. Students still submit on the government portal; SecureID does not submit the form.
 - Partner/institution-funded scholarship publishing, applications and consented document-reference review. This is not a government scholarship submission service.
 
 ### Owner / Admin
@@ -57,12 +58,12 @@ Owner-only and MFA-protected controls include:
 | Off-site scheduled backup | Workflow merged; it remains inactive until matching `SECUREID_BACKUP_TRIGGER_TOKEN` GitHub Actions secret and Railway `BACKUP_TRIGGER_TOKEN` are configured. When absent, the workflow warns and skips. Private workflow artifacts retain encrypted backup files for 7 days; they are not permanent disaster recovery. |
 | Payment gateway | Razorpay integration work is not active for live collection; merchant onboarding/KYC and provider secrets are prerequisites. No payment may be treated as paid without a verified gateway event. |
 | SMS OTP | MSG91 branch is not merged/activated; provider credentials and a security review are required. Email OTP remains the configured MFA path. |
-| Government scholarships | Students apply and submit on the official scheme portal. SecureID does not submit Bihar PMS, Jharkhand e-Kalyan or NSP forms, does not handle portal passwords/OTPs/bank credentials and does not guarantee eligibility/approval. |
+| Government scholarships | Scholarship Finder and official portal handoffs are live. Students apply and submit on the official scheme portal. SecureID does not submit Bihar PMS, Jharkhand e-Kalyan or NSP forms, does not handle portal passwords/OTPs/bank credentials and does not guarantee eligibility/approval. |
 | Passport photo/signature attachment | Vault can store images, but SmartFill does not auto-attach files to third-party forms. The browser requires the user to choose files on the external portal. |
 | Android / Play Store | Android preview app exists; no Play Store launch or production release is claimed. |
 
 ## Pending work tracked separately
-- PR #238: Scholarship Finder plus consolidated sitewide UI layer. It is not production until CI, visual smoke, CodeQL and owner-console checks all pass and it is merged/deployed.
+- PR #238: Scholarship Finder plus consolidated sitewide UI layer is merged. CI, CodeQL, visual smoke and owner-console checks passed; Railway deployment for commit `f3c9443f4ddd607be13e4e4d2904f4969c5ade94` succeeded.
 - Issue #91: Vault roadmap items and release-readiness checks not yet completed.
 - Issue #93: mobile OCR/expiry reminders are delivered, but physical-device/privacy/upgrade checks and PDF OCR remain open.
 - Issue #121: monetization foundation scope remains open; real payment activation requires separate approval and provider setup.
