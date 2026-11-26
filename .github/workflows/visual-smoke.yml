@@ -74,6 +74,8 @@ jobs:
             await page.locator('.quickAccessGrid').waitFor({ state: 'visible', timeout: 20000 });
             const welcome = page.getByRole('button', { name: 'Continue securely' });
             if (await welcome.isVisible().catch(() => false)) await welcome.click();
+            await page.locator('.welcomeSplash').waitFor({ state: 'hidden', timeout: 5000 });
+            await page.waitForTimeout(400);
             await page.locator('.quickAccessGrid').waitFor({ state: 'visible' });
             return page;
           }
