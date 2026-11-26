@@ -973,7 +973,10 @@ export function registerProductionFeatures({
           throw error;
         }
         // Remove superseded encrypted files only after the DB commit succeeds.
-        for(const old of previous){ try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{} }
+        for(const old of previous){
+          database.prepare("DELETE FROM smartfill_document_data WHERE user_id=? AND document_id=?").run(req.user.id,old.id);
+          try{ fs.rmSync(old.encrypted_path,{force:true}); }catch{}
+        }
         logEvent(req.user.id,category==="student_id"?"STUDENT_ID_PROOF_UPDATED":"INSTITUTION_PROOF_UPDATED",req);
         res.status(201).json({success:true,document:{id,name:safeFilename(req.file.originalname),mimeType:req.file.mimetype,sizeBytes:req.file.size,category,createdAt:now}});
       }catch(error){ next(error); }
