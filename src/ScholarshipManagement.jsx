@@ -144,15 +144,15 @@ export default function ScholarshipManagement() {
   }
 
   return <section className="panel collegeReviewPanel hostelPanel scholarshipPanel">
-    <div className="eyebrow dark">SCHOLARSHIP MANAGEMENT</div>
-    <h2>Scholarship programs & applications</h2>
-    <p className="lead">Institutions publish scholarship opportunities, students apply using references to documents in their SecureID Vault, and authorized reviewers record decisions. Document files are not shared with staff through this workflow.</p>
+    <div className="eyebrow dark">SCHOLARSHIP SUPPORT</div>
+    <h2>Government guidance & institution scholarships</h2>
+    <p className="lead">Use the official government portals below for government schemes. Applications in the SecureID workspace are only for scholarships published by a connected college, school, trust or sponsor; SecureID does not submit government scholarship forms.</p>
     <section className="scholarshipOfficialHub" aria-labelledby="scholarship-official-hub-title">
       <div className="scholarshipOfficialHubHead">
         <div>
           <div className="eyebrow dark">GOVERNMENT SCHOLARSHIP ASSISTANT</div>
-          <h3 id="scholarship-official-hub-title">Find and apply on the official portal</h3>
-          <p>SecureID helps you keep documents ready and find the correct application site. Government scholarship forms are submitted on the official portal—not on SecureID.</p>
+          <h3 id="scholarship-official-hub-title">Official government scholarship portals</h3>
+          <p>Open the official site for scheme details, eligibility, current dates and application status. SecureID keeps your Vault documents organized; you complete and submit the government form on that site.</p>
         </div>
         <span className="scholarshipOfficialHubBadge">Official submission</span>
       </div>
@@ -191,7 +191,7 @@ export default function ScholarshipManagement() {
       </div>}
 
       <div className="hostelApplications">
-        <h3>Available scholarship programs</h3>
+        <h3>Scholarships published by your institution</h3>
         {programs.length === 0 ? <p className="lead">No scholarship programs have been published for your institution yet.</p> : <div className="collegeRequestList">{programs.map(program => <article className="collegeRequest" key={program.id}>
           <strong>{program.title}</strong><span className="collegeStatus">{program.status}</span>
           <small>{program.institutionName} · Award ₹{(program.awardAmountPaise / 100).toFixed(2)} · Deadline {program.deadline}</small>
@@ -201,7 +201,7 @@ export default function ScholarshipManagement() {
       </div>
 
       {students.length > 0 && <div className="hostelApplications">
-        <h3>Apply for a scholarship</h3>
+        <h3>Apply to an institution scholarship</h3>
         <p className="collegePrivacyNote">Choose only documents relevant to this application. SecureID sends document references and metadata; the institution does not receive permission to download the files. Do not enter Aadhaar numbers, bank details, OTPs or passwords in the note.</p>
         <form className="collegeSubmissionForm" onSubmit={apply}>
           <label>Scholarship program<select required value={applicationDraft.programId} onChange={event => setApplicationDraft(value => ({ ...value, programId: event.target.value }))}><option value="">Choose an active scholarship</option>{programs.filter(program => program.status === "active" && program.deadline >= new Date().toISOString().slice(0, 10) && students.some(item => item.institutionId === program.institutionId)).map(program => <option key={program.id} value={program.id}>{program.institutionName} · {program.title} · ₹{(program.awardAmountPaise / 100).toFixed(2)}</option>)}</select><button type="button" className="secondary clearFieldButton" onClick={() => setApplicationDraft(value => ({ ...value, programId: "" }))} disabled={!applicationDraft.programId}>Clear value</button></label>
