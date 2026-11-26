@@ -8,6 +8,7 @@ import "./secureid-global-product-ui.css"
 import "./secureid-premium-neutral.css"
 import "./secureid-consistent-sizing.css"
 import "./scholarship-finder.css"
+import "./secureid-final-polish.css"
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
