@@ -15,10 +15,16 @@ test("Scholarship Finder is available as a first-class authenticated workspace",
   assert.ok(main.includes('import "./secureid-global-product-ui.css"'));
 });
 
-test("government scholarship applications always open the official portal", () => {
-  assert.ok(finder.includes("https://pmsonline.bihar.gov.in/2026-27/pms/pms_online/Default.aspx"));
-  assert.ok(finder.includes("https://ekalyan.cgg.gov.in/"));
-  assert.ok(finder.includes("https://scholarships.gov.in/All-Scholarships"));
+test("government scholarship applications use only the exact official portal URLs", () => {
+  const portalUrls = Array.from(finder.matchAll(/^\\s*(?:url|secondaryUrl):\\s*"([^"]+)"/gm), match => match[1]);
+  assert.deepEqual(portalUrls, [
+    "https://pmsonline.bihar.gov.in/2026-27/pms/pms_online/Default.aspx",
+    "https://pmsonline.bihar.gov.in/",
+    "https://ekalyan.cgg.gov.in/",
+    "https://www.cgg.gov.in/it_project/e-kalyan-government-of-jharkhand/",
+    "https://scholarships.gov.in/All-Scholarships",
+    "https://scholarships.gov.in/Students"
+  ]);
   assert.ok(finder.includes("Applications reopened"));
   assert.ok(finder.includes("30 November 2026"));
   assert.match(finder, /Government applications are submitted on their official websites/);
