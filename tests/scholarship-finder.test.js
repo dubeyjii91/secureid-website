@@ -16,7 +16,7 @@ test("Scholarship Finder is available as a first-class authenticated workspace",
 });
 
 test("government scholarship applications use only the exact official portal URLs", () => {
-  const portalUrls = Array.from(finder.matchAll(/^\\s*(?:url|secondaryUrl):\\s*"([^"]+)"/gm), match => match[1]);
+  const portalUrls = Array.from(finder.matchAll(/^\s*(?:url|secondaryUrl):\s*"([^"]+)"/gm), match => match[1]);
   assert.deepEqual(portalUrls, [
     "https://pmsonline.bihar.gov.in/2026-27/pms/pms_online/Default.aspx",
     "https://pmsonline.bihar.gov.in/",
