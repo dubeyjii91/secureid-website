@@ -8,7 +8,7 @@ RUN apk add --no-cache su-exec poppler-utils tesseract-ocr tesseract-ocr-data-en
     && chown node:node /app
 USER node
 COPY --chown=node:node package*.json ./
-RUN npm install --include=dev --no-audit --no-fund
+RUN npm ci --include=dev --no-audit --no-fund
 COPY --chown=node:node . .
 RUN npm run build
 COPY --chown=node:node --chmod=755 scripts/docker-entrypoint.sh /usr/local/bin/secureid-entrypoint
