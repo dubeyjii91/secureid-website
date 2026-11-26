@@ -93,7 +93,7 @@ test("Vault OCR is private, rate-limited, temporary and limited to supported sto
   assert.match(route, /WHERE id=\? AND user_id=\? AND deleted_at IS NULL/);
   assert.match(route, /await fileTypeFromBuffer\(plaintext\)/);
   assert.match(route, /persisted:false/);
-  assert.match(route, /image\/jpeg.*image\/png.*image\/webp/s);
+  assert.match(backend, /const DOCUMENT_OCR_MIME = new Set\(\["image\/jpeg","image\/png","image\/webp"\]\)/);
   assert.match(ocrHelper, /mkdtemp/);
   assert.match(ocrHelper, /await fs\.rm\(workingDirectory, \{ recursive: true, force: true \}\)/);
   assert.match(ocrHelper, /maxBuffer: 128 \* 1024/);
